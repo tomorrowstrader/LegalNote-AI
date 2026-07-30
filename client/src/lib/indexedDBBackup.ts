@@ -175,6 +175,11 @@ class IndexedDBBackup {
     });
   }
 
+  /** Alias for getSessionChunks — used by recovery UI. */
+  async getChunks(sessionId: string): Promise<StoredChunk[]> {
+    return this.getSessionChunks(sessionId);
+  }
+
   async getPendingChunks(sessionId: string): Promise<StoredChunk[]> {
     const chunks = await this.getSessionChunks(sessionId);
     return chunks.filter(c => !c.uploaded);

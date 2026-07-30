@@ -18,6 +18,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { RecordingSyncIndicator } from "@/components/RecordingSyncIndicator";
 
 export type ControlCenterTone =
   | "recording"
@@ -31,6 +32,8 @@ export interface RecordingControlCenterSafeguards {
   online?: boolean;
   isUploading?: boolean;
   chunksUploaded?: number;
+  pendingChunks?: number;
+  lastSyncTime?: Date | null;
   showChunkStatus?: boolean;
 }
 
@@ -133,10 +136,13 @@ export default function RecordingControlCenter({
   const styles = toneStyles[tone];
   const Icon = icon === "video" ? Video : Mic;
   const showProtected = safeguards?.protected === true;
-  // Quiet by default: only surface sync when uploading or offline
+  // Show sync chip when uploading, offline, or pending chunks waiting
   const showNetwork =
     !!safeguards?.showChunkStatus &&
-    (!!safeguards.isUploading || safeguards.online === false);
+    (!!safeguards.isUploading ||
+      safeguards.online === false ||
+      (safeguards.pendingChunks ?? 0) > 0);
+  const showSyncIndicator = !!safeguards?.showChunkStatus;
   const batteryLow =
     alerts?.batteryLevel != null && alerts.batteryLevel < 20
       ? alerts.batteryLevel
@@ -321,7 +327,7 @@ export default function RecordingControlCenter({
             </div>
           </div>
 
-          {(showProtected || showNetwork || alerts?.isSilent || batteryLow != null) && (
+          {(showProtected || showNetwork || showSyncIndicator || alerts?.isSilent || batteryLow != null) && (
             <div className="mt-3 flex flex-wrap items-center gap-1.5">
               {showProtected && (
                 <Tooltip>
@@ -335,12 +341,23 @@ export default function RecordingControlCenter({
                     </span>
                   </TooltipTrigger>
                   <TooltipContent side="top" className="max-w-[240px] text-xs">
-                    Safeguards active: tab-close warning, consent segment, and recovery available.
+                    Safeguards active: tab-close warning, local + cloud chunk backup, and recovery available.
                   </TooltipContent>
                 </Tooltip>
               )}
 
-              {showNetwork && (
+              {showSyncIndicator && (
+                <RecordingSyncIndicator
+                  isRecording
+                  chunksUploaded={safeguards?.chunksUploaded ?? 0}
+                  lastSyncTime={safeguards?.lastSyncTime ?? null}
+                  networkOnline={safeguards?.online !== false}
+                  pendingChunks={safeguards?.pendingChunks ?? 0}
+                  className="rounded-full border border-border/60 px-2 py-0.5 text-[11px]"
+                />
+              )}
+
+              {showNetwork && !showSyncIndicator && (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span
@@ -363,7 +380,7 @@ export default function RecordingControlCenter({
                   <TooltipContent side="top" className="max-w-[240px] text-xs">
                     {safeguards?.isUploading
                       ? "Uploading the latest audio chunk to secure storage."
-                      : "Offline — chunks will upload when you reconnect."}
+                      : "Offline — chunks are saved locally and will upload when you reconnect."}
                   </TooltipContent>
                 </Tooltip>
               )}

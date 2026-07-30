@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { apiRequest } from "@/lib/queryClient";
 import { indexedDBBackup } from "@/lib/indexedDBBackup";
+import { useBeforeUnloadWarning } from "@/hooks/useBeforeUnloadWarning";
 
 const CHUNK_INTERVAL_MS = 10000;
 const RECORDING_SESSION_KEY = 'legalnote_recording_session';
@@ -53,42 +54,15 @@ interface UseChunkedRecordingReturn {
 }
 
 /**
- * DUAL RECORDING FEASIBILITY ASSESSMENT (November 2025)
- * 
- * CONCLUSION: Not implemented - Current protections are sufficient
- * 
- * CURRENT PROTECTION LAYERS (equivalent to dual recording benefits):
- * 1. Chunked uploads every 10 seconds - Max data loss is 10 seconds
- * 2. Local audioChunks array - Full recording kept in memory until finalized
- * 3. Server-side chunk reassembly - Chunks stored independently on server
- * 4. Network monitoring with automatic retry - Failed chunks queued for retry
- * 5. Session recovery via localStorage - Can detect/recover interrupted sessions
- * 6. Consent segment preservation - First 15 seconds saved separately
- * 
- * DUAL RECORDING OPTIONS EVALUATED:
- * 
- * Option A: Two MediaRecorder instances (different codecs)
- * - Pros: Format redundancy (WebM + MP4)
- * - Cons: Doubles CPU/memory usage, both fail on mic disconnect
- * - Verdict: REJECTED - Same failure modes, high overhead
- * 
- * Option B: IndexedDB backup alongside server upload
- * - Pros: True local backup, survives page reload
- * - Cons: Storage quotas, cleanup complexity, browser inconsistencies
- * - Verdict: DEFERRED - Marginal benefit vs. chunked uploads
- * 
- * Option C: Web Workers for parallel processing
- * - Pros: Non-blocking encoding
- * - Cons: Complexity, SharedArrayBuffer restrictions
- * - Verdict: REJECTED - Overkill for current use case
- * 
- * RECOMMENDATION: Current 10-second chunked upload system provides
- * equivalent protection to dual recording with simpler architecture.
- * Maximum data loss is 10 seconds (one chunk) which is acceptable
- * for legal meeting recordings. Further investment should focus on:
- * - Improving chunk upload reliability
- * - Better offline detection
- * - Session recovery UI improvements
+ * Quick Record chunked upload + local-first backup.
+ *
+ * Protection layers:
+ * 1. IndexedDB — every chunk is written locally before (or instead of) upload
+ * 2. EU cloud object storage — 10s chunk uploads with retry
+ * 3. Postgres session metadata — incomplete sessions are discoverable for recovery
+ *
+ * While online, max loss on hard kill is roughly one chunk interval (~10s) that
+ * has not yet fired dataavailable. Offline chunks persist in IndexedDB until sync.
  */
 
 const getSupportedMimeType = (): { mimeType: string; extension: string } => {
@@ -126,6 +100,7 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
   const [pendingChunksCount, setPendingChunksCount] = useState(0);
   const [batteryLevel, setBatteryLevel] = useState<number | null>(null);
   const [isSilent, setIsSilent] = useState(false);
+  const [chunkSessionId, setChunkSessionId] = useState<string | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -139,77 +114,24 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
   const silenceCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const networkOnlineRef = useRef(
+    typeof navigator !== 'undefined' ? navigator.onLine : true,
+  );
+  const uploadChunkRef = useRef<(chunkNumber: number, chunkBlob: Blob) => Promise<boolean>>();
+  const retryPendingChunksRef = useRef<() => Promise<void>>();
 
-  useEffect(() => {
-    const handleOnline = () => {
-      const status = { online: true };
-      setNetworkStatus(status);
-      onNetworkStatusChange?.(status);
-      retryPendingChunks();
-    };
+  useBeforeUnloadWarning({
+    enabled: isRecording,
+    sessionId: chunkSessionId,
+  });
 
-    const handleOffline = () => {
-      const status = { online: false };
-      setNetworkStatus(status);
-      onNetworkStatusChange?.(status);
-    };
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    if ('connection' in navigator) {
-      const connection = (navigator as any).connection;
-      const updateConnectionInfo = () => {
-        setNetworkStatus(prev => ({
-          ...prev,
-          effectiveType: connection.effectiveType,
-          downlink: connection.downlink,
-        }));
-      };
-      connection.addEventListener('change', updateConnectionInfo);
-      updateConnectionInfo();
-    }
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, [onNetworkStatusChange]);
-
-  // Battery monitoring
-  useEffect(() => {
-    if (!('getBattery' in navigator)) return;
-    
-    let battery: any = null;
-    
-    const updateBatteryLevel = () => {
-      if (battery) {
-        setBatteryLevel(Math.round(battery.level * 100));
-      }
-    };
-    
-    (navigator as any).getBattery().then((b: any) => {
-      battery = b;
-      updateBatteryLevel();
-      battery.addEventListener('levelchange', updateBatteryLevel);
-    }).catch(() => {
-      // Battery API not available
-    });
-    
-    return () => {
-      if (battery) {
-        battery.removeEventListener('levelchange', updateBatteryLevel);
-      }
-    };
-  }, []);
-
-  const updateLocalSession = useCallback((duration: number, chunkSessionId?: string, chunksUploaded?: number) => {
+  const updateLocalSession = useCallback((duration: number, sessionId?: string, chunksUploaded?: number) => {
     try {
       const session: RecordingSession = {
         startedAt: new Date().toISOString(),
         duration,
         lastUpdateAt: new Date().toISOString(),
-        chunkSessionId,
+        chunkSessionId: sessionId,
         chunksUploaded,
       };
       localStorage.setItem(RECORDING_SESSION_KEY, JSON.stringify(session));
@@ -221,17 +143,21 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
     localStorage.removeItem(RECORDING_SESSION_KEY);
   }, []);
 
-  const uploadChunk = useCallback(async (chunkNumber: number, chunkBlob: Blob): Promise<boolean> => {
-    if (!chunkSessionRef.current) return false;
-
-    const sessionId = chunkSessionRef.current.sessionId;
-
-    // Store chunk locally first (IndexedDB backup)
+  const persistChunkLocally = useCallback(async (sessionId: string, chunkNumber: number, chunkBlob: Blob) => {
     try {
       await indexedDBBackup.storeChunk(sessionId, chunkNumber, chunkBlob);
     } catch (e) {
       console.warn('[IndexedDB] Failed to backup chunk locally:', e);
     }
+  }, []);
+
+  const uploadChunk = useCallback(async (chunkNumber: number, chunkBlob: Blob): Promise<boolean> => {
+    if (!chunkSessionRef.current) return false;
+
+    const sessionId = chunkSessionRef.current.sessionId;
+
+    // Local-first: durable on device before network attempt
+    await persistChunkLocally(sessionId, chunkNumber, chunkBlob);
 
     const formData = new FormData();
     formData.append('chunk', chunkBlob, `chunk_${chunkNumber}`);
@@ -260,7 +186,6 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
       setPendingChunksCount(pendingChunksRef.current.size);
       onChunkUploaded?.(chunkNumber, result.chunksReceived);
       
-      // Mark chunk as uploaded in IndexedDB
       try {
         await indexedDBBackup.markChunkUploaded(sessionId, chunkNumber);
       } catch (e) {
@@ -274,17 +199,108 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
       setPendingChunksCount(pendingChunksRef.current.size);
       return false;
     }
-  }, [onChunkUploaded]);
+  }, [onChunkUploaded, persistChunkLocally]);
 
   const retryPendingChunks = useCallback(async () => {
     if (pendingChunksRef.current.size === 0) return;
 
-    const pendingEntries = Array.from(pendingChunksRef.current.entries());
+    const pendingEntries = Array.from(pendingChunksRef.current.entries()).sort(
+      ([a], [b]) => a - b,
+    );
     for (const [chunkNum, blob] of pendingEntries) {
       const success = await uploadChunk(chunkNum, blob);
       if (!success) break;
     }
   }, [uploadChunk]);
+
+  uploadChunkRef.current = uploadChunk;
+  retryPendingChunksRef.current = retryPendingChunks;
+
+  const hydratePendingFromIndexedDB = useCallback(async (sessionId: string) => {
+    try {
+      const pending = await indexedDBBackup.getPendingChunks(sessionId);
+      for (const chunk of pending) {
+        if (!pendingChunksRef.current.has(chunk.chunkNumber)) {
+          pendingChunksRef.current.set(chunk.chunkNumber, chunk.data);
+        }
+      }
+      setPendingChunksCount(pendingChunksRef.current.size);
+    } catch (e) {
+      console.warn('[IndexedDB] Failed to hydrate pending chunks:', e);
+    }
+  }, []);
+
+  const syncPendingAfterReconnect = useCallback(async () => {
+    const sessionId = chunkSessionRef.current?.sessionId;
+    if (sessionId) {
+      await hydratePendingFromIndexedDB(sessionId);
+    }
+    await retryPendingChunksRef.current?.();
+  }, [hydratePendingFromIndexedDB]);
+
+  useEffect(() => {
+    const handleOnline = () => {
+      networkOnlineRef.current = true;
+      const status = { online: true };
+      setNetworkStatus(status);
+      onNetworkStatusChange?.(status);
+      void syncPendingAfterReconnect();
+    };
+
+    const handleOffline = () => {
+      networkOnlineRef.current = false;
+      const status = { online: false };
+      setNetworkStatus(status);
+      onNetworkStatusChange?.(status);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    if ('connection' in navigator) {
+      const connection = (navigator as any).connection;
+      const updateConnectionInfo = () => {
+        setNetworkStatus(prev => ({
+          ...prev,
+          effectiveType: connection.effectiveType,
+          downlink: connection.downlink,
+        }));
+      };
+      connection.addEventListener('change', updateConnectionInfo);
+      updateConnectionInfo();
+    }
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [onNetworkStatusChange, syncPendingAfterReconnect]);
+
+  useEffect(() => {
+    if (!('getBattery' in navigator)) return;
+    
+    let battery: any = null;
+    
+    const updateBatteryLevel = () => {
+      if (battery) {
+        setBatteryLevel(Math.round(battery.level * 100));
+      }
+    };
+    
+    (navigator as any).getBattery().then((b: any) => {
+      battery = b;
+      updateBatteryLevel();
+      battery.addEventListener('levelchange', updateBatteryLevel);
+    }).catch(() => {
+      // Battery API not available
+    });
+    
+    return () => {
+      if (battery) {
+        battery.removeEventListener('levelchange', updateBatteryLevel);
+      }
+    };
+  }, []);
 
   const createChunkSession = useCallback(async (): Promise<string | null> => {
     try {
@@ -298,8 +314,8 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
         lastUploadTime: new Date(),
         totalBytesUploaded: 0,
       };
+      setChunkSessionId(response.sessionId);
       
-      // Create IndexedDB session for local backup
       try {
         await indexedDBBackup.createSession(response.sessionId, audioFormatRef.current.mimeType);
       } catch (e) {
@@ -331,18 +347,23 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
       audioChunksRef.current = [];
       chunkNumberRef.current = 0;
       pendingChunksRef.current.clear();
+      setPendingChunksCount(0);
 
       mediaRecorder.ondataavailable = async (event) => {
         if (event.data.size > 0) {
           audioChunksRef.current.push(event.data);
           const currentChunkNumber = chunkNumberRef.current++;
-          
-          if (networkStatus.online) {
+
+          if (networkOnlineRef.current) {
+            // uploadChunk persists to IndexedDB first, then POSTs
             setIsUploading(true);
-            await uploadChunk(currentChunkNumber, event.data);
+            await uploadChunkRef.current?.(currentChunkNumber, event.data);
             setIsUploading(false);
           } else {
+            // Offline: durable local only — never leave chunks in memory alone
+            await persistChunkLocally(sessionId, currentChunkNumber, event.data);
             pendingChunksRef.current.set(currentChunkNumber, event.data);
+            setPendingChunksCount(pendingChunksRef.current.size);
           }
         }
       };
@@ -354,7 +375,6 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
       setIsSilent(false);
       lastAudioActivityRef.current = Date.now();
 
-      // Set up audio analysis for silence detection
       try {
         const audioContext = new AudioContext();
         const analyser = audioContext.createAnalyser();
@@ -401,7 +421,7 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
       onError?.(error as Error);
       return false;
     }
-  }, [createChunkSession, networkStatus.online, uploadChunk, updateLocalSession, onError]);
+  }, [createChunkSession, persistChunkLocally, updateLocalSession, onError]);
 
   const cleanupAudioAnalysis = useCallback(() => {
     if (silenceCheckIntervalRef.current) {
@@ -439,8 +459,8 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
         
         setIsRecording(false);
         
-        if (pendingChunksRef.current.size > 0 && networkStatus.online) {
-          await retryPendingChunks();
+        if (pendingChunksRef.current.size > 0 && networkOnlineRef.current) {
+          await retryPendingChunksRef.current?.();
         }
 
         resolve(audioBlob);
@@ -448,7 +468,7 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
 
       mediaRecorderRef.current.stop();
     });
-  }, [networkStatus.online, retryPendingChunks, cleanupAudioAnalysis]);
+  }, [cleanupAudioAnalysis]);
 
   const cancelRecording = useCallback(() => {
     if (durationIntervalRef.current) {
@@ -465,16 +485,20 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
     streamRef.current?.getTracks().forEach(track => track.stop());
     streamRef.current = null;
 
-    if (chunkSessionRef.current) {
-      fetch(`/api/audio/chunk-session/${chunkSessionRef.current.sessionId}`, {
+    const sessionId = chunkSessionRef.current?.sessionId;
+    if (sessionId) {
+      fetch(`/api/audio/chunk-session/${sessionId}`, {
         method: 'DELETE',
         credentials: 'include',
       }).catch(() => {});
+      indexedDBBackup.clearSession(sessionId).catch(() => {});
     }
 
     chunkSessionRef.current = null;
+    setChunkSessionId(null);
     audioChunksRef.current = [];
     pendingChunksRef.current.clear();
+    setPendingChunksCount(0);
     
     setIsRecording(false);
     setDuration(0);
@@ -510,6 +534,10 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
 
     const sessionId = chunkSessionRef.current.sessionId;
 
+    if (pendingChunksRef.current.size > 0 && networkOnlineRef.current) {
+      await retryPendingChunksRef.current?.();
+    }
+
     try {
       const response = await apiRequest<{
         success: boolean;
@@ -523,8 +551,8 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
 
       clearLocalSession();
       chunkSessionRef.current = null;
+      setChunkSessionId(null);
       
-      // Mark IndexedDB session as completed and clean up
       try {
         await indexedDBBackup.markSessionCompleted(sessionId);
         await indexedDBBackup.clearSession(sessionId);
@@ -570,7 +598,7 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
     markConsentConfirmed,
     finalizeAndUpload,
     mimeType: audioFormatRef.current.mimeType,
-    chunkSessionId: chunkSessionRef.current?.sessionId || null,
+    chunkSessionId,
     isUploading,
     lastSyncTime,
     pendingChunksCount,

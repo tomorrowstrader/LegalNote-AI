@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -7,7 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { AlertTriangle, Clock, FileAudio, Loader2, Trash2, CheckCircle, AlertCircle, FolderOpen } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { indexedDBBackup, StoredSession } from "@/lib/indexedDBBackup";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 
@@ -18,6 +18,7 @@ function friendlyRecoveryError(message: string | undefined): string {
   }
   return message.length > 180 ? `${message.slice(0, 180)}…` : message;
 }
+
 interface IncompleteSession {
   id: string;
   caseId: string | null;
@@ -40,9 +41,84 @@ interface RecoveryResult {
   message: string;
 }
 
+interface Recoverability {
+  recoverable: boolean;
+  chunkCount: number;
+  missingIndices: number[];
+  totalBytes: number;
+  status: string | null;
+}
+
 interface RecordingRecoveryModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+}
+
+async function backfillLocalChunks(
+  sessionId: string,
+  serverChunksReceived: number,
+  onProgress?: (uploaded: number, total: number) => void,
+): Promise<void> {
+  // Prefer pending (not yet marked uploaded). If server has nothing, send all local chunks.
+  const localChunks =
+    serverChunksReceived <= 0
+      ? await indexedDBBackup.getSessionChunks(sessionId)
+      : await indexedDBBackup.getPendingChunks(sessionId);
+
+  if (localChunks.length === 0) return;
+
+  console.log(
+    `[Recovery] Uploading ${localChunks.length} local chunks for session ${sessionId} (server had ${serverChunksReceived})`,
+  );
+
+  let uploaded = 0;
+  for (const chunk of localChunks) {
+    uploaded += 1;
+    onProgress?.(uploaded, localChunks.length);
+    try {
+      const formData = new FormData();
+      formData.append("chunk", chunk.data, `chunk_${chunk.chunkNumber}.webm`);
+      formData.append("chunkNumber", chunk.chunkNumber.toString());
+
+      const response = await fetch(`/api/audio/recovery-chunk/${sessionId}`, {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        console.warn(`[Recovery] Failed to upload chunk ${chunk.chunkNumber}:`, await response.text());
+      } else {
+        await indexedDBBackup.markChunkUploaded(sessionId, chunk.chunkNumber).catch(() => {});
+      }
+    } catch (e) {
+      console.warn(`[Recovery] Failed to upload local chunk ${chunk.chunkNumber}:`, e);
+    }
+  }
+}
+
+async function recoverSessionRequest(sessionId: string): Promise<RecoveryResult> {
+  const response = await fetch(`/api/audio/recover-session/${sessionId}`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+
+  const text = await response.text();
+  let result: RecoveryResult;
+  try {
+    result = JSON.parse(text);
+  } catch {
+    throw new Error(text.slice(0, 160) || `Recovery failed (${response.status})`);
+  }
+  if (!response.ok && !result.message) {
+    throw new Error(`Recovery failed (${response.status})`);
+  }
+  if (!result.success) {
+    throw new Error(friendlyRecoveryError(result.message));
+  }
+  return result;
 }
 
 export function RecordingRecoveryModal({ open, onOpenChange }: RecordingRecoveryModalProps) {
@@ -99,68 +175,33 @@ export function RecordingRecoveryModal({ open, onOpenChange }: RecordingRecovery
       sessionId: string;
       serverChunksReceived: number;
     }) => {
-      // Only backfill local IndexedDB chunks when the server has nothing.
-      // Re-uploading 60 already-synced chunks freezes mobile and looks like a dead button.
       if (serverChunksReceived <= 0) {
         try {
-          const localChunks = await indexedDBBackup.getChunks(sessionId);
-          if (localChunks.length > 0) {
-            console.log(`[Recovery] Uploading ${localChunks.length} local-only chunks for session ${sessionId}`);
-            let uploaded = 0;
-            for (const chunk of localChunks) {
-              uploaded += 1;
-              const pct = Math.min(70, Math.round((uploaded / localChunks.length) * 70));
-              setRecoverProgress(pct);
-              setRecoverStatus(`Uploading chunk ${uploaded} of ${localChunks.length}…`);
-              try {
-                const formData = new FormData();
-                formData.append('chunk', chunk.data, `chunk_${chunk.chunkNumber}.webm`);
-                formData.append('chunkNumber', chunk.chunkNumber.toString());
-
-                const response = await fetch(`/api/audio/recovery-chunk/${sessionId}`, {
-                  method: 'POST',
-                  credentials: 'include',
-                  body: formData,
-                });
-
-                if (!response.ok) {
-                  console.warn(`[Recovery] Failed to upload chunk ${chunk.chunkNumber}:`, await response.text());
-                }
-              } catch (e) {
-                console.warn(`[Recovery] Failed to upload local chunk ${chunk.chunkNumber}:`, e);
-              }
-            }
-          }
+          await backfillLocalChunks(sessionId, 0, (uploaded, total) => {
+            const pct = Math.min(70, Math.round((uploaded / total) * 70));
+            setRecoverProgress(pct);
+            setRecoverStatus(`Uploading chunk ${uploaded} of ${total}…`);
+          });
         } catch (e) {
           console.warn('[Recovery] Failed to upload local chunks:', e);
         }
       } else {
-        console.log(`[Recovery] Server already has ${serverChunksReceived} chunks — skipping local re-upload`);
+        // Server has some chunks — still push any IndexedDB-only pending gaps
+        try {
+          await backfillLocalChunks(sessionId, serverChunksReceived, (uploaded, total) => {
+            const pct = Math.min(70, Math.round((uploaded / total) * 70));
+            setRecoverProgress(pct);
+            setRecoverStatus(`Uploading pending chunk ${uploaded} of ${total}…`);
+          });
+        } catch (e) {
+          console.warn('[Recovery] Failed to backfill pending chunks:', e);
+        }
       }
 
       setRecoverStatus("Assembling recording…");
       setRecoverProgress((prev) => Math.max(prev, 72));
 
-      const response = await fetch(`/api/audio/recover-session/${sessionId}`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-
-      const text = await response.text();
-      let result: RecoveryResult;
-      try {
-        result = JSON.parse(text);
-      } catch {
-        throw new Error(text.slice(0, 160) || `Recovery failed (${response.status})`);
-      }
-      if (!response.ok && !result.message) {
-        throw new Error(`Recovery failed (${response.status})`);
-      }
-      if (!result.success) {
-        throw new Error(friendlyRecoveryError(result.message));
-      }
+      const result = await recoverSessionRequest(sessionId);
       setRecoverProgress(100);
       setRecoverStatus("Recovery complete");
       return result;
@@ -223,7 +264,6 @@ export function RecordingRecoveryModal({ open, onOpenChange }: RecordingRecovery
         : "Preparing local audio…",
     );
 
-    // Time-based estimate while the server assembles from durable chunks
     const estimateMs = Math.max(
       5000,
       Math.min(60000, serverChunksReceived * 120 + Math.ceil(totalBytes / 2500)),
@@ -232,7 +272,6 @@ export function RecordingRecoveryModal({ open, onOpenChange }: RecordingRecovery
     const tick = window.setInterval(() => {
       const elapsed = Date.now() - startedAt;
       const ratio = Math.min(1, elapsed / estimateMs);
-      // Ease toward 90% while waiting; real completion jumps to 100%
       const eased = 8 + Math.round(82 * (1 - Math.pow(1 - ratio, 1.6)));
       setRecoverProgress((prev) => Math.max(prev, Math.min(90, eased)));
       if (ratio < 0.45) {
@@ -428,28 +467,107 @@ export function RecordingRecoveryModal({ open, onOpenChange }: RecordingRecovery
   );
 }
 
+function ViewCaseToastAction({ caseId }: { caseId: string }) {
+  const [, setLocation] = useLocation();
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={() => setLocation(`/case/${caseId}`)}
+      className="gap-1"
+    >
+      <FolderOpen className="w-4 h-4" />
+      View Case
+    </Button>
+  );
+}
+
 export function useRecordingRecovery(enabled: boolean = true) {
   const [showRecoveryModal, setShowRecoveryModal] = useState(false);
   const [hasChecked, setHasChecked] = useState(false);
+  const autoRecoveringRef = useRef(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     if (!enabled || hasChecked) return;
 
     const checkForIncompleteSessions = async () => {
       try {
-        const [localSessions, response] = await Promise.all([
+        const [localSessions, serverSessions] = await Promise.all([
           indexedDBBackup.getInterruptedSessions(),
           fetch('/api/audio/incomplete-sessions', { credentials: 'include' })
-            .then(r => r.ok ? r.json() : [])
-            .catch(() => []),
+            .then(r => (r.ok ? r.json() : []) as Promise<IncompleteSession[]>)
+            .catch(() => [] as IncompleteSession[]),
         ]);
 
-        const hasIncomplete = localSessions.length > 0 || response.length > 0;
-        
-        if (hasIncomplete) {
+        const needsManualIds = new Set<string>();
+        let autoRecovered = 0;
+
+        // Option A: auto-recover server sessions with contiguous durable chunks
+        if (!autoRecoveringRef.current) {
+          autoRecoveringRef.current = true;
+          for (const session of serverSessions) {
+            if (session.chunksReceived <= 0) {
+              needsManualIds.add(session.id);
+              continue;
+            }
+
+            try {
+              // Push any IndexedDB-only pending chunks before deciding auto-recover
+              const pendingLocal = await indexedDBBackup.getPendingChunks(session.id);
+              if (pendingLocal.length > 0) {
+                await backfillLocalChunks(session.id, session.chunksReceived);
+              }
+
+              const recoverability = await fetch(
+                `/api/audio/incomplete-sessions/${session.id}/recoverability`,
+                { credentials: 'include' },
+              ).then(r => (r.ok ? r.json() : null) as Promise<Recoverability | null>);
+
+              if (!recoverability?.recoverable) {
+                needsManualIds.add(session.id);
+                continue;
+              }
+
+              const result = await recoverSessionRequest(session.id);
+              if (result.success && result.caseId) {
+                await indexedDBBackup.clearSession(session.id).catch(() => {});
+                autoRecovered += 1;
+                toast({
+                  title: "Recording recovered",
+                  description: result.hasConsent
+                    ? `Your interrupted recording (~${Math.floor((result.durationSeconds || 0) / 60)} min) was restored automatically.`
+                    : "Interrupted recording restored. Note: Consent was not confirmed during this recording.",
+                  action: <ViewCaseToastAction caseId={result.caseId} />,
+                });
+              } else {
+                needsManualIds.add(session.id);
+              }
+            } catch (err) {
+              console.warn(`[Recovery] Auto-recover failed for ${session.id}:`, err);
+              needsManualIds.add(session.id);
+            }
+          }
+          autoRecoveringRef.current = false;
+        }
+
+        // Local-only sessions, or server sessions that need backfill / have gaps
+        const unresolvedServer = serverSessions.filter((s) => needsManualIds.has(s.id));
+        const unresolvedLocal = localSessions.filter((ls) => {
+          const matchedServer = serverSessions.find((ss) => ss.id === ls.id);
+          if (!matchedServer) return true; // local-only
+          return needsManualIds.has(ls.id); // server still needs manual help
+        });
+
+        if (unresolvedServer.length > 0 || unresolvedLocal.length > 0) {
           setShowRecoveryModal(true);
         }
-        
+
+        if (autoRecovered > 0) {
+          queryClient.invalidateQueries({ queryKey: ["/api/audio/incomplete-sessions"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/cases"] });
+        }
+
         setHasChecked(true);
       } catch (error) {
         console.error('Failed to check for incomplete sessions:', error);
@@ -459,7 +577,7 @@ export function useRecordingRecovery(enabled: boolean = true) {
 
     const timeout = setTimeout(checkForIncompleteSessions, 2000);
     return () => clearTimeout(timeout);
-  }, [enabled, hasChecked]);
+  }, [enabled, hasChecked, toast]);
 
   return {
     showRecoveryModal,

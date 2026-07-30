@@ -4646,6 +4646,18 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
     }
   });
 
+  // Whether durable chunks for an incomplete session are contiguous (auto-recoverable)
+  app.get("/api/audio/incomplete-sessions/:sessionId/recoverability", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { sessionId } = req.params;
+      const result = await chunkedUploadService.getRecoverability(sessionId, userId);
+      res.json(result);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   // Upload a chunk to an existing session
   app.post("/api/audio/chunk-session/:sessionId/chunk",
     isAuthenticated,

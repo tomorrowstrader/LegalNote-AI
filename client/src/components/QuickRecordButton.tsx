@@ -1260,6 +1260,8 @@ export default function QuickRecordButton() {
             online: chunkedRecording.networkStatus.online,
             isUploading: chunkedRecording.isUploading,
             chunksUploaded: chunkedRecording.chunksUploaded,
+            pendingChunks: chunkedRecording.pendingChunksCount,
+            lastSyncTime: chunkedRecording.lastSyncTime,
           }}
           alerts={{
             isSilent: chunkedRecording.isSilent,

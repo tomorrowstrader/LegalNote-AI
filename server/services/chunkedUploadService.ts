@@ -849,6 +849,88 @@ export class ChunkedUploadService {
     };
   }
 
+  /**
+   * Check whether durable cloud chunks for a session form a contiguous sequence
+   * that can be auto-assembled without local backfill.
+   */
+  async getRecoverability(sessionId: string, userId: string): Promise<{
+    recoverable: boolean;
+    chunkCount: number;
+    missingIndices: number[];
+    totalBytes: number;
+    status: string | null;
+  }> {
+    const sessions = await db.select()
+      .from(recordingSessions)
+      .where(
+        and(
+          eq(recordingSessions.id, sessionId),
+          eq(recordingSessions.userId, userId)
+        )
+      );
+
+    if (sessions.length === 0) {
+      return {
+        recoverable: false,
+        chunkCount: 0,
+        missingIndices: [],
+        totalBytes: 0,
+        status: null,
+      };
+    }
+
+    const sessionMeta = sessions[0];
+    if (sessionMeta.status === "completed" || sessionMeta.status === "cancelled") {
+      return {
+        recoverable: false,
+        chunkCount: 0,
+        missingIndices: [],
+        totalBytes: 0,
+        status: sessionMeta.status,
+      };
+    }
+
+    // Prefer in-memory chunks when present; otherwise list durable storage
+    const activeSession = activeSessions.get(sessionId);
+    let chunkIndices: number[] = [];
+    let totalBytes = 0;
+
+    if (activeSession && activeSession.userId === userId && activeSession.chunks.size > 0) {
+      chunkIndices = Array.from(activeSession.chunks.keys()).sort((a, b) => a - b);
+      totalBytes = Array.from(activeSession.chunks.values()).reduce((sum, b) => sum + b.length, 0);
+    } else {
+      const storedChunks = await this.objectStorage.listChunks(sessionId);
+      chunkIndices = storedChunks.map((c) => c.index).sort((a, b) => a - b);
+      totalBytes = storedChunks.reduce((sum, c) => sum + c.size, 0);
+    }
+
+    if (chunkIndices.length === 0) {
+      return {
+        recoverable: false,
+        chunkCount: 0,
+        missingIndices: [],
+        totalBytes: 0,
+        status: sessionMeta.status,
+      };
+    }
+
+    const maxIndex = chunkIndices[chunkIndices.length - 1];
+    const missingIndices: number[] = [];
+    for (let i = 0; i <= maxIndex; i++) {
+      if (!chunkIndices.includes(i)) {
+        missingIndices.push(i);
+      }
+    }
+
+    return {
+      recoverable: missingIndices.length === 0,
+      chunkCount: chunkIndices.length,
+      missingIndices,
+      totalBytes,
+      status: sessionMeta.status,
+    };
+  }
+
   // Discard an interrupted session (user chose not to recover)
   async discardSession(sessionId: string, userId: string): Promise<boolean> {
     try {
