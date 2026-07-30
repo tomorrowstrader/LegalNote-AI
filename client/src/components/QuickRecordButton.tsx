@@ -50,6 +50,10 @@ import { logAuditEvent } from "@/lib/auditLogger";
 import { useChunkedRecording } from "@/hooks/useChunkedRecording";
 import { QUICK_RECORD_SHORTCUT_EVENT } from "@/hooks/useQuickRecordShortcut";
 import { appendConsentSegmentToFormData, snapshotConsentSegment } from "@/lib/consentSegmentCapture";
+import {
+  releaseRecordingLock,
+  tryAcquireRecordingLock,
+} from "@/lib/recordingSessionLock";
 
 // Recording session state management for crash recovery detection
 const RECORDING_SESSION_KEY = 'legalnote_recording_session';
@@ -246,6 +250,7 @@ export default function QuickRecordButton() {
 
   // Clear recording session (on successful save or intentional cancel)
   const clearRecordingSession = useCallback(() => {
+    releaseRecordingLock("quick_record");
     localStorage.removeItem(RECORDING_SESSION_KEY);
   }, []);
 
@@ -404,6 +409,8 @@ export default function QuickRecordButton() {
       });
     } catch (error) {
       console.error('Failed to start recording:', error);
+      clearRecordingSession();
+      recordingTargetCaseIdRef.current = null;
       toast({
         title: "Recording not available",
         description: "Microphone access failed. Using text notes instead.",
@@ -452,9 +459,17 @@ export default function QuickRecordButton() {
   }, [stopConfirmationPending]);
 
   const initiateRecording = useCallback(() => {
+    if (!tryAcquireRecordingLock("quick_record")) {
+      toast({
+        title: "Another recording is active",
+        description: "Stop the Capture recording before starting Quick Record.",
+        variant: "destructive",
+      });
+      return;
+    }
     recordingTargetCaseIdRef.current = contextCaseId;
     setCountdown(3); // 3-second countdown
-  }, [contextCaseId]);
+  }, [contextCaseId, toast]);
 
   // Control+L is registered globally (useQuickRecordShortcut) and dispatches this event
   useEffect(() => {
@@ -467,6 +482,7 @@ export default function QuickRecordButton() {
   }, [isRecording, countdown, initiateRecording]);
 
   const cancelCountdown = () => {
+    releaseRecordingLock("quick_record");
     recordingTargetCaseIdRef.current = null;
     setCountdown(null);
   };

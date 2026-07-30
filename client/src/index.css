@@ -1174,3 +1174,45 @@ nav.sticky {
 .ProseMirror.rm-with-pagination {
   border: 1px solid hsl(var(--border)) !important;
 }
+
+/* Voice command mark — idle breathe + listening halo */
+@keyframes ln-mark-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.04); }
+}
+
+@keyframes ln-mark-halo {
+  0%, 100% {
+    opacity: 0.35;
+    transform: scale(0.92);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+}
+
+.ln-mark-breathe {
+  animation: ln-mark-breathe 3.2s ease-in-out infinite;
+}
+
+.ln-mark-halo {
+  background: radial-gradient(
+    circle,
+    hsl(18 70% 42% / 0.35) 0%,
+    hsl(18 70% 42% / 0.08) 55%,
+    transparent 70%
+  );
+  animation: ln-mark-halo 1.6s ease-in-out infinite;
+}
+
+.ln-wave-glow-bar {
+  box-shadow: 0 0 6px hsl(18 70% 42% / 0.55);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ln-mark-breathe,
+  .ln-mark-halo {
+    animation: none !important;
+  }
+}

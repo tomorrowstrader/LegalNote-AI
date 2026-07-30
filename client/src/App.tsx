@@ -9,6 +9,7 @@ import { FocusModeProvider, useFocusMode } from "@/contexts/FocusModeContext";
 import { LiveBotSessionProvider } from "@/contexts/LiveBotSessionContext";
 import { NewNoteRecordingProvider } from "@/contexts/NewNoteRecordingContext";
 import { LiveBotSessionIndicator } from "@/components/LiveBotSessionIndicator";
+import { VoiceCommandTrigger } from "@/components/VoiceCommandTrigger";
 import { useCaptureShortcut } from "@/hooks/useCaptureShortcut";
 import { useQuickRecordShortcut } from "@/hooks/useQuickRecordShortcut";
 import TopNavigation from "@/components/TopNavigation";
@@ -225,6 +226,7 @@ function AuthenticatedAppContent() {
         />
       )}
       {!isLoading && hasAppAccess && !isPublicDemoRoute && !isNotesPopout && <LiveBotSessionIndicator />}
+      {!isLoading && hasAppAccess && !hideAppChrome && <VoiceCommandTrigger />}
       {!isNotesPopout && <ScrollToTop />}
       <Router />
     </div>

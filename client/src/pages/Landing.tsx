@@ -2324,7 +2324,7 @@ export default function Landing() {
               LegalNote BlackBox
             </h2>
             <p className="text-base sm:text-lg text-[hsl(220,10%,70%)] max-w-2xl mx-auto" style={{ fontFamily: "'Lora', Georgia, serif" }}>
-              Built to protect recordings through network dropouts, browser crashes, and interrupted sessions. Chunks sync to EU cloud storage as you record—and recovery is available when you&apos;re back online.
+              Built to protect browser recordings (Quick Record and Capture) through network dropouts, crashes, and interrupted sessions. Chunks sync to EU cloud storage as you record—and recovery is available when you&apos;re back online.
             </p>
           </motion.div>
 
@@ -2333,12 +2333,12 @@ export default function Landing() {
               {
                 icon: Wifi,
                 title: "Resilient Streaming",
-                description: "Chunked uploads every few seconds with automatic retry. If your connection drops mid-meeting, pending chunks queue and resume uploading when you're back online."
+                description: "For Quick Record and Capture: chunked uploads every few seconds with automatic retry. If your connection drops mid-meeting, pending chunks queue and resume when you're back online."
               },
               {
                 icon: HardDrive,
                 title: "Triple-Layer Redundancy",
-                description: "Local device cache, EU cloud object storage, and database session tracking. Chunks are stored locally and in the cloud as you record—so interrupted sessions remain recoverable."
+                description: "Local device cache, EU cloud object storage, and database session tracking. Browser recordings are stored locally and in the cloud as you record—so interrupted sessions remain recoverable."
               },
               {
                 icon: Shield,
@@ -2400,6 +2400,14 @@ export default function Landing() {
               Interrupted Session Recovery
             </span>
           </motion.div>
+
+          <p
+            className="mt-8 max-w-3xl mx-auto text-center text-sm text-[hsl(220,10%,55%)] leading-relaxed"
+            data-testid="blackbox-livebot-note"
+          >
+            Video meetings use a separate path: LegalNote&apos;s meeting bot records in the cloud via Recall.ai.
+            After the call ends, import and processing are recoverable in LegalNote—closing your browser does not stop the bot.
+          </p>
         </div>
       </div>
 

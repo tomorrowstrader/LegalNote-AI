@@ -18,9 +18,10 @@ import { ToastAction } from "@/components/ui/toast";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useMeetingNotesPopout } from "@/hooks/useMeetingNotesPopout";
+import { useChunkedRecording } from "@/hooks/useChunkedRecording";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { logAuditEvent } from "@/lib/auditLogger";
-import { appendConsentSegmentToFormData, snapshotConsentSegment } from "@/lib/consentSegmentCapture";
+import { appendConsentSegmentToFormData } from "@/lib/consentSegmentCapture";
 import { createProcessingStepTimer } from "@/lib/processingStepTimer";
 import type { ProcessingStep } from "@/components/MeetingToMatterProcessingOverlay";
 import {
@@ -28,6 +29,10 @@ import {
   flushMeetingNotesToCase,
   type MeetingNotesDraftKey,
 } from "@/lib/meetingNotesDraft";
+import {
+  releaseRecordingLock,
+  tryAcquireRecordingLock,
+} from "@/lib/recordingSessionLock";
 import {
   CONSENT_DISCLAIMER_TEXT,
   CONSENT_DISCLAIMER_VERSION,
@@ -129,20 +134,50 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
   /** Capture record: notes stay closed until solicitor invites them (Join video still auto-pops). */
   const [notesPanelOpen, setNotesPanelOpen] = useState(false);
 
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
   const audioBlobRef = useRef<Blob | null>(null);
-  const consentBlobRef = useRef<Blob | null>(null);
-  const consentDurationSecondsRef = useRef<number | null>(null);
   const metaRef = useRef<NewNoteRecordingMeta | null>(null);
   const durationRef = useRef(0);
   const consentGivenRef = useRef<boolean | null>(null);
   const notesDraftKeyRef = useRef<MeetingNotesDraftKey | null>(null);
+  const [pendingOfflineSave, setPendingOfflineSave] = useState(false);
+  const pendingOfflineSaveRef = useRef(false);
 
   metaRef.current = meta;
   durationRef.current = duration;
   consentGivenRef.current = consentGiven;
   notesDraftKeyRef.current = notesDraftKey;
+
+  const markPendingOfflineSave = useCallback((pending: boolean) => {
+    pendingOfflineSaveRef.current = pending;
+    setPendingOfflineSave(pending);
+  }, []);
+
+  const chunked = useChunkedRecording({
+    onNetworkStatusChange: (status) => {
+      if (!status.online) {
+        toast({
+          title: "Connection lost",
+          description: "Chunks are saved on this device and will upload when connection is restored.",
+          variant: "destructive",
+          duration: 5000,
+        });
+      } else {
+        toast({
+          title: "Back online",
+          description: "Syncing locally saved audio to LegalNote…",
+          duration: 4000,
+        });
+        if (pendingOfflineSaveRef.current) {
+          markPendingOfflineSave(false);
+          window.setTimeout(() => {
+            void saveRecordingRef.current?.();
+          }, 500);
+        }
+      }
+    },
+  });
+
+  const saveRecordingRef = useRef<() => Promise<void>>(async () => {});
 
   const isRecording = phase === "recording";
   const isActive = phase !== "idle";
@@ -184,6 +219,8 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
   }, [closePopout]);
 
   const resetSession = useCallback(() => {
+    releaseRecordingLock("new_note");
+    markPendingOfflineSave(false);
     setNotesDraftKey(null);
     notesDraftKeyRef.current = null;
     setNotesPanelOpen(false);
@@ -195,36 +232,36 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
     setStopConfirmationPending(false);
     setConsentGiven(null);
     setProcessingStep("saving");
-    mediaRecorderRef.current = null;
-    audioChunksRef.current = [];
     audioBlobRef.current = null;
-    consentBlobRef.current = null;
-    consentDurationSecondsRef.current = null;
-  }, []);
+  }, [markPendingOfflineSave]);
+
+  const {
+    startRecording: startChunkedRecording,
+    stopRecording: stopChunkedRecording,
+    cancelRecording: cancelChunkedRecording,
+    markConsentConfirmed,
+    finalizeAndUpload,
+    ensureCloudSynced,
+    mimeType: chunkedMimeType,
+    networkStatus,
+    isLocalOnly,
+    isUploading,
+    chunksUploaded,
+    pendingChunksCount,
+    lastSyncTime,
+    isSilent,
+    batteryLevel,
+    duration: chunkedDuration,
+  } = chunked;
 
   const startActualRecording = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
-      consentBlobRef.current = null;
-      consentDurationSecondsRef.current = null;
-      audioBlobRef.current = null;
+      const startingOffline = !navigator.onLine;
+      const success = await startChunkedRecording();
+      if (!success) {
+        throw new Error("Failed to start chunked recording");
+      }
 
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
-
-      mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-        audioBlobRef.current = audioBlob;
-        stream.getTracks().forEach((track) => track.stop());
-      };
-
-      mediaRecorder.start(1000);
       const kind = metaRef.current?.matterKind ?? "client";
       const needsConsent = requiresSealedConsentForProcessing(
         kind,
@@ -239,10 +276,21 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
       setPhase("recording");
       setDuration(0);
 
+      if (startingOffline) {
+        toast({
+          title: "Recording locally",
+          description:
+            "You're offline. This recording is being saved on your device and will sync to LegalNote when you're back online.",
+          duration: 7000,
+        });
+      }
+
       await logAuditEvent({
         eventType: "recording_started",
         metadata: {
           source: "new_note_page",
+          chunkedUpload: true,
+          localOnly: startingOffline,
           matterKind: kind,
           hasExternalAttendees: !!metaRef.current?.hasExternalAttendees,
           skipConsent: !needsConsent,
@@ -256,6 +304,7 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
       });
     } catch (error) {
       console.error("Failed to start recording:", error);
+      releaseRecordingLock("new_note");
       toast({
         title: "Recording not available",
         description: "Microphone access failed. Return to Capture and use text notes instead.",
@@ -264,7 +313,7 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
       resetSession();
       setLocation("/capture");
     }
-  }, [resetSession, setLocation, toast]);
+  }, [resetSession, setLocation, startChunkedRecording, toast]);
 
   useEffect(() => {
     if (countdown === null) return;
@@ -279,28 +328,8 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
 
   useEffect(() => {
     if (!isRecording) return;
-    const interval = setInterval(() => setDuration((prev) => prev + 1), 1000);
-    return () => clearInterval(interval);
-  }, [isRecording]);
-
-  // Warn on tab close while recording — do not stop on SPA navigation
-  useEffect(() => {
-    if (phase !== "recording" && phase !== "countdown") return;
-    const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = "";
-    };
-    window.addEventListener("beforeunload", onBeforeUnload);
-    return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, [phase]);
-
-  useEffect(() => {
-    return () => {
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-        mediaRecorderRef.current.stop();
-      }
-    };
-  }, []);
+    setDuration(chunkedDuration);
+  }, [isRecording, chunkedDuration]);
 
   const startCountdown = useCallback((nextMeta: NewNoteRecordingMeta) => {
     if (phase !== "idle") {
@@ -311,6 +340,15 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
       });
       return;
     }
+    if (!tryAcquireRecordingLock("new_note")) {
+      toast({
+        title: "Another recording is active",
+        description: "Stop Quick Record before starting a Capture recording.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const draftToken =
       typeof crypto !== "undefined" && "randomUUID" in crypto
         ? crypto.randomUUID()
@@ -328,6 +366,7 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
   }, [phase, toast]);
 
   const cancelCountdown = useCallback(() => {
+    releaseRecordingLock("new_note");
     setNotesDraftKey(null);
     notesDraftKeyRef.current = null;
     setNotesPanelOpen(false);
@@ -339,20 +378,11 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
   const handleConsentGiven = useCallback(async () => {
     setConsentGiven(true);
     setShowConsentModal(false);
-
-    const consentBlob = await snapshotConsentSegment({
-      mediaRecorder: mediaRecorderRef.current,
-      audioChunks: audioChunksRef.current,
-      mimeType: mediaRecorderRef.current?.mimeType || "audio/webm",
-    });
-    consentBlobRef.current = consentBlob;
-    consentDurationSecondsRef.current = Math.max(1, durationRef.current);
-  }, []);
+    await markConsentConfirmed();
+  }, [markConsentConfirmed]);
 
   const handleConsentDeclined = useCallback(async () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-      mediaRecorderRef.current.stop();
-    }
+    cancelChunkedRecording();
     setConsentGiven(false);
     setShowConsentModal(false);
     await logAuditEvent({
@@ -367,7 +397,7 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
       duration: 6000,
     });
     setLocation("/capture");
-  }, [resetSession, setLocation, toast]);
+  }, [cancelChunkedRecording, resetSession, setLocation, toast]);
 
   const saveRecording = useCallback(async () => {
     const snapshot = metaRef.current;
@@ -383,9 +413,31 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
       return;
     }
 
-    // Wait briefly for MediaRecorder onstop to populate the blob
-    await new Promise((resolve) => setTimeout(resolve, 150));
+    if (!navigator.onLine) {
+      markPendingOfflineSave(true);
+      toast({
+        title: "Recording saved locally",
+        description:
+          "You're offline. Upload and processing will continue automatically when you're back online.",
+        duration: 10000,
+      });
+      setPhase("processing");
+      setProcessingStep("saving");
+      return;
+    }
 
+    const synced = await ensureCloudSynced();
+    if (!synced) {
+      markPendingOfflineSave(true);
+      toast({
+        title: "Still syncing",
+        description: "Could not reach LegalNote yet. We'll retry when the connection is stable.",
+        duration: 8000,
+      });
+      return;
+    }
+
+    markPendingOfflineSave(false);
     setPhase("processing");
     setProcessingStep("saving");
     const advanceStep = createProcessingStepTimer(setProcessingStep);
@@ -441,25 +493,28 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
 
       await advanceStep("uploading");
 
-      if (audioBlobRef.current) {
-        const formData = new FormData();
-        formData.append("audioFile", audioBlobRef.current, "recording.webm");
-        formData.append("duration", String(durationRef.current));
-        appendConsentSegmentToFormData(
-          formData,
-          consentBlobRef.current,
-          consentDurationSecondsRef.current,
-        );
+      try {
+        await finalizeAndUpload(audioResult.id);
+      } catch (finalizeError: any) {
+        console.error("Chunked finalize failed, trying direct upload fallback:", finalizeError);
+        if (audioBlobRef.current) {
+          const formData = new FormData();
+          const ext = chunkedMimeType.includes("mp4") ? ".mp4" : ".webm";
+          formData.append("audioFile", audioBlobRef.current, `recording${ext}`);
+          formData.append("duration", String(durationRef.current));
+          appendConsentSegmentToFormData(formData, null, null);
 
-        const response = await fetch(`/api/audio/${audioResult.id}/upload`, {
-          method: "POST",
-          credentials: "include",
-          body: formData,
-        });
-
-        if (!response.ok) {
-          const error = await response.json().catch(() => ({}));
-          throw new Error(error.message || "Upload failed");
+          const response = await fetch(`/api/audio/${audioResult.id}/upload`, {
+            method: "POST",
+            credentials: "include",
+            body: formData,
+          });
+          if (!response.ok) {
+            const error = await response.json().catch(() => ({}));
+            throw new Error(error.message || "Upload failed");
+          }
+        } else {
+          throw finalizeError;
         }
       }
 
@@ -587,24 +642,34 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
         variant: "destructive",
         duration: 8000,
       });
-      // Keep blob so user can retry stop/save — return to recording UI
+      // Chunk session may still be recoverable — return to recording UI for retry
       setPhase("recording");
       setStopConfirmationPending(false);
     }
-  }, [resetSession, setLocation, toast, user?.id]);
+  }, [
+    chunkedMimeType,
+    ensureCloudSynced,
+    finalizeAndUpload,
+    markPendingOfflineSave,
+    resetSession,
+    setLocation,
+    toast,
+    user?.id,
+  ]);
 
-  const handleStopClick = useCallback(() => {
+  saveRecordingRef.current = saveRecording;
+
+  const handleStopClick = useCallback(async () => {
     if (!stopConfirmationPending) {
       setStopConfirmationPending(true);
       return;
     }
 
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-      mediaRecorderRef.current.stop();
-    }
+    const endedOffline = !networkStatus.online;
+    const audioBlob = await stopChunkedRecording();
+    audioBlobRef.current = audioBlob;
     setStopConfirmationPending(false);
     setShowConsentModal(false);
-    setPhase("processing");
 
     void logAuditEvent({
       eventType: "recording_stopped",
@@ -612,13 +677,37 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
         source: "new_note_page",
         durationSeconds: durationRef.current,
         consentSelectedDuringRecording: consentGivenRef.current,
+        chunkedUpload: true,
+        localOnly: endedOffline || isLocalOnly,
         stoppedAt: new Date().toISOString(),
       },
       severity: "info",
     });
 
+    if (endedOffline) {
+      markPendingOfflineSave(true);
+      toast({
+        title: "Recording saved locally",
+        description:
+          "You're offline. This recording has ended and is stored on this device. Upload and processing will continue when you're back online.",
+        duration: 10000,
+      });
+      setPhase("processing");
+      setProcessingStep("saving");
+      return;
+    }
+
+    setPhase("processing");
     void saveRecording();
-  }, [saveRecording, stopConfirmationPending]);
+  }, [
+    isLocalOnly,
+    markPendingOfflineSave,
+    networkStatus.online,
+    saveRecording,
+    stopChunkedRecording,
+    stopConfirmationPending,
+    toast,
+  ]);
 
   const value: NewNoteRecordingContextType = {
     phase,
@@ -641,8 +730,12 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
             ? "Producing notes"
             : processingStep === "uploading"
               ? "Uploading"
-              : "Saving"
+              : pendingOfflineSave || !navigator.onLine
+                ? "Waiting for connection"
+                : "Saving"
         : "Recording";
+
+  const showChunkStatus = phase === "recording";
 
   return (
     <NewNoteRecordingContext.Provider value={value}>
@@ -664,7 +757,9 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
           subtitle={
             meta?.displaySubtitle ||
             (phase === "processing"
-              ? "Meeting-to-Matter in progress"
+              ? pendingOfflineSave || !navigator.onLine
+                ? "Saved locally — will sync when online"
+                : "Meeting-to-Matter in progress"
               : "Recording continues if you change pages")
           }
           countdown={countdown}
@@ -672,7 +767,19 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
           forceExpanded={stopConfirmationPending || phase === "countdown"}
           collapsible={phase === "recording"}
           defaultCollapsed={false}
-          safeguards={{ protected: phase === "recording" || phase === "countdown" }}
+          safeguards={{
+            protected: phase === "recording" || phase === "countdown",
+            showChunkStatus,
+            online: networkStatus.online && !isLocalOnly,
+            isUploading,
+            chunksUploaded,
+            pendingChunks: pendingChunksCount,
+            lastSyncTime,
+          }}
+          alerts={{
+            isSilent,
+            batteryLevel,
+          }}
           data-testid="new-note-recording-control-center"
           actions={
             phase === "countdown" ? (
@@ -687,7 +794,7 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
               <>
                 <ControlCenterActionButton
                   variant={stopConfirmationPending ? "confirm" : "destructive"}
-                  onClick={handleStopClick}
+                  onClick={() => void handleStopClick()}
                   data-testid="button-stop-recording"
                 >
                   <Square className="h-3.5 w-3.5" />
