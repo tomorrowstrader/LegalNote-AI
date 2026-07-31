@@ -80,3 +80,48 @@ export function useCaseActions({ caseId, onArchiveSuccess }: UseCaseActionsOptio
     assignMutation,
   };
 }
+
+interface UseBulkCaseActionsOptions {
+  onSuccess?: () => void;
+}
+
+export function useBulkCaseActions({ onSuccess }: UseBulkCaseActionsOptions = {}) {
+  const { toast } = useToast();
+
+  const bulkArchiveMutation = useMutation({
+    mutationFn: async ({ caseIds, archived }: { caseIds: string[]; archived: boolean }) => {
+      const results = await Promise.allSettled(
+        caseIds.map((id) => apiRequest('POST', `/api/cases/${id}/archive`, { archived }))
+      );
+      const failed = results.filter((r) => r.status === "rejected").length;
+      const succeeded = results.length - failed;
+      return { succeeded, failed, archived };
+    },
+    onSuccess: ({ succeeded, failed, archived }) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/cases'] });
+      const action = archived ? "archived" : "restored";
+      if (failed === 0) {
+        toast({
+          title: archived ? "Cases archived" : "Cases restored",
+          description: `${succeeded} ${succeeded === 1 ? "case" : "cases"} ${action} successfully`,
+        });
+      } else {
+        toast({
+          title: "Partial success",
+          description: `${succeeded} ${action}, ${failed} failed`,
+          variant: "destructive",
+        });
+      }
+      onSuccess?.();
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update cases",
+        variant: "destructive",
+      });
+    },
+  });
+
+  return { bulkArchiveMutation };
+}

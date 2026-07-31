@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { FileText, Clock, CheckCircle2, FolderOpen, AlertTriangle, Search, SortAsc, Archive, AlertCircle, Mic, Keyboard, ClipboardCheck, Eye, ShieldCheck, Shield, Phone, Video, Trash2, FolderPlus, PlusCircle, ListFilter } from "lucide-react";
+import { FileText, Clock, CheckCircle2, FolderOpen, AlertTriangle, Search, SortAsc, Archive, AlertCircle, Mic, Keyboard, ClipboardCheck, Eye, ShieldCheck, Shield, Phone, Video, Trash2, FolderPlus, PlusCircle, ListFilter, ArchiveRestore, Loader2, X } from "lucide-react";
 import { ScheduledMeetingsViewer } from "@/components/ScheduledMeetingsViewer";
 import StatsCard from "@/components/StatsCard";
 import CaseListView from "@/components/CaseListView";
@@ -15,6 +15,7 @@ import { format, differenceInDays, differenceInHours, isPast } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { isFeatureVisible } from "@/lib/features";
 import { flushLiveBotNotesOnAssign } from "@/lib/meetingNotesDraft";
+import { useBulkCaseActions } from "@/hooks/useCaseActions";
 
 const amlComplianceVisible = isFeatureVisible("amlCompliance");
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -33,6 +34,16 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 
@@ -77,6 +88,12 @@ export default function Dashboard() {
   const [newMatterClient, setNewMatterClient] = useState("");
   const [discardTarget, setDiscardTarget] = useState<MeetingImport | null>(null);
   const [discardConfirmed, setDiscardConfirmed] = useState(false);
+  const [selectedCaseIds, setSelectedCaseIds] = useState<Set<string>>(new Set());
+  const [bulkArchiveConfirmOpen, setBulkArchiveConfirmOpen] = useState(false);
+
+  const { bulkArchiveMutation } = useBulkCaseActions({
+    onSuccess: () => setSelectedCaseIds(new Set()),
+  });
 
   const { data: cases, isLoading } = useQuery<Case[]>({
     queryKey: ["/api/cases"],
@@ -304,6 +321,10 @@ export default function Dashboard() {
     completed: categorizedCases.completed.length,
     archived: categorizedCases.archived.length,
   }), [categorizedCases]);
+
+  useEffect(() => {
+    setSelectedCaseIds(new Set());
+  }, [activeTab, searchQuery]);
 
   const priorityCasesCount = cases?.filter(c => 
     c.priority === "urgent" || c.priority === "deadline-soon"
@@ -653,13 +674,76 @@ export default function Dashboard() {
             <div className="max-h-[400px] overflow-y-auto p-4 sm:px-6">
               {filteredAndSortedCases.length > 0 ? (
                 <>
-                  <div className="flex items-center justify-between mb-3">
-                    <p className="text-sm text-muted-foreground">
-                      Showing {filteredAndSortedCases.length} {filteredAndSortedCases.length === 1 ? 'case' : 'cases'}
-                      {searchQuery && ` matching "${searchQuery}"`}
-                    </p>
+                  <div className="flex items-center justify-between gap-3 mb-3 min-h-9">
+                    {selectedCaseIds.size > 0 ? (
+                      <div className="flex flex-wrap items-center gap-2" data-testid="bulk-actions-bar">
+                        <span className="text-sm font-medium text-foreground">
+                          {selectedCaseIds.size} selected
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-2 text-muted-foreground"
+                          onClick={() => setSelectedCaseIds(new Set())}
+                          data-testid="button-clear-selection"
+                        >
+                          <X className="w-3.5 h-3.5 mr-1" />
+                          Clear
+                        </Button>
+                        {activeTab === "archived" ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8"
+                            disabled={bulkArchiveMutation.isPending}
+                            onClick={() => {
+                              bulkArchiveMutation.mutate({
+                                caseIds: Array.from(selectedCaseIds),
+                                archived: false,
+                              });
+                            }}
+                            data-testid="button-bulk-restore"
+                          >
+                            {bulkArchiveMutation.isPending ? (
+                              <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                            ) : (
+                              <ArchiveRestore className="w-3.5 h-3.5 mr-1.5" />
+                            )}
+                            Restore
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8"
+                            disabled={bulkArchiveMutation.isPending}
+                            onClick={() => setBulkArchiveConfirmOpen(true)}
+                            data-testid="button-bulk-archive"
+                          >
+                            {bulkArchiveMutation.isPending ? (
+                              <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                            ) : (
+                              <Archive className="w-3.5 h-3.5 mr-1.5" />
+                            )}
+                            Archive
+                          </Button>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        Showing {filteredAndSortedCases.length} {filteredAndSortedCases.length === 1 ? 'case' : 'cases'}
+                        {searchQuery && ` matching "${searchQuery}"`}
+                      </p>
+                    )}
                   </div>
-                  <CaseListView cases={filteredAndSortedCases} amlActivityDates={amlActivityDates} complianceEnabled={amlComplianceVisible && !!user?.complianceThread} />
+                  <CaseListView
+                    cases={filteredAndSortedCases}
+                    amlActivityDates={amlActivityDates}
+                    complianceEnabled={amlComplianceVisible && !!user?.complianceThread}
+                    selectionEnabled
+                    selectedIds={selectedCaseIds}
+                    onSelectionChange={setSelectedCaseIds}
+                  />
                 </>
               ) : searchQuery ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -918,6 +1002,33 @@ export default function Dashboard() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={bulkArchiveConfirmOpen} onOpenChange={setBulkArchiveConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Archive {selectedCaseIds.size} {selectedCaseIds.size === 1 ? "case" : "cases"}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Selected cases will move to the Archived tab. You can restore them later from there.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-bulk-archive-cancel">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              data-testid="button-bulk-archive-confirm"
+              onClick={() => {
+                bulkArchiveMutation.mutate({
+                  caseIds: Array.from(selectedCaseIds),
+                  archived: true,
+                });
+              }}
+            >
+              Archive
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { format, isPast, differenceInDays } from "date-fns";
-import { Clock, CheckCircle2, AlertCircle, Loader2, Eye, ChevronRight, Shield } from "lucide-react";
+import { ChevronRight, Shield } from "lucide-react";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { Case, PRACTICE_AREA_LABELS, type PracticeArea } from "@shared/schema";
 import { useLocation } from "wouter";
@@ -31,6 +32,9 @@ interface CaseListViewProps {
   onCaseClick?: (caseItem: Case) => void;
   amlActivityDates?: Record<string, string>;
   complianceEnabled?: boolean;
+  selectedIds?: Set<string>;
+  onSelectionChange?: (ids: Set<string>) => void;
+  selectionEnabled?: boolean;
 }
 
 type CaseStatus = "completed" | "processing" | "pending" | "review_required" | "failed";
@@ -121,14 +125,42 @@ function getPriorityBadge(caseItem: Case) {
   return null;
 }
 
-export default function CaseListView({ cases, amlActivityDates, complianceEnabled }: CaseListViewProps) {
+export default function CaseListView({
+  cases,
+  amlActivityDates,
+  complianceEnabled,
+  selectedIds,
+  onSelectionChange,
+  selectionEnabled = false,
+}: CaseListViewProps) {
   const [, setLocation] = useLocation();
   const [selectedCase, setSelectedCase] = useState<Case | null>(null);
   const [focusedIndex, setFocusedIndex] = useState<number>(-1);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
-  const rowRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const rowRefs = useRef<(HTMLDivElement | null)[]>([]);
   const prefersReducedMotion = useReducedMotion();
+
+  const selection = selectedIds ?? new Set<string>();
+  const allSelected = cases.length > 0 && cases.every((c) => selection.has(c.id));
+  const someSelected = cases.some((c) => selection.has(c.id)) && !allSelected;
+
+  const handleToggleSelect = useCallback((caseId: string, checked: boolean) => {
+    if (!onSelectionChange) return;
+    const next = new Set(selection);
+    if (checked) next.add(caseId);
+    else next.delete(caseId);
+    onSelectionChange(next);
+  }, [onSelectionChange, selection]);
+
+  const handleToggleSelectAll = useCallback((checked: boolean) => {
+    if (!onSelectionChange) return;
+    if (checked) {
+      onSelectionChange(new Set(cases.map((c) => c.id)));
+    } else {
+      onSelectionChange(new Set());
+    }
+  }, [onSelectionChange, cases]);
 
   const handleRowClick = useCallback((caseItem: Case, index: number) => {
     setSelectedCase(caseItem);
@@ -187,6 +219,13 @@ export default function CaseListView({ cases, amlActivityDates, complianceEnable
     return null;
   }
 
+  const gridCols = selectionEnabled
+    ? "sm:grid-cols-[auto_auto_1fr_1fr_minmax(0,140px)_100px_100px_32px]"
+    : "sm:grid-cols-[auto_1fr_1fr_minmax(0,140px)_100px_100px_32px]";
+  const mobileGridCols = selectionEnabled
+    ? "grid-cols-[auto_auto_1fr_auto]"
+    : "grid-cols-[auto_1fr_auto]";
+
   return (
     <>
       <div 
@@ -194,10 +233,24 @@ export default function CaseListView({ cases, amlActivityDates, complianceEnable
         className="divide-y divide-border rounded-lg border border-border bg-card overflow-hidden"
         role="listbox"
         aria-label="Case list"
+        aria-multiselectable={selectionEnabled || undefined}
         onKeyDown={handleKeyDown}
       >
         {/* Header row */}
-        <div className="hidden sm:grid sm:grid-cols-[auto_1fr_1fr_minmax(0,140px)_100px_100px_32px] gap-3 px-4 py-2.5 bg-muted/50 text-xs font-medium text-muted-foreground uppercase tracking-wider items-center">
+        <div className={cn(
+          "hidden sm:grid gap-3 px-4 py-2.5 bg-muted/50 text-xs font-medium text-muted-foreground uppercase tracking-wider items-center",
+          gridCols,
+        )}>
+          {selectionEnabled && (
+            <div className="flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+              <Checkbox
+                checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                onCheckedChange={(checked) => handleToggleSelectAll(checked === true)}
+                aria-label="Select all cases"
+                data-testid="checkbox-select-all-cases"
+              />
+            </div>
+          )}
           <div className="w-3"></div>
           <div>Client</div>
           <div>Case Title</div>
@@ -214,12 +267,20 @@ export default function CaseListView({ cases, amlActivityDates, complianceEnable
           const priorityBadge = getPriorityBadge(caseItem);
           const isSelected = selectedCase?.id === caseItem.id && isDrawerOpen;
           const isFocused = focusedIndex === index;
+          const isChecked = selection.has(caseItem.id);
 
           return (
-            <motion.button
+            <motion.div
               key={caseItem.id}
               ref={el => rowRefs.current[index] = el}
               onClick={() => handleRowClick(caseItem, index)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  handleRowClick(caseItem, index);
+                }
+              }}
+              tabIndex={0}
               initial={prefersReducedMotion ? false : { opacity: 0, x: -8 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ 
@@ -228,16 +289,34 @@ export default function CaseListView({ cases, amlActivityDates, complianceEnable
                 ease: "easeOut"
               }}
               className={cn(
-                "w-full text-left transition-colors duration-150",
+                "w-full text-left transition-colors duration-150 cursor-pointer",
                 "hover:bg-muted/50 focus:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/50",
-                "grid grid-cols-[auto_1fr_auto] sm:grid-cols-[auto_1fr_1fr_minmax(0,140px)_100px_100px_32px] gap-2 sm:gap-3 px-4 py-2.5",
+                "grid gap-2 sm:gap-3 px-4 py-2.5",
+                mobileGridCols,
+                gridCols,
                 isSelected && "bg-primary/5 border-l-2 border-l-primary",
-                isFocused && !isSelected && "bg-muted/30"
+                isFocused && !isSelected && "bg-muted/30",
+                isChecked && "bg-primary/5"
               )}
               role="option"
-              aria-selected={isSelected}
+              aria-selected={selectionEnabled ? isChecked : isSelected}
               data-testid={`row-case-${caseItem.id}`}
             >
+              {selectionEnabled && (
+                <div
+                  className="flex items-center justify-center"
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => e.stopPropagation()}
+                >
+                  <Checkbox
+                    checked={isChecked}
+                    onCheckedChange={(checked) => handleToggleSelect(caseItem.id, checked === true)}
+                    aria-label={`Select ${caseItem.clientName}`}
+                    data-testid={`checkbox-case-${caseItem.id}`}
+                  />
+                </div>
+              )}
+
               {/* Status indicator */}
               <div className="flex items-center justify-center pt-0.5" title={statusTooltip}>
                 <span className={cn(
@@ -328,7 +407,7 @@ export default function CaseListView({ cases, amlActivityDates, complianceEnable
                   isSelected && "text-primary transform translate-x-0.5"
                 )} />
               </div>
-            </motion.button>
+            </motion.div>
           );
         })}
       </div>
