@@ -20,19 +20,16 @@ import { cn } from "@/lib/utils";
 import {
   caseViewPath,
   parseVoiceCommand,
+  rankMattersForVoiceOpen,
   type CaseView,
   type VoiceIntent,
+  type VoiceMatterCandidate,
 } from "@/lib/voiceCommandIntents";
 import type { Case } from "@shared/schema";
 
 const SHORTCUT_HINT = "Ctrl+Shift+Space";
 
-interface MatterHit {
-  id: string;
-  title: string;
-  clientName: string | null;
-  matterReference: string | null;
-}
+type MatterHit = VoiceMatterCandidate;
 
 type PanelPhase = "idle" | "listening" | "working" | "choose_matter" | "done" | "error";
 
@@ -105,28 +102,31 @@ export function VoiceCommandTrigger() {
 
         if (intent.type === "open_matter") {
           setStatusLine(`Searching for “${intent.query}”…`);
-          const hits = await searchMatters(intent.query);
-          if (hits.length === 0) {
+          const { ranked, autoOpen } = await searchMatters(intent.query);
+          if (ranked.length === 0) {
             setPanelPhase("error");
             setStatusLine(`No matter found for “${intent.query}”.`);
             return;
           }
-          if (hits.length === 1) {
+
+          const chosen = autoOpen ?? (ranked.length === 1 ? ranked[0] : null);
+          if (chosen) {
             const view = pendingViewRef.current;
-            const path = view ? caseViewPath(hits[0].id, view) : `/case/${hits[0].id}`;
+            const path = view ? caseViewPath(chosen.id, view) : `/case/${chosen.id}`;
             setLocation(path);
             setPanelPhase("done");
-            setStatusLine(`Opened ${hits[0].title || hits[0].clientName || "matter"}`);
+            setStatusLine(`Opened ${chosen.title || chosen.clientName || "matter"}`);
             toast({
-              title: hits[0].title || "Matter opened",
-              description: hits[0].clientName || undefined,
+              title: chosen.title || "Matter opened",
+              description: chosen.clientName || undefined,
             });
             window.setTimeout(() => closeRef.current(), 900);
             return;
           }
-          setMatterChoices(hits.slice(0, 5));
+
+          setMatterChoices(ranked);
           setPanelPhase("choose_matter");
-          setStatusLine(`Found ${hits.length} matches — pick one`);
+          setStatusLine(`Found ${ranked.length} close matches — tap one to open`);
           return;
         }
 
@@ -149,7 +149,7 @@ export function VoiceCommandTrigger() {
     (transcript: string) => {
       setHeardText(transcript);
       setPanelPhase("working");
-      setStatusLine("Working…");
+      setStatusLine("Searching…");
       void executeIntent(parseVoiceCommand(transcript));
     },
     [executeIntent],
@@ -188,7 +188,7 @@ export function VoiceCommandTrigger() {
     }
     // Second tap while listening = finish & run command
     if (recognition.status === "listening") {
-      setStatusLine("Transcribing…");
+      setStatusLine("Searching…");
       recognition.finish();
       return;
     }
@@ -198,7 +198,7 @@ export function VoiceCommandTrigger() {
   useEffect(() => {
     if (recognition.status === "transcribing") {
       setPanelPhase("working");
-      setStatusLine("Transcribing with AssemblyAI…");
+      setStatusLine("Searching…");
     }
   }, [recognition.status]);
 
@@ -250,19 +250,17 @@ export function VoiceCommandTrigger() {
   }, [open, panelPhase, recognition.status]);
 
   const title =
-    recognition.status === "transcribing"
-      ? "Transcribing…"
+    recognition.status === "transcribing" || panelPhase === "working"
+      ? "Searching…"
       : panelPhase === "listening"
         ? "Listening…"
-        : panelPhase === "working"
-          ? "Working…"
-          : panelPhase === "choose_matter"
-            ? "Choose a matter"
-            : panelPhase === "done"
-              ? "Done"
-              : panelPhase === "error"
-                ? "Try again"
-                : "Voice command";
+        : panelPhase === "choose_matter"
+          ? "Choose a matter"
+          : panelPhase === "done"
+            ? "Done"
+            : panelPhase === "error"
+              ? "Try again"
+              : "Voice command";
 
   const pickMatter = (hit: MatterHit) => {
     const view = pendingViewRef.current;
@@ -284,7 +282,8 @@ export function VoiceCommandTrigger() {
   };
 
   const finishListening = () => {
-    setStatusLine("Transcribing…");
+    setPanelPhase("working");
+    setStatusLine("Searching…");
     recognition.finish();
   };
 
@@ -387,9 +386,7 @@ export function VoiceCommandTrigger() {
               {(panelPhase === "working" || recognition.status === "transcribing") && (
                 <div className="mb-2 flex items-center justify-center gap-2 text-xs text-muted-foreground">
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  {recognition.status === "transcribing"
-                    ? "Transcribing…"
-                    : "Matching your command…"}
+                  Searching…
                 </div>
               )}
 
@@ -424,10 +421,15 @@ export function VoiceCommandTrigger() {
                     <li key={hit.id}>
                       <button
                         type="button"
-                        onClick={() => pickMatter(hit)}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          pickMatter(hit);
+                        }}
                         className={cn(
-                          "w-full rounded-lg border border-border bg-background px-3 py-2 text-left text-sm",
-                          "hover:border-[hsl(18,70%,42%)]/50 hover:bg-muted/40 transition-colors",
+                          "w-full rounded-lg border border-border bg-background px-3 py-2.5 text-left text-sm",
+                          "hover:border-[hsl(18,70%,42%)]/60 hover:bg-[hsl(18,70%,42%)]/10",
+                          "active:bg-[hsl(18,70%,42%)]/15 transition-colors cursor-pointer",
                         )}
                         data-testid={`voice-matter-choice-${hit.id}`}
                       >
@@ -453,8 +455,8 @@ export function VoiceCommandTrigger() {
             )}
 
             <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
-              Transcribes via AssemblyAI (EU). Speak, then tap Done (or wait ~7s). Does not start a
-              meeting recording — use the red mic or Ctrl+L for that.
+              Speak, then tap Done (or wait ~7s). Does not start a meeting recording — use the red
+              mic or Ctrl+L for that.
             </p>
           </div>
         </div>
@@ -463,20 +465,17 @@ export function VoiceCommandTrigger() {
   );
 }
 
-async function searchMatters(query: string): Promise<MatterHit[]> {
-  const params = new URLSearchParams({ q: query.trim() });
-  const response = await fetch(`/api/search/enhanced?${params.toString()}`, {
-    credentials: "include",
-  });
+async function searchMatters(query: string) {
+  // Use the case list (client/title/ref) — not enhanced search, which also
+  // matches transcript body and returns unrelated matters.
+  const response = await fetch("/api/cases", { credentials: "include" });
   if (!response.ok) throw new Error("Search failed");
-  const results = (await response.json()) as Array<{
-    case: Case;
-    score: number;
-  }>;
-  return results.map((r) => ({
-    id: r.case.id,
-    title: r.case.title,
-    clientName: r.case.clientName ?? null,
-    matterReference: r.case.matterReference ?? null,
+  const cases = (await response.json()) as Case[];
+  const candidates: VoiceMatterCandidate[] = cases.map((c) => ({
+    id: c.id,
+    title: c.title,
+    clientName: c.clientName ?? null,
+    matterReference: c.matterReference ?? null,
   }));
+  return rankMattersForVoiceOpen(candidates, query);
 }

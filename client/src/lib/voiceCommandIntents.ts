@@ -14,6 +14,17 @@ export type CaseView =
   | "notes"
   | "documents";
 
+export interface VoiceMatterCandidate {
+  id: string;
+  title: string;
+  clientName: string | null;
+  matterReference: string | null;
+}
+
+export interface RankedMatterHit extends VoiceMatterCandidate {
+  score: number;
+}
+
 const NAV_PATTERNS: Array<{ re: RegExp; path: string; label: string }> = [
   { re: /\b(go to |open |show )?(the )?(dashboard|home)\b/i, path: "/", label: "Dashboard" },
   { re: /\b(go to |open |show )?(all )?cases\b/i, path: "/cases", label: "Cases" },
@@ -41,7 +52,9 @@ export function parseVoiceCommand(transcript: string): VoiceIntent {
   const raw = transcript.trim().replace(/\s+/g, " ");
   if (!raw) return { type: "unknown", raw: "" };
 
-  const lower = raw.toLowerCase();
+  // STT often inserts "Open. Adam…" — normalize punctuation before matching verbs
+  const spoken = raw.replace(/[.,!?…"“”‘’]+/g, " ").replace(/\s+/g, " ").trim();
+  const lower = spoken.toLowerCase();
 
   if (/\b(start|begin)\b.*\b(recording|record)\b/i.test(lower) || /\bquick record\b/i.test(lower)) {
     return { type: "start_recording" };
@@ -51,12 +64,11 @@ export function parseVoiceCommand(transcript: string): VoiceIntent {
   }
 
   // "open adam reeves", "open matter Patterson", "go to the Smith case"
-  const openMatter = raw.match(
+  const openMatter = spoken.match(
     /^(?:please\s+)?(?:open|go to|show|find|bring up)\s+(?:the\s+)?(?:matter|case|client)?\s*(.+)$/i,
   );
   if (openMatter?.[1]) {
     const query = cleanMatterQuery(openMatter[1]);
-    // If the remainder is a pure nav word, treat as navigation instead
     for (const nav of NAV_PATTERNS) {
       if (nav.re.test(query) && query.split(/\s+/).length <= 2) {
         return { type: "navigate", path: nav.path, label: nav.label };
@@ -73,31 +85,137 @@ export function parseVoiceCommand(transcript: string): VoiceIntent {
   }
 
   for (const view of CASE_VIEW_PATTERNS) {
-    if (view.re.test(raw)) {
+    if (view.re.test(spoken)) {
       return { type: "case_view", view: view.view, label: view.label };
     }
   }
 
   for (const nav of NAV_PATTERNS) {
-    if (nav.re.test(raw)) {
+    if (nav.re.test(spoken)) {
       return { type: "navigate", path: nav.path, label: nav.label };
     }
   }
 
   // Bare name fallback: "adam reeves" with no verb → treat as open matter
-  if (/^[a-z0-9][a-z0-9 &'./-]{1,80}$/i.test(raw) && !/\b(please|hello|hi|thanks)\b/i.test(lower)) {
-    return { type: "open_matter", query: cleanMatterQuery(raw) };
+  const cleanedBare = cleanMatterQuery(spoken);
+  if (
+    cleanedBare.length >= 2 &&
+    /^[a-z0-9][a-z0-9 &'./-]{1,80}$/i.test(cleanedBare) &&
+    !/\b(please|hello|hi|thanks)\b/i.test(cleanedBare)
+  ) {
+    return { type: "open_matter", query: cleanedBare };
   }
 
   return { type: "unknown", raw };
 }
 
-function cleanMatterQuery(q: string): string {
+export function cleanMatterQuery(q: string): string {
   return q
-    .replace(/\b(matter|case|client|please|for me)\b/gi, " ")
-    .replace(/[?.!,]+$/g, "")
+    .replace(/[.,!?…"“”‘’]+/g, " ")
+    .replace(/\bversus\b/gi, "v")
+    .replace(/\bv\.\s*/gi, "v ")
+    .replace(/\b(matter|case|client|please|for me|the)\b/gi, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+/** Normalize for fuzzy compare: lowercase, collapse space, light plural trim. */
+export function normalizeMatterText(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[.,!?…"“”‘’'/()-]+/g, " ")
+    .replace(/\bversus\b/g, "v")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function tokens(value: string): string[] {
+  return normalizeMatterText(value)
+    .split(" ")
+    .filter((t) => t.length > 0);
+}
+
+/** Soft equality: reeve ≈ reeves */
+function tokensMatch(a: string, b: string): boolean {
+  if (a === b) return true;
+  if (a.length >= 3 && b.length >= 3 && (a.startsWith(b) || b.startsWith(a))) return true;
+  return false;
+}
+
+/**
+ * Score a case against a spoken matter query (client / title / ref only — not transcript body).
+ */
+export function scoreMatterAgainstQuery(matter: VoiceMatterCandidate, query: string): number {
+  const q = normalizeMatterText(query);
+  if (!q) return 0;
+
+  const client = normalizeMatterText(matter.clientName || "");
+  const title = normalizeMatterText(matter.title || "");
+  const ref = normalizeMatterText(matter.matterReference || "");
+  const qTokens = tokens(q);
+  const clientTokens = tokens(client);
+  const titleTokens = tokens(title);
+
+  let score = 0;
+
+  if (client && client === q) score += 120;
+  else if (client && (client.includes(q) || q.includes(client))) score += 95;
+
+  if (title && title === q) score += 110;
+  else if (title && title.includes(q)) score += 85;
+
+  if (ref && (ref === q || ref.includes(q) || q.includes(ref))) score += 90;
+
+  // Token overlap — "adam reeves" vs "adam reeve"
+  if (qTokens.length > 0 && clientTokens.length > 0) {
+    const clientHits = qTokens.filter((qt) => clientTokens.some((ct) => tokensMatch(qt, ct))).length;
+    score += (clientHits / qTokens.length) * 70;
+  }
+  if (qTokens.length > 0 && titleTokens.length > 0) {
+    const titleHits = qTokens.filter((qt) => titleTokens.some((tt) => tokensMatch(qt, tt))).length;
+    score += (titleHits / qTokens.length) * 55;
+  }
+
+  // "reeve v reeve" style titles
+  if (qTokens.includes("v") && title.includes(" v ")) {
+    const parties = qTokens.filter((t) => t !== "v");
+    if (parties.length > 0 && parties.every((p) => titleTokens.some((tt) => tokensMatch(p, tt)))) {
+      score += 40;
+    }
+  }
+
+  return score;
+}
+
+/**
+ * Rank matters for voice open. Returns only plausible hits, best first.
+ * Auto-open when the top hit is clearly the intended matter.
+ */
+export function rankMattersForVoiceOpen(
+  matters: VoiceMatterCandidate[],
+  query: string,
+): { ranked: RankedMatterHit[]; autoOpen: RankedMatterHit | null } {
+  const ranked = matters
+    .map((m) => ({ ...m, score: scoreMatterAgainstQuery(m, query) }))
+    .filter((m) => m.score >= 40)
+    .sort((a, b) => b.score - a.score);
+
+  if (ranked.length === 0) return { ranked: [], autoOpen: null };
+
+  const best = ranked[0];
+  const second = ranked[1];
+
+  // Strong unique match, or clearly ahead of the runner-up
+  const clearWinner =
+    best.score >= 70 &&
+    (!second || best.score >= second.score + 18 || best.score >= 100);
+
+  return {
+    ranked: ranked.slice(0, 5),
+    autoOpen: clearWinner ? best : null,
+  };
 }
 
 export function caseViewPath(caseId: string, view: CaseView): string {
