@@ -38,7 +38,7 @@ type PanelPhase = "idle" | "listening" | "working" | "choose_matter" | "done" | 
 
 /**
  * Bottom-left voice command trigger — LegalNote mark, not the red record mic.
- * Uses browser speech recognition, then navigates / operates the UI.
+ * Captures mic audio and transcribes via AssemblyAI EU (/api/transcribe).
  */
 export function VoiceCommandTrigger() {
   const [, setLocation] = useLocation();
@@ -156,12 +156,11 @@ export function VoiceCommandTrigger() {
   );
 
   const recognition = useVoiceCommandRecognition({
-    lang: "en-GB",
     onFinalTranscript: handleFinalTranscript,
   });
 
   const close = useCallback(() => {
-    recognition.stop();
+    recognition.cancel();
     setOpen(false);
     setPanelPhase("idle");
     setHeardText("");
@@ -178,20 +177,30 @@ export function VoiceCommandTrigger() {
     setHeardText("");
     setMatterChoices([]);
     setPendingView(null);
-    setStatusLine("Listening… speak a command");
-    recognition.start();
+    setStatusLine("Speak now — tap Done when finished");
+    void recognition.start();
   }, [recognition]);
 
   const toggle = useCallback(() => {
-    if (open) close();
-    else openListening();
-  }, [open, close, openListening]);
+    if (!open) {
+      openListening();
+      return;
+    }
+    // Second tap while listening = finish & run command
+    if (recognition.status === "listening") {
+      setStatusLine("Transcribing…");
+      recognition.finish();
+      return;
+    }
+    close();
+  }, [open, close, openListening, recognition]);
 
   useEffect(() => {
-    if (recognition.interimTranscript) {
-      setHeardText(recognition.interimTranscript);
+    if (recognition.status === "transcribing") {
+      setPanelPhase("working");
+      setStatusLine("Transcribing with AssemblyAI…");
     }
-  }, [recognition.interimTranscript]);
+  }, [recognition.status]);
 
   useEffect(() => {
     if (
@@ -236,22 +245,24 @@ export function VoiceCommandTrigger() {
 
   const markState: LegalNoteMarkState = useMemo(() => {
     if (panelPhase === "listening" || recognition.status === "listening") return "listening";
-    if (panelPhase === "working") return "processing";
+    if (panelPhase === "working" || recognition.status === "transcribing") return "processing";
     return open ? "listening" : "idle";
   }, [open, panelPhase, recognition.status]);
 
   const title =
-    panelPhase === "listening"
-      ? "Listening…"
-      : panelPhase === "working"
-        ? "Working…"
-        : panelPhase === "choose_matter"
-          ? "Choose a matter"
-          : panelPhase === "done"
-            ? "Done"
-            : panelPhase === "error"
-              ? "Try again"
-              : "Voice command";
+    recognition.status === "transcribing"
+      ? "Transcribing…"
+      : panelPhase === "listening"
+        ? "Listening…"
+        : panelPhase === "working"
+          ? "Working…"
+          : panelPhase === "choose_matter"
+            ? "Choose a matter"
+            : panelPhase === "done"
+              ? "Done"
+              : panelPhase === "error"
+                ? "Try again"
+                : "Voice command";
 
   const pickMatter = (hit: MatterHit) => {
     const view = pendingViewRef.current;
@@ -268,8 +279,13 @@ export function VoiceCommandTrigger() {
     setPendingView(null);
     setHeardText("");
     setPanelPhase("listening");
-    setStatusLine("Listening… speak a command");
-    recognition.start();
+    setStatusLine("Speak now — tap Done when finished");
+    void recognition.start();
+  };
+
+  const finishListening = () => {
+    setStatusLine("Transcribing…");
+    recognition.finish();
   };
 
   return (
@@ -355,17 +371,25 @@ export function VoiceCommandTrigger() {
                 "dark:border-white/20 dark:bg-[hsl(222,35%,11%)]",
               )}
             >
-              {(panelPhase === "listening" || panelPhase === "working") && (
+              {(panelPhase === "listening" ||
+                panelPhase === "working" ||
+                recognition.status === "transcribing") && (
                 <VoiceWaveform
-                  state={panelPhase === "working" ? "processing" : "listening"}
+                  state={
+                    panelPhase === "working" || recognition.status === "transcribing"
+                      ? "processing"
+                      : "listening"
+                  }
                   className="mb-3"
                 />
               )}
 
-              {panelPhase === "working" && (
+              {(panelPhase === "working" || recognition.status === "transcribing") && (
                 <div className="mb-2 flex items-center justify-center gap-2 text-xs text-muted-foreground">
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  Matching your command…
+                  {recognition.status === "transcribing"
+                    ? "Transcribing…"
+                    : "Matching your command…"}
                 </div>
               )}
 
@@ -376,9 +400,22 @@ export function VoiceCommandTrigger() {
               ) : (
                 <p className="text-center text-sm text-muted-foreground">
                   Say{" "}
-                  <span className="text-foreground">“Open Adam Reeves”</span> or{" "}
+                  <span className="text-foreground">“Open Adam Reeve”</span> or{" "}
                   <span className="text-foreground">“Go to cases”</span>
                 </p>
+              )}
+
+              {recognition.status === "listening" && (
+                <div className="mt-3 flex justify-center">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={finishListening}
+                    data-testid="button-voice-command-done"
+                  >
+                    Done speaking
+                  </Button>
+                </div>
               )}
 
               {panelPhase === "choose_matter" && matterChoices.length > 0 && (
@@ -416,8 +453,8 @@ export function VoiceCommandTrigger() {
             )}
 
             <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
-              Uses your browser’s speech recognition (Chrome/Edge). Allow the mic when prompted.
-              Does not start a meeting recording — use the red mic or Ctrl+L for that.
+              Transcribes via AssemblyAI (EU). Speak, then tap Done (or wait ~7s). Does not start a
+              meeting recording — use the red mic or Ctrl+L for that.
             </p>
           </div>
         </div>

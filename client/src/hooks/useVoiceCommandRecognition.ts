@@ -1,168 +1,220 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-type SpeechRecognitionLike = {
-  lang: string;
-  continuous: boolean;
-  interimResults: boolean;
-  maxAlternatives: number;
-  start: () => void;
-  stop: () => void;
-  abort: () => void;
-  onstart: ((ev: Event) => void) | null;
-  onend: ((ev: Event) => void) | null;
-  onerror: ((ev: Event & { error?: string }) => void) | null;
-  onresult: ((ev: SpeechRecognitionEventLike) => void) | null;
-};
-
-type SpeechRecognitionEventLike = {
-  resultIndex: number;
-  results: ArrayLike<{
-    isFinal: boolean;
-    0: { transcript: string };
-  }>;
-};
-
-type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
-
-function getSpeechRecognitionCtor(): SpeechRecognitionCtor | null {
-  if (typeof window === "undefined") return null;
-  const w = window as Window & {
-    SpeechRecognition?: SpeechRecognitionCtor;
-    webkitSpeechRecognition?: SpeechRecognitionCtor;
-  };
-  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
-}
-
-export function isSpeechRecognitionSupported(): boolean {
-  return getSpeechRecognitionCtor() != null;
+function getSupportedMimeType(): { mimeType: string; extension: string } {
+  if (typeof MediaRecorder === "undefined" || typeof MediaRecorder.isTypeSupported !== "function") {
+    return { mimeType: "audio/webm", extension: ".webm" };
+  }
+  const types = [
+    { mimeType: "audio/webm", extension: ".webm" },
+    { mimeType: "audio/mp4", extension: ".mp4" },
+  ];
+  for (const type of types) {
+    if (MediaRecorder.isTypeSupported(type.mimeType)) return type;
+  }
+  return { mimeType: "audio/webm", extension: ".webm" };
 }
 
 export type VoiceRecognitionStatus =
   | "idle"
   | "listening"
-  | "unsupported"
+  | "transcribing"
   | "denied"
+  | "unsupported"
   | "error";
 
+const MAX_COMMAND_MS = 7000;
+
 /**
- * Browser Web Speech API — fast command STT for the voice control bar.
- * Chrome/Edge typically process speech via the browser vendor (not AssemblyAI).
+ * Voice-command capture via MediaRecorder + LegalNote `/api/transcribe` (AssemblyAI EU).
+ * Avoids Chrome Web Speech (Google cloud), which often fails with "network" errors.
  */
 export function useVoiceCommandRecognition(options?: {
-  lang?: string;
   onFinalTranscript?: (transcript: string) => void;
 }) {
-  const lang = options?.lang ?? "en-GB";
   const onFinalRef = useRef(options?.onFinalTranscript);
   onFinalRef.current = options?.onFinalTranscript;
 
-  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
-  const intentionalStopRef = useRef(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
+  const maxTimerRef = useRef<number | null>(null);
+  const formatRef = useRef(getSupportedMimeType());
+  /** When true, onstop discards audio instead of transcribing. */
+  const discardRef = useRef(false);
 
-  const [status, setStatus] = useState<VoiceRecognitionStatus>(() =>
-    isSpeechRecognitionSupported() ? "idle" : "unsupported",
-  );
+  const [status, setStatus] = useState<VoiceRecognitionStatus>("idle");
   const [interimTranscript, setInterimTranscript] = useState("");
   const [finalTranscript, setFinalTranscript] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const stop = useCallback(() => {
-    intentionalStopRef.current = true;
-    const rec = recognitionRef.current;
-    if (rec) {
-      try {
-        rec.stop();
-      } catch {
-        /* already stopped */
-      }
+  const cleanupStream = useCallback(() => {
+    if (maxTimerRef.current != null) {
+      window.clearTimeout(maxTimerRef.current);
+      maxTimerRef.current = null;
     }
-    recognitionRef.current = null;
-    setStatus((s) => (s === "listening" ? "idle" : s));
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    mediaRecorderRef.current = null;
   }, []);
 
-  const start = useCallback(() => {
-    const Ctor = getSpeechRecognitionCtor();
-    if (!Ctor) {
-      setStatus("unsupported");
-      setErrorMessage("Voice commands need Chrome or Edge on this device.");
+  const transcribeBlob = useCallback(async (blob: Blob) => {
+    if (blob.size < 200) {
+      setStatus("error");
+      setErrorMessage("Didn’t catch that — try again and speak a bit longer.");
       return;
     }
 
-    stop();
-    intentionalStopRef.current = false;
+    setStatus("transcribing");
+    setInterimTranscript("");
+    setErrorMessage(null);
+
+    try {
+      const formData = new FormData();
+      const { extension } = formatRef.current;
+      formData.append("audio", blob, `voice-command${extension}`);
+
+      const res = await fetch("/api/transcribe", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        throw new Error("Transcription failed");
+      }
+
+      const data = (await res.json()) as { text?: string };
+      const text = (data.text || "").trim();
+      if (!text) {
+        setStatus("error");
+        setErrorMessage("Didn’t catch that — try again.");
+        return;
+      }
+
+      setFinalTranscript(text);
+      setStatus("idle");
+      onFinalRef.current?.(text);
+    } catch (err) {
+      console.error("Voice command transcription failed", err);
+      setStatus("error");
+      setErrorMessage("Couldn’t transcribe that. Check your connection and try again.");
+    }
+  }, []);
+
+  const finish = useCallback(() => {
+    discardRef.current = false;
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== "inactive") {
+      try {
+        recorder.stop();
+      } catch {
+        cleanupStream();
+        setStatus("idle");
+      }
+    }
+  }, [cleanupStream]);
+
+  const cancel = useCallback(() => {
+    discardRef.current = true;
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== "inactive") {
+      try {
+        recorder.stop();
+      } catch {
+        cleanupStream();
+      }
+    } else {
+      cleanupStream();
+    }
+    setStatus("idle");
+    setInterimTranscript("");
+  }, [cleanupStream]);
+
+  const start = useCallback(async () => {
+    if (typeof MediaRecorder === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      setStatus("unsupported");
+      setErrorMessage("This browser can’t capture microphone audio for voice commands.");
+      return;
+    }
+
+    // Cancel any in-flight capture
+    discardRef.current = true;
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch {
+        /* ignore */
+      }
+    }
+    cleanupStream();
+
+    discardRef.current = false;
     setInterimTranscript("");
     setFinalTranscript("");
     setErrorMessage(null);
+    chunksRef.current = [];
+    formatRef.current = getSupportedMimeType();
 
-    const recognition = new Ctor();
-    recognition.lang = lang;
-    recognition.continuous = false;
-    recognition.interimResults = true;
-    recognition.maxAlternatives = 1;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const { mimeType } = formatRef.current;
+      const recorder = new MediaRecorder(stream, { mimeType });
+      mediaRecorderRef.current = recorder;
 
-    recognition.onstart = () => {
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) chunksRef.current.push(event.data);
+      };
+
+      recorder.onerror = () => {
+        setStatus("error");
+        setErrorMessage("Microphone capture failed.");
+        cleanupStream();
+      };
+
+      recorder.onstop = () => {
+        const shouldDiscard = discardRef.current;
+        const blob = new Blob(chunksRef.current, { type: formatRef.current.mimeType });
+        cleanupStream();
+        if (shouldDiscard) {
+          setStatus("idle");
+          return;
+        }
+        void transcribeBlob(blob);
+      };
+
+      recorder.start();
       setStatus("listening");
-    };
 
-    recognition.onerror = (event) => {
-      const err = event.error ?? "error";
-      if (err === "aborted" && intentionalStopRef.current) return;
-      if (err === "no-speech") {
-        setErrorMessage("Didn’t catch that — try again.");
-        setStatus("idle");
-        return;
-      }
-      if (err === "not-allowed" || err === "service-not-allowed") {
+      maxTimerRef.current = window.setTimeout(() => {
+        finish();
+      }, MAX_COMMAND_MS);
+    } catch (err: any) {
+      cleanupStream();
+      const name = err?.name || "";
+      if (name === "NotAllowedError" || name === "PermissionDeniedError") {
         setStatus("denied");
         setErrorMessage("Microphone permission blocked. Allow mic access for this site.");
         return;
       }
       setStatus("error");
-      setErrorMessage(err === "network" ? "Speech service unavailable. Check your connection." : `Speech error: ${err}`);
-    };
-
-    recognition.onresult = (event) => {
-      let interim = "";
-      let finalText = "";
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const result = event.results[i];
-        const text = result[0]?.transcript ?? "";
-        if (result.isFinal) finalText += text;
-        else interim += text;
-      }
-      if (interim) setInterimTranscript(interim.trim());
-      if (finalText.trim()) {
-        const cleaned = finalText.trim();
-        setFinalTranscript(cleaned);
-        setInterimTranscript("");
-        onFinalRef.current?.(cleaned);
-      }
-    };
-
-    recognition.onend = () => {
-      recognitionRef.current = null;
-      setStatus((s) => (s === "listening" ? "idle" : s));
-    };
-
-    recognitionRef.current = recognition;
-    try {
-      recognition.start();
-    } catch {
-      setStatus("error");
-      setErrorMessage("Could not start the microphone.");
+      setErrorMessage(err?.message || "Failed to access microphone.");
     }
-  }, [lang, stop]);
+  }, [cleanupStream, finish, transcribeBlob]);
 
-  useEffect(() => () => stop(), [stop]);
+  useEffect(() => () => cancel(), [cancel]);
 
   return {
     status,
     interimTranscript,
     finalTranscript,
     errorMessage,
-    supported: isSpeechRecognitionSupported(),
+    supported: typeof MediaRecorder !== "undefined",
     start,
-    stop,
+    /** Stop capture and send audio for transcription. */
+    finish,
+    /** Abort without transcribing. */
+    cancel,
     setErrorMessage,
   };
 }
