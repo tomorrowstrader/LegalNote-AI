@@ -1,40 +1,211 @@
-import { useCallback, useEffect, useState } from "react";
-import { X } from "lucide-react";
-import { AnimatedLegalNoteMark, VoiceWaveform, type LegalNoteMarkState } from "@/components/AnimatedLegalNoteMark";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useRoute } from "wouter";
+import { Loader2, X } from "lucide-react";
+import {
+  AnimatedLegalNoteMark,
+  VoiceWaveform,
+  type LegalNoteMarkState,
+} from "@/components/AnimatedLegalNoteMark";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useToast } from "@/hooks/use-toast";
+import { useVoiceCommandRecognition } from "@/hooks/useVoiceCommandRecognition";
+import { QUICK_RECORD_SHORTCUT_EVENT } from "@/hooks/useQuickRecordShortcut";
+import { buildCapturePath } from "@/lib/capture";
 import { cn } from "@/lib/utils";
+import {
+  caseViewPath,
+  parseVoiceCommand,
+  type CaseView,
+  type VoiceIntent,
+} from "@/lib/voiceCommandIntents";
+import type { Case } from "@shared/schema";
 
 const SHORTCUT_HINT = "Ctrl+Shift+Space";
 
+interface MatterHit {
+  id: string;
+  title: string;
+  clientName: string | null;
+  matterReference: string | null;
+}
+
+type PanelPhase = "idle" | "listening" | "working" | "choose_matter" | "done" | "error";
+
 /**
  * Bottom-left voice command trigger — LegalNote mark, not the red record mic.
- * Hold or click to open the command bar. STT / intent wiring comes next.
+ * Uses browser speech recognition, then navigates / operates the UI.
  */
 export function VoiceCommandTrigger() {
+  const [, setLocation] = useLocation();
+  const [matchCase, caseParams] = useRoute("/case/:id");
+  const activeCaseId = matchCase ? caseParams?.id ?? null : null;
+  const { toast } = useToast();
+
   const [open, setOpen] = useState(false);
-  const [markState, setMarkState] = useState<LegalNoteMarkState>("idle");
+  const [panelPhase, setPanelPhase] = useState<PanelPhase>("idle");
+  const [statusLine, setStatusLine] = useState("Navigate, open a matter, or start recording");
+  const [heardText, setHeardText] = useState("");
+  const [matterChoices, setMatterChoices] = useState<MatterHit[]>([]);
+  const [pendingView, setPendingView] = useState<CaseView | null>(null);
+
+  const activeCaseIdRef = useRef(activeCaseId);
+  const pendingViewRef = useRef(pendingView);
+  activeCaseIdRef.current = activeCaseId;
+  pendingViewRef.current = pendingView;
+
+  const closeRef = useRef<() => void>(() => {});
+
+  const executeIntent = useCallback(
+    async (intent: VoiceIntent) => {
+      try {
+        if (intent.type === "navigate") {
+          setLocation(intent.path);
+          setPanelPhase("done");
+          setStatusLine(`Opened ${intent.label}`);
+          toast({ title: intent.label, description: "Opened via voice command" });
+          window.setTimeout(() => closeRef.current(), 900);
+          return;
+        }
+
+        if (intent.type === "start_recording") {
+          window.dispatchEvent(new CustomEvent(QUICK_RECORD_SHORTCUT_EVENT));
+          setPanelPhase("done");
+          setStatusLine("Starting Quick Record…");
+          toast({ title: "Quick Record", description: "Started via voice command" });
+          window.setTimeout(() => closeRef.current(), 700);
+          return;
+        }
+
+        if (intent.type === "start_livebot") {
+          setLocation(buildCapturePath({ mode: "join" }));
+          setPanelPhase("done");
+          setStatusLine("Opening Join Meeting…");
+          window.setTimeout(() => closeRef.current(), 900);
+          return;
+        }
+
+        if (intent.type === "case_view") {
+          const caseId = activeCaseIdRef.current;
+          if (!caseId) {
+            setPanelPhase("error");
+            setStatusLine(`Open a matter first, then say “${intent.label.toLowerCase()}”.`);
+            return;
+          }
+          setLocation(caseViewPath(caseId, intent.view));
+          setPanelPhase("done");
+          setStatusLine(`Showing ${intent.label}`);
+          window.setTimeout(() => closeRef.current(), 900);
+          return;
+        }
+
+        if (intent.type === "open_matter") {
+          setStatusLine(`Searching for “${intent.query}”…`);
+          const hits = await searchMatters(intent.query);
+          if (hits.length === 0) {
+            setPanelPhase("error");
+            setStatusLine(`No matter found for “${intent.query}”.`);
+            return;
+          }
+          if (hits.length === 1) {
+            const view = pendingViewRef.current;
+            const path = view ? caseViewPath(hits[0].id, view) : `/case/${hits[0].id}`;
+            setLocation(path);
+            setPanelPhase("done");
+            setStatusLine(`Opened ${hits[0].title || hits[0].clientName || "matter"}`);
+            toast({
+              title: hits[0].title || "Matter opened",
+              description: hits[0].clientName || undefined,
+            });
+            window.setTimeout(() => closeRef.current(), 900);
+            return;
+          }
+          setMatterChoices(hits.slice(0, 5));
+          setPanelPhase("choose_matter");
+          setStatusLine(`Found ${hits.length} matches — pick one`);
+          return;
+        }
+
+        setPanelPhase("error");
+        setStatusLine(
+          intent.raw
+            ? `Didn’t understand “${intent.raw}”. Try “Open Adam Reeves”.`
+            : "Didn’t catch a command. Try again.",
+        );
+      } catch (err) {
+        console.error("Voice command failed", err);
+        setPanelPhase("error");
+        setStatusLine("Something went wrong running that command.");
+      }
+    },
+    [setLocation, toast],
+  );
+
+  const handleFinalTranscript = useCallback(
+    (transcript: string) => {
+      setHeardText(transcript);
+      setPanelPhase("working");
+      setStatusLine("Working…");
+      void executeIntent(parseVoiceCommand(transcript));
+    },
+    [executeIntent],
+  );
+
+  const recognition = useVoiceCommandRecognition({
+    lang: "en-GB",
+    onFinalTranscript: handleFinalTranscript,
+  });
 
   const close = useCallback(() => {
+    recognition.stop();
     setOpen(false);
-    setMarkState("idle");
-  }, []);
+    setPanelPhase("idle");
+    setHeardText("");
+    setMatterChoices([]);
+    setPendingView(null);
+    setStatusLine("Navigate, open a matter, or start recording");
+  }, [recognition]);
+
+  closeRef.current = close;
 
   const openListening = useCallback(() => {
     setOpen(true);
-    setMarkState("listening");
-  }, []);
+    setPanelPhase("listening");
+    setHeardText("");
+    setMatterChoices([]);
+    setPendingView(null);
+    setStatusLine("Listening… speak a command");
+    recognition.start();
+  }, [recognition]);
 
   const toggle = useCallback(() => {
     if (open) close();
     else openListening();
   }, [open, close, openListening]);
 
-  // Global shortcut — distinct from Ctrl+L (Quick Record)
+  useEffect(() => {
+    if (recognition.interimTranscript) {
+      setHeardText(recognition.interimTranscript);
+    }
+  }, [recognition.interimTranscript]);
+
+  useEffect(() => {
+    if (
+      recognition.status === "denied" ||
+      recognition.status === "unsupported" ||
+      recognition.status === "error"
+    ) {
+      if (recognition.errorMessage) {
+        setPanelPhase("error");
+        setStatusLine(recognition.errorMessage);
+      }
+    }
+  }, [recognition.status, recognition.errorMessage]);
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.code !== "Space") return;
@@ -62,6 +233,44 @@ export function VoiceCommandTrigger() {
     window.addEventListener("keydown", onEscape);
     return () => window.removeEventListener("keydown", onEscape);
   }, [open, close]);
+
+  const markState: LegalNoteMarkState = useMemo(() => {
+    if (panelPhase === "listening" || recognition.status === "listening") return "listening";
+    if (panelPhase === "working") return "processing";
+    return open ? "listening" : "idle";
+  }, [open, panelPhase, recognition.status]);
+
+  const title =
+    panelPhase === "listening"
+      ? "Listening…"
+      : panelPhase === "working"
+        ? "Working…"
+        : panelPhase === "choose_matter"
+          ? "Choose a matter"
+          : panelPhase === "done"
+            ? "Done"
+            : panelPhase === "error"
+              ? "Try again"
+              : "Voice command";
+
+  const pickMatter = (hit: MatterHit) => {
+    const view = pendingViewRef.current;
+    const path = view ? caseViewPath(hit.id, view) : `/case/${hit.id}`;
+    setLocation(path);
+    setPanelPhase("done");
+    setStatusLine(`Opened ${hit.title || hit.clientName || "matter"}`);
+    toast({ title: hit.title || "Matter opened", description: hit.clientName || undefined });
+    window.setTimeout(() => close(), 700);
+  };
+
+  const retry = () => {
+    setMatterChoices([]);
+    setPendingView(null);
+    setHeardText("");
+    setPanelPhase("listening");
+    setStatusLine("Listening… speak a command");
+    recognition.start();
+  };
 
   return (
     <>
@@ -124,10 +333,8 @@ export function VoiceCommandTrigger() {
                 <AnimatedLegalNoteMark state={markState} tone="dark" className="h-9 w-9 dark:hidden" />
                 <AnimatedLegalNoteMark state={markState} tone="light" className="hidden h-9 w-9 dark:flex" />
                 <div>
-                  <p className="text-sm font-medium tracking-tight">Listening…</p>
-                  <p className="text-xs text-muted-foreground">
-                    Navigate, open a matter, or start recording
-                  </p>
+                  <p className="text-sm font-medium tracking-tight">{title}</p>
+                  <p className="text-xs text-muted-foreground">{statusLine}</p>
                 </div>
               </div>
               <Button
@@ -148,21 +355,91 @@ export function VoiceCommandTrigger() {
                 "dark:border-white/20 dark:bg-[hsl(222,35%,11%)]",
               )}
             >
-              <VoiceWaveform state={markState} className="mb-3" />
-              <p className="text-center text-sm text-muted-foreground">
-                Say something like{" "}
-                <span className="text-foreground">“Open Patterson”</span> or{" "}
-                <span className="text-foreground">“Show transcript”</span>
-              </p>
+              {(panelPhase === "listening" || panelPhase === "working") && (
+                <VoiceWaveform
+                  state={panelPhase === "working" ? "processing" : "listening"}
+                  className="mb-3"
+                />
+              )}
+
+              {panelPhase === "working" && (
+                <div className="mb-2 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Matching your command…
+                </div>
+              )}
+
+              {heardText ? (
+                <p className="text-center text-sm text-foreground" data-testid="voice-command-transcript">
+                  “{heardText}”
+                </p>
+              ) : (
+                <p className="text-center text-sm text-muted-foreground">
+                  Say{" "}
+                  <span className="text-foreground">“Open Adam Reeves”</span> or{" "}
+                  <span className="text-foreground">“Go to cases”</span>
+                </p>
+              )}
+
+              {panelPhase === "choose_matter" && matterChoices.length > 0 && (
+                <ul className="mt-3 space-y-1.5">
+                  {matterChoices.map((hit) => (
+                    <li key={hit.id}>
+                      <button
+                        type="button"
+                        onClick={() => pickMatter(hit)}
+                        className={cn(
+                          "w-full rounded-lg border border-border bg-background px-3 py-2 text-left text-sm",
+                          "hover:border-[hsl(18,70%,42%)]/50 hover:bg-muted/40 transition-colors",
+                        )}
+                        data-testid={`voice-matter-choice-${hit.id}`}
+                      >
+                        <span className="font-medium block truncate">{hit.title}</span>
+                        {(hit.clientName || hit.matterReference) && (
+                          <span className="text-xs text-muted-foreground truncate block">
+                            {[hit.clientName, hit.matterReference].filter(Boolean).join(" · ")}
+                          </span>
+                        )}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
 
+            {(panelPhase === "error" || panelPhase === "done") && (
+              <div className="mt-3 flex justify-end">
+                <Button type="button" size="sm" variant="outline" onClick={retry}>
+                  Listen again
+                </Button>
+              </div>
+            )}
+
             <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
-              Preview — speech recognition wires up next. Does not start a meeting recording
-              (use the red mic or Ctrl+L for that).
+              Uses your browser’s speech recognition (Chrome/Edge). Allow the mic when prompted.
+              Does not start a meeting recording — use the red mic or Ctrl+L for that.
             </p>
           </div>
         </div>
       )}
     </>
   );
+}
+
+async function searchMatters(query: string): Promise<MatterHit[]> {
+  const params = new URLSearchParams({ q: query.trim() });
+  const response = await fetch(`/api/search/enhanced?${params.toString()}`, {
+    credentials: "include",
+  });
+  if (!response.ok) throw new Error("Search failed");
+  const results = (await response.json()) as Array<{
+    case: Case;
+    score: number;
+  }>;
+  return results.map((r) => ({
+    id: r.case.id,
+    title: r.case.title,
+    clientName: r.case.clientName ?? null,
+    matterReference: r.case.matterReference ?? null,
+  }));
 }
