@@ -18,6 +18,7 @@ import { QUICK_RECORD_SHORTCUT_EVENT } from "@/hooks/useQuickRecordShortcut";
 import { buildCapturePath } from "@/lib/capture";
 import { cn } from "@/lib/utils";
 import {
+  ADVICE_SOFT_BLOCK_MESSAGE,
   caseViewPath,
   parseVoiceCommand,
   rankMattersForVoiceOpen,
@@ -25,13 +26,21 @@ import {
   type VoiceIntent,
   type VoiceMatterCandidate,
 } from "@/lib/voiceCommandIntents";
+import { answerVoiceAsk, type VoiceAskAnswer } from "@/lib/voiceAskAnswers";
 import type { Case } from "@shared/schema";
 
 const SHORTCUT_HINT = "Ctrl+Shift+Space";
 
 type MatterHit = VoiceMatterCandidate;
 
-type PanelPhase = "idle" | "listening" | "working" | "choose_matter" | "done" | "error";
+type PanelPhase =
+  | "idle"
+  | "listening"
+  | "working"
+  | "choose_matter"
+  | "answer"
+  | "done"
+  | "error";
 
 /**
  * Bottom-left voice command trigger — LegalNote mark, not the red record mic.
@@ -45,10 +54,11 @@ export function VoiceCommandTrigger() {
 
   const [open, setOpen] = useState(false);
   const [panelPhase, setPanelPhase] = useState<PanelPhase>("idle");
-  const [statusLine, setStatusLine] = useState("Navigate, open a matter, or start recording");
+  const [statusLine, setStatusLine] = useState("Ask what’s outstanding, or open a matter");
   const [heardText, setHeardText] = useState("");
   const [matterChoices, setMatterChoices] = useState<MatterHit[]>([]);
   const [pendingView, setPendingView] = useState<CaseView | null>(null);
+  const [askAnswer, setAskAnswer] = useState<VoiceAskAnswer | null>(null);
 
   const activeCaseIdRef = useRef(activeCaseId);
   const pendingViewRef = useRef(pendingView);
@@ -60,6 +70,29 @@ export function VoiceCommandTrigger() {
   const executeIntent = useCallback(
     async (intent: VoiceIntent) => {
       try {
+        if (intent.type === "advice_blocked") {
+          setAskAnswer({
+            headline: ADVICE_SOFT_BLOCK_MESSAGE,
+            detail: "Try: “What needs attention?”, “What’s outstanding on this matter?”, or “Open [client]”.",
+            actions: [
+              { label: "What needs attention?", path: undefined },
+              { label: "Go to dashboard", path: "/" },
+            ],
+          });
+          setPanelPhase("answer");
+          setStatusLine("I can pull file status — not legal advice");
+          return;
+        }
+
+        if (intent.type === "ask") {
+          setStatusLine("Checking your matters…");
+          const answer = await answerVoiceAsk(intent.topic, activeCaseIdRef.current);
+          setAskAnswer(answer);
+          setPanelPhase("answer");
+          setStatusLine("From your LegalNote file");
+          return;
+        }
+
         if (intent.type === "navigate") {
           setLocation(intent.path);
           setPanelPhase("done");
@@ -133,7 +166,7 @@ export function VoiceCommandTrigger() {
         setPanelPhase("error");
         setStatusLine(
           intent.raw
-            ? `Didn’t understand “${intent.raw}”. Try “Open Adam Reeves”.`
+            ? `Didn’t understand “${intent.raw}”. Try “What needs attention?” or “Open Adam Reeve”.`
             : "Didn’t catch a command. Try again.",
         );
       } catch (err) {
@@ -166,7 +199,8 @@ export function VoiceCommandTrigger() {
     setHeardText("");
     setMatterChoices([]);
     setPendingView(null);
-    setStatusLine("Navigate, open a matter, or start recording");
+    setAskAnswer(null);
+    setStatusLine("Ask what’s outstanding, or open a matter");
   }, [recognition]);
 
   closeRef.current = close;
@@ -177,6 +211,7 @@ export function VoiceCommandTrigger() {
     setHeardText("");
     setMatterChoices([]);
     setPendingView(null);
+    setAskAnswer(null);
     setStatusLine("Speak now — tap Done when finished");
     void recognition.start();
   }, [recognition]);
@@ -256,11 +291,13 @@ export function VoiceCommandTrigger() {
         ? "Listening…"
         : panelPhase === "choose_matter"
           ? "Choose a matter"
-          : panelPhase === "done"
-            ? "Done"
-            : panelPhase === "error"
-              ? "Try again"
-              : "Voice command";
+          : panelPhase === "answer"
+            ? "Answer"
+            : panelPhase === "done"
+              ? "Done"
+              : panelPhase === "error"
+                ? "Try again"
+                : "Voice command";
 
   const pickMatter = (hit: MatterHit) => {
     const view = pendingViewRef.current;
@@ -272,9 +309,26 @@ export function VoiceCommandTrigger() {
     window.setTimeout(() => close(), 700);
   };
 
+  const runAskAction = (label: string, path?: string) => {
+    if (path) {
+      setLocation(path);
+      setPanelPhase("done");
+      setStatusLine("Opening…");
+      window.setTimeout(() => close(), 700);
+      return;
+    }
+    // Soft-block CTA with no path: run the suggested ask
+    if (/needs attention/i.test(label)) {
+      setPanelPhase("working");
+      setStatusLine("Checking your matters…");
+      void executeIntent({ type: "ask", topic: "needs_attention" });
+    }
+  };
+
   const retry = () => {
     setMatterChoices([]);
     setPendingView(null);
+    setAskAnswer(null);
     setHeardText("");
     setPanelPhase("listening");
     setStatusLine("Speak now — tap Done when finished");
@@ -396,9 +450,9 @@ export function VoiceCommandTrigger() {
                 </p>
               ) : (
                 <p className="text-center text-sm text-muted-foreground">
-                  Say{" "}
-                  <span className="text-foreground">“Open Adam Reeve”</span> or{" "}
-                  <span className="text-foreground">“Go to cases”</span>
+                  Try{" "}
+                  <span className="text-foreground">“What needs attention?”</span> or{" "}
+                  <span className="text-foreground">“Open Adam Reeve”</span>
                 </p>
               )}
 
@@ -412,6 +466,39 @@ export function VoiceCommandTrigger() {
                   >
                     Done speaking
                   </Button>
+                </div>
+              )}
+
+              {panelPhase === "answer" && askAnswer && (
+                <div className="mt-3 space-y-2 text-left" data-testid="voice-ask-answer">
+                  <p className="text-sm font-medium text-foreground">{askAnswer.headline}</p>
+                  {askAnswer.detail && (
+                    <p className="text-xs text-muted-foreground">{askAnswer.detail}</p>
+                  )}
+                  {askAnswer.bullets && askAnswer.bullets.length > 0 && (
+                    <ul className="space-y-1 text-xs text-muted-foreground">
+                      {askAnswer.bullets.map((b) => (
+                        <li key={b} className="truncate">
+                          · {b}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {askAnswer.actions && askAnswer.actions.length > 0 && (
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {askAnswer.actions.map((a) => (
+                        <Button
+                          key={a.label}
+                          type="button"
+                          size="sm"
+                          variant={a.path ? "default" : "outline"}
+                          onClick={() => runAskAction(a.label, a.path)}
+                        >
+                          {a.label}
+                        </Button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -446,7 +533,7 @@ export function VoiceCommandTrigger() {
               )}
             </div>
 
-            {(panelPhase === "error" || panelPhase === "done") && (
+            {(panelPhase === "error" || panelPhase === "done" || panelPhase === "answer") && (
               <div className="mt-3 flex justify-end">
                 <Button type="button" size="sm" variant="outline" onClick={retry}>
                   Listen again
@@ -455,8 +542,7 @@ export function VoiceCommandTrigger() {
             )}
 
             <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
-              Speak, then tap Done (or wait ~7s). Does not start a meeting recording — use the red
-              mic or Ctrl+L for that.
+              File status only — not legal advice. Speak, then tap Done (or wait ~7s).
             </p>
           </div>
         </div>

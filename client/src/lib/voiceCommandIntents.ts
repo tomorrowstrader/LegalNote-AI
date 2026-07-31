@@ -4,7 +4,17 @@ export type VoiceIntent =
   | { type: "case_view"; view: CaseView; label: string }
   | { type: "start_recording" }
   | { type: "start_livebot" }
+  | { type: "ask"; topic: AskTopic }
+  | { type: "advice_blocked"; raw: string }
   | { type: "unknown"; raw: string };
+
+export type AskTopic =
+  | "needs_attention"
+  | "awaiting_adoption"
+  | "awaiting_review"
+  | "overdue"
+  | "outstanding_undertakings"
+  | "matter_outstanding";
 
 export type CaseView =
   | "transcript"
@@ -44,9 +54,60 @@ const CASE_VIEW_PATTERNS: Array<{ re: RegExp; view: CaseView; label: string }> =
   { re: /\b(show |open )?(the )?documents?\b/i, view: "documents", label: "Documents" },
 ];
 
+/** Soft-block: strategy / advice — never answer as counsel. */
+const ADVICE_PATTERNS: RegExp[] = [
+  /\bwhat should i (advise|say|tell|recommend|do)\b/i,
+  /\bhow should i (advise|respond|reply|handle|approach|deal)\b/i,
+  /\bshould i (advise|sue|settle|accept|reject|disclose)\b/i,
+  /\b(give|offer|provide) (me )?(legal )?advice\b/i,
+  /\bwhat('s| is) (the|my) (best )?(legal )?(strategy|advice|position)\b/i,
+  /\bis this (discrimination|negligence|fraud|criminal|unlawful|illegal)\b/i,
+  /\bdo i have (a |an )?(good |strong )?(case|claim)\b/i,
+  /\bwhat would you advise\b/i,
+  /\bhow do i (win|argue|defend)\b/i,
+];
+
+const ASK_PATTERNS: Array<{ re: RegExp; topic: AskTopic }> = [
+  {
+    re: /\bneeds? attention\b/i,
+    topic: "needs_attention",
+  },
+  {
+    re: /\b(what|which|how many|any|show).{0,50}\b(need(s|ing)?|awaiting|still (need|awaiting)|not yet).{0,30}\b(adopt|adopted|adoption)\b/i,
+    topic: "awaiting_adoption",
+  },
+  {
+    re: /\b(documents?|notes?).{0,30}\b(need|awaiting|still).{0,20}\b(adopt|adopted|adoption)\b/i,
+    topic: "awaiting_adoption",
+  },
+  {
+    re: /\b(how many|what|which|any|show).{0,40}\b(awaiting review|need(s|ing)? review|ready for review|to review)\b/i,
+    topic: "awaiting_review",
+  },
+  {
+    re: /\b(what|which|how many|any|show).{0,30}\boverdue\b/i,
+    topic: "overdue",
+  },
+  {
+    re: /\b(outstanding|open).{0,20}\bundertakings?\b|\bundertakings?\b.{0,20}\b(outstanding|overdue|due)\b/i,
+    topic: "outstanding_undertakings",
+  },
+  {
+    re: /\b(what('s| is)|whats).{0,20}\boutstanding\b.{0,30}\b(on )?(this )?(matter|case)\b/i,
+    topic: "matter_outstanding",
+  },
+  {
+    re: /\b(what('s| is)|whats|show).{0,20}\boutstanding\b/i,
+    topic: "needs_attention",
+  },
+  {
+    re: /\b(status|update).{0,20}\b(on )?(this )?(matter|case)\b/i,
+    topic: "matter_outstanding",
+  },
+];
+
 /**
- * Lightweight rule parser for v1 voice commands.
- * Prefer specific open-matter phrasing before generic navigation.
+ * Lightweight rule parser for v1 voice commands + ask-mode.
  */
 export function parseVoiceCommand(transcript: string): VoiceIntent {
   const raw = transcript.trim().replace(/\s+/g, " ");
@@ -56,11 +117,22 @@ export function parseVoiceCommand(transcript: string): VoiceIntent {
   const spoken = raw.replace(/[.,!?…"“”‘’]+/g, " ").replace(/\s+/g, " ").trim();
   const lower = spoken.toLowerCase();
 
+  // Soft-block advice / strategy before anything else
+  if (ADVICE_PATTERNS.some((re) => re.test(spoken))) {
+    return { type: "advice_blocked", raw: spoken };
+  }
+
   if (/\b(start|begin)\b.*\b(recording|record)\b/i.test(lower) || /\bquick record\b/i.test(lower)) {
     return { type: "start_recording" };
   }
   if (/\b(join|start)\b.*\b(meeting|live ?bot|video)\b/i.test(lower)) {
     return { type: "start_livebot" };
+  }
+
+  for (const ask of ASK_PATTERNS) {
+    if (ask.re.test(spoken)) {
+      return { type: "ask", topic: ask.topic };
+    }
   }
 
   // "open adam reeves", "open matter Patterson", "go to the Smith case"
@@ -101,12 +173,12 @@ export function parseVoiceCommand(transcript: string): VoiceIntent {
   if (
     cleanedBare.length >= 2 &&
     /^[a-z0-9][a-z0-9 &'./-]{1,80}$/i.test(cleanedBare) &&
-    !/\b(please|hello|hi|thanks)\b/i.test(cleanedBare)
+    !/\b(please|hello|hi|thanks|what|how|why|when|which|who)\b/i.test(cleanedBare)
   ) {
     return { type: "open_matter", query: cleanedBare };
   }
 
-  return { type: "unknown", raw };
+  return { type: "unknown", raw: spoken };
 }
 
 export function cleanMatterQuery(q: string): string {
@@ -168,7 +240,6 @@ export function scoreMatterAgainstQuery(matter: VoiceMatterCandidate, query: str
 
   if (ref && (ref === q || ref.includes(q) || q.includes(ref))) score += 90;
 
-  // Token overlap — "adam reeves" vs "adam reeve"
   if (qTokens.length > 0 && clientTokens.length > 0) {
     const clientHits = qTokens.filter((qt) => clientTokens.some((ct) => tokensMatch(qt, ct))).length;
     score += (clientHits / qTokens.length) * 70;
@@ -178,7 +249,6 @@ export function scoreMatterAgainstQuery(matter: VoiceMatterCandidate, query: str
     score += (titleHits / qTokens.length) * 55;
   }
 
-  // "reeve v reeve" style titles
   if (qTokens.includes("v") && title.includes(" v ")) {
     const parties = qTokens.filter((t) => t !== "v");
     if (parties.length > 0 && parties.every((p) => titleTokens.some((tt) => tokensMatch(p, tt)))) {
@@ -189,10 +259,6 @@ export function scoreMatterAgainstQuery(matter: VoiceMatterCandidate, query: str
   return score;
 }
 
-/**
- * Rank matters for voice open. Returns only plausible hits, best first.
- * Auto-open when the top hit is clearly the intended matter.
- */
 export function rankMattersForVoiceOpen(
   matters: VoiceMatterCandidate[],
   query: string,
@@ -207,7 +273,6 @@ export function rankMattersForVoiceOpen(
   const best = ranked[0];
   const second = ranked[1];
 
-  // Strong unique match, or clearly ahead of the runner-up
   const clearWinner =
     best.score >= 70 &&
     (!second || best.score >= second.score + 18 || best.score >= 100);
@@ -234,3 +299,6 @@ export function caseViewPath(caseId: string, view: CaseView): string {
       return `/case/${caseId}?section=documents`;
   }
 }
+
+export const ADVICE_SOFT_BLOCK_MESSAGE =
+  "I can’t advise on strategy — I can pull what’s on the file.";
