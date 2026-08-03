@@ -1,20 +1,21 @@
-export type VoiceIntent =
-  | { type: "navigate"; path: string; label: string }
-  | { type: "open_matter"; query: string }
-  | { type: "case_view"; view: CaseView; label: string }
-  | { type: "start_recording" }
-  | { type: "start_livebot" }
-  | { type: "ask"; topic: AskTopic }
-  | { type: "advice_blocked"; raw: string }
-  | { type: "unknown"; raw: string };
-
 export type AskTopic =
   | "needs_attention"
   | "awaiting_adoption"
   | "awaiting_review"
   | "overdue"
   | "outstanding_undertakings"
-  | "matter_outstanding";
+  | "matter_outstanding"
+  | "matter_qa";
+
+export type VoiceIntent =
+  | { type: "navigate"; path: string; label: string }
+  | { type: "open_matter"; query: string }
+  | { type: "case_view"; view: CaseView; label: string }
+  | { type: "start_recording" }
+  | { type: "start_livebot" }
+  | { type: "ask"; topic: AskTopic; question?: string }
+  | { type: "advice_blocked"; raw: string }
+  | { type: "unknown"; raw: string };
 
 export type CaseView =
   | "transcript"
@@ -106,6 +107,24 @@ const ASK_PATTERNS: Array<{ re: RegExp; topic: AskTopic }> = [
   },
 ];
 
+/** Fact-finding against the open matter file (transcript / notes). */
+const MATTER_QA_PATTERNS: RegExp[] = [
+  /\bwhat (was|were|did|does|do|is|are)\b/i,
+  /\bwhat('s| is) (on|in) (the )?(file|transcript|note|letter|record)\b/i,
+  /\b(who|when|where) (said|mentioned|agreed|decided|confirmed)\b/i,
+  /\bwhat (did|have) (we|the client|they) (agree|agreed|discuss|discussed|decide|decided|say|said)\b/i,
+  /\b(any|were there|was there).{0,30}\b(aml|risk|flag|concern|undertaking)\b/i,
+  /\b(summarise|summarize|summary of) (the )?(meeting|transcript|note|call)\b/i,
+  /\bwhat does the (attendance )?note say\b/i,
+  /\bfind .{3,80} (in|from) (the )?(transcript|note|file|letter)\b/i,
+  /\b(according to|based on) (the )?(transcript|note|file)\b/i,
+];
+
+function looksLikeMatterQa(spoken: string): boolean {
+  if (MATTER_QA_PATTERNS.some((re) => re.test(spoken))) return true;
+  // Short interrogatives while on a matter are handled at execute time via topic matter_qa
+  return /^(what|who|when|where|which|did|does|is|are|was|were|how come)\b/i.test(spoken);
+}
 /**
  * Lightweight rule parser for v1 voice commands + ask-mode.
  */
@@ -133,6 +152,10 @@ export function parseVoiceCommand(transcript: string): VoiceIntent {
     if (ask.re.test(spoken)) {
       return { type: "ask", topic: ask.topic };
     }
+  }
+
+  if (looksLikeMatterQa(spoken)) {
+    return { type: "ask", topic: "matter_qa", question: spoken };
   }
 
   // "open adam reeves", "open matter Patterson", "go to the Smith case"

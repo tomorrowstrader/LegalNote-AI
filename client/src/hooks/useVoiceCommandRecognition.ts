@@ -22,11 +22,20 @@ export type VoiceRecognitionStatus =
   | "unsupported"
   | "error";
 
-const MAX_COMMAND_MS = 7000;
+/** Hard cap — safety net if silence detection never fires. */
+const MAX_COMMAND_MS = 10000;
+/** Ignore silence until we've heard speech for at least this long. */
+const MIN_SPEECH_MS = 350;
+/** Stop after this much quiet once speech was detected. */
+const SILENCE_AFTER_SPEECH_MS = 1100;
+/** Don't auto-stop in the first moments (mic warmup / breath). */
+const MIN_LISTEN_BEFORE_SILENCE_MS = 600;
+/** RMS threshold — below this counts as silence (0–1 scale from Analyser). */
+const SILENCE_RMS = 0.018;
 
 /**
  * Voice-command capture via MediaRecorder + LegalNote `/api/transcribe` (AssemblyAI EU).
- * Avoids Chrome Web Speech (Google cloud), which often fails with "network" errors.
+ * Auto-stops shortly after you finish speaking (silence detection).
  */
 export function useVoiceCommandRecognition(options?: {
   onFinalTranscript?: (transcript: string) => void;
@@ -41,21 +50,43 @@ export function useVoiceCommandRecognition(options?: {
   const formatRef = useRef(getSupportedMimeType());
   /** When true, onstop discards audio instead of transcribing. */
   const discardRef = useRef(false);
+  const finishRef = useRef<() => void>(() => {});
+
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const silenceRafRef = useRef<number | null>(null);
+  const listenStartedAtRef = useRef(0);
+  const speechStartedAtRef = useRef<number | null>(null);
+  const lastLoudAtRef = useRef(0);
+  const heardSpeechRef = useRef(false);
 
   const [status, setStatus] = useState<VoiceRecognitionStatus>("idle");
   const [interimTranscript, setInterimTranscript] = useState("");
   const [finalTranscript, setFinalTranscript] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  const stopSilenceMonitor = useCallback(() => {
+    if (silenceRafRef.current != null) {
+      cancelAnimationFrame(silenceRafRef.current);
+      silenceRafRef.current = null;
+    }
+    analyserRef.current = null;
+    if (audioContextRef.current) {
+      void audioContextRef.current.close().catch(() => undefined);
+      audioContextRef.current = null;
+    }
+  }, []);
+
   const cleanupStream = useCallback(() => {
     if (maxTimerRef.current != null) {
       window.clearTimeout(maxTimerRef.current);
       maxTimerRef.current = null;
     }
+    stopSilenceMonitor();
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     mediaRecorderRef.current = null;
-  }, []);
+  }, [stopSilenceMonitor]);
 
   const transcribeBlob = useCallback(async (blob: Blob) => {
     if (blob.size < 200) {
@@ -103,6 +134,7 @@ export function useVoiceCommandRecognition(options?: {
 
   const finish = useCallback(() => {
     discardRef.current = false;
+    stopSilenceMonitor();
     const recorder = mediaRecorderRef.current;
     if (recorder && recorder.state !== "inactive") {
       try {
@@ -112,10 +144,13 @@ export function useVoiceCommandRecognition(options?: {
         setStatus("idle");
       }
     }
-  }, [cleanupStream]);
+  }, [cleanupStream, stopSilenceMonitor]);
+
+  finishRef.current = finish;
 
   const cancel = useCallback(() => {
     discardRef.current = true;
+    stopSilenceMonitor();
     const recorder = mediaRecorderRef.current;
     if (recorder && recorder.state !== "inactive") {
       try {
@@ -128,7 +163,83 @@ export function useVoiceCommandRecognition(options?: {
     }
     setStatus("idle");
     setInterimTranscript("");
-  }, [cleanupStream]);
+  }, [cleanupStream, stopSilenceMonitor]);
+
+  const startSilenceMonitor = useCallback((stream: MediaStream) => {
+    stopSilenceMonitor();
+    listenStartedAtRef.current = performance.now();
+    speechStartedAtRef.current = null;
+    lastLoudAtRef.current = 0;
+    heardSpeechRef.current = false;
+
+    try {
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioCtx) return;
+
+      const ctx = new AudioCtx();
+      audioContextRef.current = ctx;
+      const source = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 2048;
+      analyser.smoothingTimeConstant = 0.4;
+      source.connect(analyser);
+      analyserRef.current = analyser;
+
+      const buffer = new Float32Array(analyser.fftSize);
+
+      const tick = () => {
+        if (!analyserRef.current) return;
+        analyserRef.current.getFloatTimeDomainData(buffer);
+
+        let sum = 0;
+        for (let i = 0; i < buffer.length; i++) {
+          const v = buffer[i];
+          sum += v * v;
+        }
+        const rms = Math.sqrt(sum / buffer.length);
+        const now = performance.now();
+        const listeningFor = now - listenStartedAtRef.current;
+
+        if (rms >= SILENCE_RMS) {
+          lastLoudAtRef.current = now;
+          if (!heardSpeechRef.current) {
+            heardSpeechRef.current = true;
+            speechStartedAtRef.current = now;
+          }
+        }
+
+        const speechLongEnough =
+          heardSpeechRef.current &&
+          speechStartedAtRef.current != null &&
+          now - speechStartedAtRef.current >= MIN_SPEECH_MS;
+
+        const quietLongEnough =
+          heardSpeechRef.current &&
+          lastLoudAtRef.current > 0 &&
+          now - lastLoudAtRef.current >= SILENCE_AFTER_SPEECH_MS;
+
+        if (
+          listeningFor >= MIN_LISTEN_BEFORE_SILENCE_MS &&
+          speechLongEnough &&
+          quietLongEnough &&
+          mediaRecorderRef.current?.state === "recording"
+        ) {
+          finishRef.current();
+          return;
+        }
+
+        silenceRafRef.current = requestAnimationFrame(tick);
+      };
+
+      // Resume context if browser starts it suspended
+      void ctx.resume().catch(() => undefined);
+      silenceRafRef.current = requestAnimationFrame(tick);
+    } catch (err) {
+      console.warn("Voice silence monitor unavailable; using max duration only", err);
+    }
+  }, [stopSilenceMonitor]);
 
   const start = useCallback(async () => {
     if (typeof MediaRecorder === "undefined" || !navigator.mediaDevices?.getUserMedia) {
@@ -185,9 +296,10 @@ export function useVoiceCommandRecognition(options?: {
 
       recorder.start();
       setStatus("listening");
+      startSilenceMonitor(stream);
 
       maxTimerRef.current = window.setTimeout(() => {
-        finish();
+        finishRef.current();
       }, MAX_COMMAND_MS);
     } catch (err: any) {
       cleanupStream();
@@ -200,7 +312,7 @@ export function useVoiceCommandRecognition(options?: {
       setStatus("error");
       setErrorMessage(err?.message || "Failed to access microphone.");
     }
-  }, [cleanupStream, finish, transcribeBlob]);
+  }, [cleanupStream, startSilenceMonitor, transcribeBlob]);
 
   useEffect(() => () => cancel(), [cancel]);
 

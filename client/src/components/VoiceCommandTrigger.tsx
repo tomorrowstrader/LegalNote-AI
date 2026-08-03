@@ -85,11 +85,21 @@ export function VoiceCommandTrigger() {
         }
 
         if (intent.type === "ask") {
-          setStatusLine("Checking your matters…");
-          const answer = await answerVoiceAsk(intent.topic, activeCaseIdRef.current);
+          setStatusLine(
+            intent.topic === "matter_qa" ? "Searching this matter’s file…" : "Checking your matters…",
+          );
+          const answer = await answerVoiceAsk(
+            intent.topic,
+            activeCaseIdRef.current,
+            intent.question,
+          );
           setAskAnswer(answer);
           setPanelPhase("answer");
-          setStatusLine("From your LegalNote file");
+          setStatusLine(
+            intent.topic === "matter_qa"
+              ? "From this matter’s file"
+              : "From your LegalNote file",
+          );
           return;
         }
 
@@ -212,7 +222,7 @@ export function VoiceCommandTrigger() {
     setMatterChoices([]);
     setPendingView(null);
     setAskAnswer(null);
-    setStatusLine("Speak now — tap Done when finished");
+    setStatusLine("Speak your command — stops when you pause");
     void recognition.start();
   }, [recognition]);
 
@@ -331,7 +341,7 @@ export function VoiceCommandTrigger() {
     setAskAnswer(null);
     setHeardText("");
     setPanelPhase("listening");
-    setStatusLine("Speak now — tap Done when finished");
+    setStatusLine("Speak your command — stops when you pause");
     void recognition.start();
   };
 
@@ -451,20 +461,24 @@ export function VoiceCommandTrigger() {
               ) : (
                 <p className="text-center text-sm text-muted-foreground">
                   Try{" "}
-                  <span className="text-foreground">“What needs attention?”</span> or{" "}
-                  <span className="text-foreground">“Open Adam Reeve”</span>
+                  <span className="text-foreground">“What was agreed?”</span> on a matter, or{" "}
+                  <span className="text-foreground">“What needs attention?”</span>
                 </p>
               )}
 
               {recognition.status === "listening" && (
-                <div className="mt-3 flex justify-center">
+                <div className="mt-3 flex flex-col items-center gap-2">
+                  <p className="text-[11px] text-muted-foreground">
+                    Pauses ~1s after you stop speaking
+                  </p>
                   <Button
                     type="button"
                     size="sm"
+                    variant="outline"
                     onClick={finishListening}
                     data-testid="button-voice-command-done"
                   >
-                    Done speaking
+                    Done now
                   </Button>
                 </div>
               )}
@@ -483,6 +497,44 @@ export function VoiceCommandTrigger() {
                         </li>
                       ))}
                     </ul>
+                  )}
+                  {askAnswer.sections && askAnswer.sections.length > 0 && (
+                    <div className="space-y-2.5">
+                      {askAnswer.sections.map((section) => (
+                        <div key={section.title}>
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-foreground/80">
+                            {section.title}
+                          </p>
+                          <ul className="mt-1 space-y-1 text-xs text-muted-foreground">
+                            {section.bullets.map((b) => (
+                              <li key={b} className="line-clamp-2">
+                                · {b}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {askAnswer.citations && askAnswer.citations.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {askAnswer.citations.map((c, i) => (
+                        <button
+                          key={`${c.path}-${i}`}
+                          type="button"
+                          title={c.excerpt || c.label}
+                          onClick={() => runAskAction(c.label, c.path)}
+                          className={cn(
+                            "rounded-full border border-[hsl(18,70%,42%)]/40 bg-[hsl(18,70%,42%)]/10",
+                            "px-2.5 py-1 text-[11px] font-medium text-foreground",
+                            "hover:bg-[hsl(18,70%,42%)]/20 transition-colors",
+                          )}
+                          data-testid={`voice-citation-${c.source}-${i}`}
+                        >
+                          {c.label}
+                        </button>
+                      ))}
+                    </div>
                   )}
                   {askAnswer.actions && askAnswer.actions.length > 0 && (
                     <div className="flex flex-wrap gap-2 pt-1">
@@ -542,7 +594,8 @@ export function VoiceCommandTrigger() {
             )}
 
             <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
-              File status only — not legal advice. Speak, then tap Done (or wait ~7s).
+              File status only — not legal advice. Stops automatically when you pause; tap Done now
+              if you need to cut early.
             </p>
           </div>
         </div>
