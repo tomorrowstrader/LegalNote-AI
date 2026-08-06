@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useRoute } from "wouter";
-import { Loader2, X } from "lucide-react";
+import { Loader2, Volume2, VolumeX, X } from "lucide-react";
 import {
   AnimatedLegalNoteMark,
   VoiceWaveform,
@@ -27,6 +27,13 @@ import {
   type VoiceMatterCandidate,
 } from "@/lib/voiceCommandIntents";
 import { answerVoiceAsk, type VoiceAskAnswer } from "@/lib/voiceAskAnswers";
+import {
+  buildSpokenSummary,
+  isVoiceTtsMuted,
+  setVoiceTtsMuted,
+  speakVoiceReply,
+  stopVoiceSpeak,
+} from "@/lib/voiceSpeak";
 import type { Case } from "@shared/schema";
 
 const SHORTCUT_HINT = "Ctrl+Shift+Space";
@@ -59,6 +66,7 @@ export function VoiceCommandTrigger() {
   const [matterChoices, setMatterChoices] = useState<MatterHit[]>([]);
   const [pendingView, setPendingView] = useState<CaseView | null>(null);
   const [askAnswer, setAskAnswer] = useState<VoiceAskAnswer | null>(null);
+  const [ttsMuted, setTtsMuted] = useState(() => isVoiceTtsMuted());
 
   const activeCaseIdRef = useRef(activeCaseId);
   const pendingViewRef = useRef(pendingView);
@@ -67,20 +75,32 @@ export function VoiceCommandTrigger() {
 
   const closeRef = useRef<() => void>(() => {});
 
+  const speakAnswer = useCallback((answer: VoiceAskAnswer) => {
+    const summary = buildSpokenSummary(answer);
+    if (!summary) return;
+    void speakVoiceReply(summary);
+  }, []);
+
+  const speakAck = useCallback((line: string) => {
+    void speakVoiceReply(line);
+  }, []);
+
   const executeIntent = useCallback(
     async (intent: VoiceIntent) => {
       try {
         if (intent.type === "advice_blocked") {
-          setAskAnswer({
+          const answer: VoiceAskAnswer = {
             headline: ADVICE_SOFT_BLOCK_MESSAGE,
             detail: "Try: “What needs attention?”, “Compare the meeting to the note”, or “Open [client]”.",
             actions: [
               { label: "What needs attention?", path: undefined },
               { label: "Go to dashboard", path: "/" },
             ],
-          });
+          };
+          setAskAnswer(answer);
           setPanelPhase("answer");
           setStatusLine("I can pull file status — not legal advice");
+          speakAnswer(answer);
           return;
         }
 
@@ -106,6 +126,7 @@ export function VoiceCommandTrigger() {
           setStatusLine(
             matterScoped ? "From this matter’s file" : "From your LegalNote file",
           );
+          speakAnswer(answer);
           return;
         }
 
@@ -113,6 +134,7 @@ export function VoiceCommandTrigger() {
           setLocation(intent.path);
           setPanelPhase("done");
           setStatusLine(`Opened ${intent.label}`);
+          speakAck(`Opened ${intent.label}`);
           toast({ title: intent.label, description: "Opened via voice command" });
           window.setTimeout(() => closeRef.current(), 900);
           return;
@@ -122,6 +144,7 @@ export function VoiceCommandTrigger() {
           window.dispatchEvent(new CustomEvent(QUICK_RECORD_SHORTCUT_EVENT));
           setPanelPhase("done");
           setStatusLine("Starting Quick Record…");
+          speakAck("Starting Quick Record");
           toast({ title: "Quick Record", description: "Started via voice command" });
           window.setTimeout(() => closeRef.current(), 700);
           return;
@@ -131,6 +154,7 @@ export function VoiceCommandTrigger() {
           setLocation(buildCapturePath({ mode: "join" }));
           setPanelPhase("done");
           setStatusLine("Opening Join Meeting…");
+          speakAck("Opening Join Meeting");
           window.setTimeout(() => closeRef.current(), 900);
           return;
         }
@@ -145,6 +169,7 @@ export function VoiceCommandTrigger() {
           setLocation(caseViewPath(caseId, intent.view));
           setPanelPhase("done");
           setStatusLine(`Showing ${intent.label}`);
+          speakAck(`Showing ${intent.label}`);
           window.setTimeout(() => closeRef.current(), 900);
           return;
         }
@@ -155,6 +180,7 @@ export function VoiceCommandTrigger() {
           if (ranked.length === 0) {
             setPanelPhase("error");
             setStatusLine(`No matter found for “${intent.query}”.`);
+            speakAck(`No matter found for ${intent.query}`);
             return;
           }
 
@@ -164,7 +190,9 @@ export function VoiceCommandTrigger() {
             const path = view ? caseViewPath(chosen.id, view) : `/case/${chosen.id}`;
             setLocation(path);
             setPanelPhase("done");
-            setStatusLine(`Opened ${chosen.title || chosen.clientName || "matter"}`);
+            const label = chosen.title || chosen.clientName || "matter";
+            setStatusLine(`Opened ${label}`);
+            speakAck(`Opened ${label}`);
             toast({
               title: chosen.title || "Matter opened",
               description: chosen.clientName || undefined,
@@ -176,6 +204,7 @@ export function VoiceCommandTrigger() {
           setMatterChoices(ranked);
           setPanelPhase("choose_matter");
           setStatusLine(`Found ${ranked.length} close matches — tap one to open`);
+          speakAck(`Found ${ranked.length} close matches. Tap one to open.`);
           return;
         }
 
@@ -191,7 +220,7 @@ export function VoiceCommandTrigger() {
         setStatusLine("Something went wrong running that command.");
       }
     },
-    [setLocation, toast],
+    [setLocation, toast, speakAnswer, speakAck],
   );
 
   const handleFinalTranscript = useCallback(
@@ -210,6 +239,7 @@ export function VoiceCommandTrigger() {
 
   const close = useCallback(() => {
     recognition.cancel();
+    stopVoiceSpeak();
     setOpen(false);
     setPanelPhase("idle");
     setHeardText("");
@@ -222,6 +252,7 @@ export function VoiceCommandTrigger() {
   closeRef.current = close;
 
   const openListening = useCallback(() => {
+    stopVoiceSpeak();
     setOpen(true);
     setPanelPhase("listening");
     setHeardText("");
@@ -231,6 +262,12 @@ export function VoiceCommandTrigger() {
     setStatusLine("Speak your command — stops when you pause");
     void recognition.start();
   }, [recognition]);
+
+  const toggleMute = useCallback(() => {
+    const next = !ttsMuted;
+    setVoiceTtsMuted(next);
+    setTtsMuted(next);
+  }, [ttsMuted]);
 
   const toggle = useCallback(() => {
     if (!open) {
@@ -294,6 +331,10 @@ export function VoiceCommandTrigger() {
     return () => window.removeEventListener("keydown", onEscape);
   }, [open, close]);
 
+  useEffect(() => {
+    return () => stopVoiceSpeak();
+  }, []);
+
   const markState: LegalNoteMarkState = useMemo(() => {
     if (panelPhase === "listening" || recognition.status === "listening") return "listening";
     if (panelPhase === "working" || recognition.status === "transcribing") return "processing";
@@ -320,7 +361,9 @@ export function VoiceCommandTrigger() {
     const path = view ? caseViewPath(hit.id, view) : `/case/${hit.id}`;
     setLocation(path);
     setPanelPhase("done");
-    setStatusLine(`Opened ${hit.title || hit.clientName || "matter"}`);
+    const label = hit.title || hit.clientName || "matter";
+    setStatusLine(`Opened ${label}`);
+    speakAck(`Opened ${label}`);
     toast({ title: hit.title || "Matter opened", description: hit.clientName || undefined });
     window.setTimeout(() => close(), 700);
   };
@@ -342,6 +385,7 @@ export function VoiceCommandTrigger() {
   };
 
   const retry = () => {
+    stopVoiceSpeak();
     setMatterChoices([]);
     setPendingView(null);
     setAskAnswer(null);
@@ -422,16 +466,31 @@ export function VoiceCommandTrigger() {
                   <p className="text-xs text-muted-foreground">{statusLine}</p>
                 </div>
               </div>
-              <Button
-                type="button"
-                size="icon"
-                variant="ghost"
-                className="h-8 w-8 shrink-0"
-                onClick={close}
-                aria-label="Close voice command"
-              >
-                <X className="h-4 w-4" />
-              </Button>
+              <div className="flex shrink-0 items-center gap-0.5">
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8"
+                  onClick={toggleMute}
+                  aria-label={ttsMuted ? "Unmute spoken replies" : "Mute spoken replies"}
+                  aria-pressed={ttsMuted}
+                  data-testid="button-voice-tts-mute"
+                  title={ttsMuted ? "Spoken replies muted" : "Spoken replies on"}
+                >
+                  {ttsMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                </Button>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8"
+                  onClick={close}
+                  aria-label="Close voice command"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
 
             <div

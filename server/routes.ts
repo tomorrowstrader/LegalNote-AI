@@ -136,6 +136,7 @@ import {
   setCaseGraceWindowOnRelease,
 } from "./services/litigationHoldGraceWindowService";
 import { askMatterQuestion, compareMatterNote } from "./services/matterAskService";
+import { synthesizeVoiceReply, VOICE_TTS_MAX_CHARS } from "./services/voiceTtsService";
 import { privilegedComplete } from "./services/llm/privilegedComplete";
 import { AssemblyAIService } from "./services/assemblyAIService";
 import { sendCaseEmail, sendRecordingConfirmationEmail, sendConsentResponseNotification, sendAcknowledgementRequestEmail, sendInvitationEmail, sendDpaConfirmationEmail, sendLegalAgreementAcceptedEmail, sendEvaluationSetupEmail, sendEvaluationSetupSubmittedAdminEmail, sendGovernedEvaluationLoginInviteEmail, legalNoteBrandHeaderHtml } from "./email";
@@ -5266,6 +5267,39 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       res.json({ text });
     } catch (error: any) {
       console.error('Quick note transcription error:', error);
+      next(error);
+    }
+  });
+
+  // Short UK English voice reply via Amazon Polly (EU). Privileged text stays in AWS EU.
+  app.post("/api/voice/tts", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const text = typeof req.body?.text === "string" ? req.body.text : "";
+      if (!text.trim()) {
+        return res.status(400).json({ message: "text is required" });
+      }
+      if (text.length > VOICE_TTS_MAX_CHARS + 200) {
+        return res.status(400).json({ message: "text is too long" });
+      }
+
+      const result = await synthesizeVoiceReply(text);
+
+      await logAuditEvent(userId, "voice_tts", {
+        metadata: {
+          charCount: result.charCount,
+          voiceId: result.voiceId,
+        },
+      });
+
+      res.setHeader("Content-Type", result.contentType);
+      res.setHeader("Cache-Control", "no-store");
+      res.send(result.audio);
+    } catch (error: any) {
+      if (error?.status === 400 || error?.status === 503) {
+        return res.status(error.status).json({ message: error.message || "TTS unavailable" });
+      }
+      console.error("Voice TTS error:", error);
       next(error);
     }
   });
