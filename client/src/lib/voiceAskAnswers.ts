@@ -10,6 +10,8 @@ export interface VoiceAskAction {
   label: string;
   path?: string;
   caseId?: string;
+  /** Opens the solicitor's mail client with a prefilled chase draft (not sent by LegalNote). */
+  mailto?: string;
 }
 
 export interface VoiceAskCitation {
@@ -141,6 +143,49 @@ function formatActionBullet(item: ActionRow): string {
   const tag = dueTag(item.dueDate);
   const desc = actionLabel(item);
   return tag ? `${tag} — ${desc}` : desc;
+}
+
+function buildClientReminderMailto(options: {
+  to?: string | null;
+  matterLabel: string;
+  clientName?: string | null;
+  items: ActionRow[];
+}): string {
+  const { to, matterLabel, clientName, items } = options;
+  const greetingName = (clientName || "Client").trim() || "Client";
+  const subject = `Outstanding items — ${matterLabel}`;
+  const lines = [
+    `Dear ${greetingName},`,
+    "",
+    "I am writing to follow up on the following outstanding items on your matter:",
+    "",
+    ...items.slice(0, 8).map((item, i) => {
+      const due = formatDue(item.dueDate);
+      const desc = actionLabel(item);
+      return `${i + 1}. ${desc}${due ? ` (due ${due})` : ""}`;
+    }),
+    "",
+    "Please let me know once these are in hand, or if anything is unclear.",
+    "",
+    "Kind regards,",
+  ];
+  const body = lines.join("\n");
+  const email = (to || "").trim();
+  // Leave To blank when unknown so the solicitor can fill it in their mail client.
+  return `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
+async function fetchClientEmail(clientId: string | null | undefined): Promise<string | null> {
+  if (!clientId) return null;
+  try {
+    const res = await fetch(`/api/clients/${clientId}`, { credentials: "include" });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { email?: string | null };
+    const email = data.email?.trim();
+    return email || null;
+  } catch {
+    return null;
+  }
 }
 
 function activeCases(cases: Case[]): Case[] {
@@ -420,9 +465,16 @@ export async function answerVoiceAsk(
         });
       }
       if (clientBullets.length) {
+        const clientEmail = await fetchClientEmail(matter?.clientId);
         actionsOut.push({
           label: "Remind client",
           path: `/case/${activeCaseId}?section=obligations`,
+          mailto: buildClientReminderMailto({
+            to: clientEmail,
+            matterLabel: matter ? labelCase(matter) : "your matter",
+            clientName: matter?.clientName,
+            items: clientActions,
+          }),
         });
       }
 

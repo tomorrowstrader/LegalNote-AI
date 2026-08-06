@@ -19,6 +19,7 @@ Each of the core sub-processors below is a United States company or has a United
 |---------------|---------|--------|-------------------|
 | AssemblyAI Inc. | Audio transcription with speaker diarization | EU endpoint (Dublin), enforced in production | EU SCCs + UK Addendum; DPF / UK Extension certified. No model training via the EU endpoint. |
 | Amazon Web Services (Bedrock) | Privileged AI generation (attendance notes, letters, summaries) | UK/EU region and EU inference profile; global routing disabled | AWS GDPR DPA + UK Addendum (SCCs / UK IDTA); DPF certified. Inputs and outputs not used to train any model. |
+| Amazon Web Services (Polly) | Short spoken voice-command replies (TTS) | Same EU `AWS_REGION` as Bedrock (typically eu-west-2 London) | Same AWS GDPR DPA and UK Addendum as Bedrock. Short answer text only; not used to train any model. Requires IAM `polly:SynthesizeSpeech`. |
 | Backblaze Inc. | Object storage for audio | EU Central (Amsterdam) | EEA/EU DPA and UK Residents DPA (SCCs). Support is US-based; support access is treated as a US transfer. |
 | Recall.ai (Hyperdoc Inc.) | Meeting-bot import (audio-only) | EU (Frankfurt), configured and monitored | EU and UK DPA (SCCs + UK Addendum). Customer data not used to train any model. |
 
@@ -59,6 +60,7 @@ Each of the core sub-processors below is a United States company or has a United
 |---------------------|---------|
 | Audio transcription | EU (AssemblyAI Dublin endpoint) |
 | Privileged LLM / notes | EU (AWS Bedrock, EU inference profile) |
+| Voice command TTS | EU (Amazon Polly, same AWS_REGION as Bedrock) |
 | Object storage (audio) | EU (Backblaze Amsterdam) |
 | Database | UK (Neon, AWS eu-west-2 London) |
 | Application hosting | EU (Railway Amsterdam) |
@@ -75,6 +77,7 @@ Where personal data is transferred outside the United Kingdom or the EEA, LegalN
 
 | Date | Change |
 |------|--------|
+| August 2026 | Amazon Polly added for short voice-command TTS (same EU AWS region as Bedrock). |
 | July 2026 | Resend removed; AWS SES added for transactional email (eu-west-2). |
 | July 2026 | Neon (Databricks) and Railway DPAs executed; regions confirmed (Neon London, Railway Amsterdam). |
 | July 2026 | Recall.ai region confirmed EU (Frankfurt). |

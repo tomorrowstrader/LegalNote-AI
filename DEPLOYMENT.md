@@ -48,6 +48,18 @@ For production deployment, ensure these are set in Deployment secrets:
 - `AWS_REGION` - Must start with `eu-` (e.g. `eu-west-2`)
 - `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` - IAM credentials with Bedrock Converse access in that region
 
+The same IAM user/role must also allow voice TTS:
+
+```json
+{
+  "Effect": "Allow",
+  "Action": ["polly:SynthesizeSpeech"],
+  "Resource": "*"
+}
+```
+
+Optional: `VOICE_TTS_POLLY_VOICE` - Polly neural en-GB voice (`Amy` default, or `Emma` / `Brian`).
+
 If `PRIVILEGED_LLM_PROVIDER` is unset, retries fail with:  
 `PRIVILEGED_LLM_PROVIDER must be "bedrock"; got "(unset)"`
 

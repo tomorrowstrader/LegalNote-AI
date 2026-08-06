@@ -368,7 +368,12 @@ export function VoiceCommandTrigger() {
     window.setTimeout(() => close(), 700);
   };
 
-  const runAskAction = (label: string, path?: string) => {
+  const runAskAction = (label: string, path?: string, mailto?: string) => {
+    if (mailto) {
+      window.location.href = mailto;
+      setStatusLine("Opening email draft…");
+      return;
+    }
     if (path) {
       setLocation(path);
       setPanelPhase("done");
@@ -609,7 +614,7 @@ export function VoiceCommandTrigger() {
                           type="button"
                           size="sm"
                           variant={a.path ? "default" : "outline"}
-                          onClick={() => runAskAction(a.label, a.path)}
+                          onClick={() => runAskAction(a.label, a.path, a.mailto)}
                         >
                           {a.label}
                         </Button>
