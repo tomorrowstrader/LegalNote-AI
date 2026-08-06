@@ -101,7 +101,7 @@ function speakViaBrowser(text: string): Promise<void> {
   });
 }
 
-async function speakViaPolly(text: string): Promise<boolean> {
+async function speakViaPolly(text: string): Promise<"polly" | false> {
   const res = await fetch("/api/voice/tts", {
     method: "POST",
     credentials: "include",
@@ -138,26 +138,29 @@ async function speakViaPolly(text: string): Promise<boolean> {
     };
     void audio.play().catch(() => resolve());
   });
-  return true;
+  return "polly";
 }
 
+export type VoiceSpeakResult = "muted" | "polly" | "browser" | "skipped";
+
 /**
- * Speak a short reply. Prefers Amazon Polly EU; falls back to browser en-GB.
+ * Speak a short reply. Prefers Amazon Polly EU generative; falls back to browser en-GB.
  * No-ops when muted.
  */
-export async function speakVoiceReply(text: string): Promise<void> {
-  if (isVoiceTtsMuted()) return;
+export async function speakVoiceReply(text: string): Promise<VoiceSpeakResult> {
+  if (isVoiceTtsMuted()) return "muted";
   const cleaned = text.replace(/\s+/g, " ").trim().slice(0, MAX_SPOKEN_CHARS);
-  if (cleaned.length < 1) return;
+  if (cleaned.length < 1) return "skipped";
 
   stopVoiceSpeak();
 
   try {
     const ok = await speakViaPolly(cleaned);
-    if (ok) return;
+    if (ok) return "polly";
   } catch {
     // fall through
   }
 
   await speakViaBrowser(cleaned);
+  return "browser";
 }

@@ -58,7 +58,11 @@ The same IAM user/role must also allow voice TTS:
 }
 ```
 
-Optional: `VOICE_TTS_POLLY_VOICE` - Polly neural en-GB voice (`Amy` default, or `Emma` / `Brian`).
+Optional:
+- `VOICE_TTS_POLLY_VOICE` - Polly en-GB voice (`Amy` default generative, or `Brian`; `Emma` / `Arthur` use neural)
+- `VOICE_TTS_POLLY_ENGINE` - `generative` (default, most natural), `neural`, or `standard`
+
+Without Polly permissions the client falls back to the browser’s robotic system voice.
 
 If `PRIVILEGED_LLM_PROVIDER` is unset, retries fail with:  
 `PRIVILEGED_LLM_PROVIDER must be "bedrock"; got "(unset)"`

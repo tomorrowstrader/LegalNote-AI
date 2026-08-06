@@ -5289,11 +5289,14 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         metadata: {
           charCount: result.charCount,
           voiceId: result.voiceId,
+          engine: result.engine,
         },
       });
 
       res.setHeader("Content-Type", result.contentType);
       res.setHeader("Cache-Control", "no-store");
+      res.setHeader("X-Voice-TTS-Provider", `polly-${result.engine}`);
+      res.setHeader("X-Voice-TTS-Voice", result.voiceId);
       res.send(result.audio);
     } catch (error: any) {
       if (error?.status === 400 || error?.status === 503) {

@@ -38,6 +38,8 @@ import type { Case } from "@shared/schema";
 
 const SHORTCUT_HINT = "Ctrl+Shift+Space";
 
+let warnedBrowserTtsFallback = false;
+
 type MatterHit = VoiceMatterCandidate;
 
 type PanelPhase =
@@ -78,12 +80,30 @@ export function VoiceCommandTrigger() {
   const speakAnswer = useCallback((answer: VoiceAskAnswer) => {
     const summary = buildSpokenSummary(answer);
     if (!summary) return;
-    void speakVoiceReply(summary);
-  }, []);
+    void speakVoiceReply(summary).then((result) => {
+      if (result === "browser" && !warnedBrowserTtsFallback) {
+        warnedBrowserTtsFallback = true;
+        toast({
+          title: "Using device voice",
+          description:
+            "Polly isn’t available yet — enable polly:SynthesizeSpeech on the EU AWS role for a natural UK voice.",
+        });
+      }
+    });
+  }, [toast]);
 
   const speakAck = useCallback((line: string) => {
-    void speakVoiceReply(line);
-  }, []);
+    void speakVoiceReply(line).then((result) => {
+      if (result === "browser" && !warnedBrowserTtsFallback) {
+        warnedBrowserTtsFallback = true;
+        toast({
+          title: "Using device voice",
+          description:
+            "Polly isn’t available yet — enable polly:SynthesizeSpeech on the EU AWS role for a natural UK voice.",
+        });
+      }
+    });
+  }, [toast]);
 
   const executeIntent = useCallback(
     async (intent: VoiceIntent) => {
