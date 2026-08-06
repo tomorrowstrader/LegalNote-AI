@@ -135,7 +135,7 @@ import {
   clearCaseGraceWindow,
   setCaseGraceWindowOnRelease,
 } from "./services/litigationHoldGraceWindowService";
-import { askMatterQuestion } from "./services/matterAskService";
+import { askMatterQuestion, compareMatterNote } from "./services/matterAskService";
 import { privilegedComplete } from "./services/llm/privilegedComplete";
 import { AssemblyAIService } from "./services/assemblyAIService";
 import { sendCaseEmail, sendRecordingConfirmationEmail, sendConsentResponseNotification, sendAcknowledgementRequestEmail, sendInvitationEmail, sendDpaConfirmationEmail, sendLegalAgreementAcceptedEmail, sendEvaluationSetupEmail, sendEvaluationSetupSubmittedAdminEmail, sendGovernedEvaluationLoginInviteEmail, legalNoteBrandHeaderHtml } from "./email";
@@ -5651,6 +5651,44 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         return res.status(403).json({ message: "Not authorized" });
       }
       console.error("Matter ask error:", error);
+      next(error);
+    }
+  });
+
+  // Compare meeting transcript vs attendance note (omissions / mismatches). Not legal advice.
+  app.post("/api/cases/:id/compare-note", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseId = req.params.id;
+
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const result = await compareMatterNote({
+        storage,
+        caseId,
+        userId,
+      });
+
+      await logAuditEvent(userId, "matter_compare_note", {
+        caseId,
+        metadata: {
+          refused: result.refused,
+          findingCount: result.findings.length,
+          citationCount: result.citations.length,
+          hasTranscript: result.hasTranscript,
+          hasNote: result.hasNote,
+        },
+      });
+
+      res.json(result);
+    } catch (error: any) {
+      if (error?.status === 403) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      console.error("Matter compare-note error:", error);
       next(error);
     }
   });

@@ -73,7 +73,7 @@ export function VoiceCommandTrigger() {
         if (intent.type === "advice_blocked") {
           setAskAnswer({
             headline: ADVICE_SOFT_BLOCK_MESSAGE,
-            detail: "Try: “What needs attention?”, “What’s outstanding on this matter?”, or “Open [client]”.",
+            detail: "Try: “What needs attention?”, “Compare the meeting to the note”, or “Open [client]”.",
             actions: [
               { label: "What needs attention?", path: undefined },
               { label: "Go to dashboard", path: "/" },
@@ -85,8 +85,16 @@ export function VoiceCommandTrigger() {
         }
 
         if (intent.type === "ask") {
+          const matterScoped =
+            intent.topic === "matter_qa" ||
+            intent.topic === "matter_compare" ||
+            intent.topic === "matter_outstanding";
           setStatusLine(
-            intent.topic === "matter_qa" ? "Searching this matter’s file…" : "Checking your matters…",
+            intent.topic === "matter_compare"
+              ? "Comparing meeting to note…"
+              : matterScoped
+                ? "Searching this matter’s file…"
+                : "Checking your matters…",
           );
           const answer = await answerVoiceAsk(
             intent.topic,
@@ -96,9 +104,7 @@ export function VoiceCommandTrigger() {
           setAskAnswer(answer);
           setPanelPhase("answer");
           setStatusLine(
-            intent.topic === "matter_qa"
-              ? "From this matter’s file"
-              : "From your LegalNote file",
+            matterScoped ? "From this matter’s file" : "From your LegalNote file",
           );
           return;
         }

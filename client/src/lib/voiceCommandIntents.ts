@@ -5,6 +5,7 @@ export type AskTopic =
   | "overdue"
   | "outstanding_undertakings"
   | "matter_outstanding"
+  | "matter_compare"
   | "matter_qa";
 
 export type VoiceIntent =
@@ -104,6 +105,30 @@ const ASK_PATTERNS: Array<{ re: RegExp; topic: AskTopic }> = [
   {
     re: /\b(status|update).{0,20}\b(on )?(this )?(matter|case)\b/i,
     topic: "matter_outstanding",
+  },
+  {
+    re: /\b(compare|check|diff).{0,40}\b(meeting|transcript|call).{0,40}\b(note|attendance)\b/i,
+    topic: "matter_compare",
+  },
+  {
+    re: /\b(compare|check|diff).{0,40}\b(note|attendance).{0,40}\b(meeting|transcript|call)\b/i,
+    topic: "matter_compare",
+  },
+  {
+    re: /\b(what('s| is)|whats|anything|what).{0,30}\b(missing|left out|omitted|gaps?).{0,40}\b(note|attendance)\b/i,
+    topic: "matter_compare",
+  },
+  {
+    re: /\b(did|does|has) (the )?(attendance )?note (capture|cover|include|reflect).{0,20}\b(everything|all|the meeting)\b/i,
+    topic: "matter_compare",
+  },
+  {
+    re: /\b(gaps?|mismatches?|differences?).{0,30}\b(between|vs|versus|against).{0,30}\b(meeting|transcript|note|attendance)\b/i,
+    topic: "matter_compare",
+  },
+  {
+    re: /\bcompare (the )?(meeting|transcript) to (the )?(note|attendance)\b/i,
+    topic: "matter_compare",
   },
 ];
 

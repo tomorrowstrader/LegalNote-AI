@@ -173,6 +173,9 @@ export async function answerVoiceAsk(
   if (topic === "matter_qa") {
     return answerMatterQa(activeCaseId, question || "");
   }
+  if (topic === "matter_compare") {
+    return answerMatterCompare(activeCaseId);
+  }
 
   switch (topic) {
     case "awaiting_review": {
@@ -439,6 +442,145 @@ export async function answerVoiceAsk(
   }
 }
 
+function mapMatterCitations(
+  activeCaseId: string,
+  citations: Array<{
+    source: "transcript" | "attendance_note" | "client_letter";
+    label: string;
+    timestampMs?: number;
+    excerpt?: string;
+  }>,
+): VoiceAskCitation[] {
+  return citations.map((c) => {
+    if (c.source === "transcript") {
+      const params = new URLSearchParams({ tab: "transcript" });
+      if (typeof c.timestampMs === "number") {
+        params.set("timestamp", String(c.timestampMs));
+      }
+      return {
+        source: c.source,
+        label: c.label || "Transcript",
+        path: `/case/${activeCaseId}?${params.toString()}`,
+        excerpt: c.excerpt,
+      };
+    }
+    if (c.source === "attendance_note") {
+      return {
+        source: c.source,
+        label: c.label || "Attendance note",
+        path: `/case/${activeCaseId}?tab=attendance`,
+        excerpt: c.excerpt,
+      };
+    }
+    return {
+      source: c.source,
+      label: c.label || "Client letter",
+      path: `/case/${activeCaseId}?tab=summary`,
+      excerpt: c.excerpt,
+    };
+  });
+}
+
+async function answerMatterCompare(activeCaseId: string | null): Promise<VoiceAskAnswer> {
+  if (!activeCaseId) {
+    return {
+      headline: "Open a matter first, then ask to compare the meeting to the note.",
+      detail: "Example: “Compare the meeting to the attendance note.”",
+      actions: [{ label: "Go to dashboard", path: "/" }],
+    };
+  }
+
+  const res = await fetch(`/api/cases/${activeCaseId}/compare-note`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: "{}",
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { message?: string }).message || "Compare failed");
+  }
+
+  const data = (await res.json()) as {
+    summary: string;
+    refused?: boolean;
+    noteStatus?: string;
+    hasTranscript?: boolean;
+    hasNote?: boolean;
+    findings?: Array<{
+      kind: "missing_from_note" | "mismatch" | "note_unsupported";
+      label: string;
+      severity?: "info" | "review";
+      transcriptExcerpt?: string;
+      noteExcerpt?: string;
+      timestampMs?: number;
+    }>;
+    citations?: Array<{
+      source: "transcript" | "attendance_note" | "client_letter";
+      label: string;
+      timestampMs?: number;
+      excerpt?: string;
+    }>;
+  };
+
+  if (data.refused) {
+    return {
+      headline: data.summary,
+      detail: "File assistant only — not legal advice.",
+      actions: [
+        { label: "Open transcript", path: `/case/${activeCaseId}?tab=transcript` },
+        { label: "Open attendance note", path: `/case/${activeCaseId}?tab=attendance` },
+      ],
+    };
+  }
+
+  const findings = data.findings || [];
+  const missing = findings.filter((f) => f.kind === "missing_from_note");
+  const mismatches = findings.filter(
+    (f) => f.kind === "mismatch" || f.kind === "note_unsupported",
+  );
+
+  const sections: VoiceAskSection[] = [];
+  if (missing.length) {
+    sections.push({
+      title: "Missing from note",
+      bullets: missing.map((f) => f.label),
+    });
+  }
+  if (mismatches.length) {
+    sections.push({
+      title: "Mismatches",
+      bullets: mismatches.map((f) => f.label),
+    });
+  }
+
+  const citations = mapMatterCitations(activeCaseId, data.citations || []);
+
+  const noteHint =
+    data.noteStatus && data.noteStatus !== "approved"
+      ? `Note status: ${data.noteStatus} (not yet adopted).`
+      : undefined;
+
+  return {
+    headline: data.summary,
+    detail: [
+      noteHint,
+      findings.length === 0
+        ? "Grounded in this matter’s transcript and attendance note."
+        : `${findings.length} point${findings.length === 1 ? "" : "s"} to review — not legal advice.`,
+    ]
+      .filter(Boolean)
+      .join(" · "),
+    sections: sections.length ? sections : undefined,
+    citations,
+    actions: [
+      { label: "Open attendance note", path: `/case/${activeCaseId}?tab=attendance` },
+      { label: "Open transcript", path: `/case/${activeCaseId}?tab=transcript` },
+    ],
+  };
+}
+
 async function answerMatterQa(
   activeCaseId: string | null,
   question: string,
@@ -485,34 +627,7 @@ async function answerMatterQa(
     }>;
   };
 
-  const citations: VoiceAskCitation[] = (data.citations || []).map((c) => {
-    if (c.source === "transcript") {
-      const params = new URLSearchParams({ tab: "transcript" });
-      if (typeof c.timestampMs === "number") {
-        params.set("timestamp", String(c.timestampMs));
-      }
-      return {
-        source: c.source,
-        label: c.label || "Transcript",
-        path: `/case/${activeCaseId}?${params.toString()}`,
-        excerpt: c.excerpt,
-      };
-    }
-    if (c.source === "attendance_note") {
-      return {
-        source: c.source,
-        label: c.label || "Attendance note",
-        path: `/case/${activeCaseId}?tab=attendance`,
-        excerpt: c.excerpt,
-      };
-    }
-    return {
-      source: c.source,
-      label: c.label || "Client letter",
-      path: `/case/${activeCaseId}?tab=summary`,
-      excerpt: c.excerpt,
-    };
-  });
+  const citations = mapMatterCitations(activeCaseId, data.citations || []);
 
   return {
     headline: data.answer,
