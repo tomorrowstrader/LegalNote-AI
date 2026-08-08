@@ -1370,7 +1370,12 @@ export default function CaseDetail() {
   };
 
   return (
-    <div className={cn("flex bg-background overflow-x-hidden", isFocusMode ? "min-h-screen" : "h-[calc(100vh-4rem)]")}>
+    <div className={cn(
+      "flex bg-background overflow-x-hidden",
+      isFocusMode
+        ? "min-h-screen"
+        : "h-[calc(100dvh-4rem-env(safe-area-inset-top,0px))] max-lg:h-[calc(100dvh-8rem-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px))]",
+    )}>
       {isFocusMode && (
         <div className="fixed top-4 right-4 z-[200]">
           <Tooltip>
@@ -1395,7 +1400,7 @@ export default function CaseDetail() {
       {!isFocusMode && (
         <aside
           className={cn(
-            "hidden lg:flex shrink-0 border-r border-border bg-muted/20 flex-col sticky top-0 self-start h-[calc(100vh-4rem)] overflow-y-auto z-40 transition-[width] duration-200",
+            "hidden lg:flex shrink-0 border-r border-border bg-muted/20 flex-col sticky top-0 self-start h-[calc(100dvh-4rem-env(safe-area-inset-top,0px))] overflow-y-auto z-40 transition-[width] duration-200",
             sidebarCollapsed ? "w-14" : "w-[220px]",
           )}
           data-testid="case-side-nav"

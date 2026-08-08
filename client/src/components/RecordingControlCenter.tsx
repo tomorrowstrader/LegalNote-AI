@@ -167,7 +167,7 @@ export default function RecordingControlCenter({
   const chip = (
     <div
       className={cn(
-        "fixed bottom-5 right-5 z-[60]",
+        "fixed bottom-5 right-5 z-[60] max-lg:bottom-[calc(5rem+env(safe-area-inset-bottom,0px))]",
         "animate-in fade-in-0 zoom-in-95 duration-200",
         className,
       )}
@@ -226,7 +226,7 @@ export default function RecordingControlCenter({
   const panel = (
     <div
       className={cn(
-        "fixed bottom-5 right-5 z-[60]",
+        "fixed bottom-5 right-5 z-[60] max-lg:bottom-[calc(5rem+env(safe-area-inset-bottom,0px))]",
         hasNotepadBody
           ? "w-[min(380px,calc(100vw-1.5rem))]"
           : "w-[min(340px,calc(100vw-1.5rem))]",

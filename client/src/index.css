@@ -11,6 +11,13 @@ html {
   scroll-behavior: smooth;
 }
 
+/* iOS PWA / notch + home-indicator safe areas (used with viewport-fit=cover) */
+:root {
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --mobile-bottom-nav-height: 4rem;
+}
+
 /* Reduced motion preference */
 @media (prefers-reduced-motion: reduce) {
   html {

@@ -584,13 +584,13 @@ export default function Dashboard() {
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as StatusTab)} className="w-full">
             {/* Sticky Header with Title, Tabs, Search */}
             <div className="sticky top-0 z-10 bg-card border-b border-border p-4 sm:p-6 pb-4">
-              <div className="flex items-center justify-between gap-4 mb-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 mb-4">
                 <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
                   <FolderOpen className="w-5 h-5 text-muted-foreground" />
                   Case Files
                 </h2>
-                <div className="flex items-center gap-3">
-                  <div className="relative flex-1 sm:w-64">
+                <div className="flex items-center gap-3 w-full sm:w-auto">
+                  <div className="relative flex-1 sm:w-64 min-w-0">
                     <Input
                       placeholder="Search"
                       value={searchQuery}
@@ -600,7 +600,7 @@ export default function Dashboard() {
                     />
                   </div>
                   <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
-                    <SelectTrigger className="w-[140px] bg-background" data-testid="select-sort">
+                    <SelectTrigger className="w-[130px] sm:w-[140px] shrink-0 bg-background" data-testid="select-sort">
                       <SortAsc className="w-4 h-4 mr-2 text-muted-foreground" />
                       <SelectValue placeholder="Sort by" />
                     </SelectTrigger>
@@ -633,8 +633,8 @@ export default function Dashboard() {
                   data-testid="tab-review"
                 >
                   <AlertTriangle className="w-4 h-4" />
-                  <span className="hidden xs:inline">Awaiting Review</span>
-                  <span className="xs:hidden">Review</span>
+                  <span className="hidden sm:inline">Awaiting Review</span>
+                  <span className="sm:hidden">Review</span>
                   {tabCounts.review > 0 && (
                     <Badge variant="default" className="ml-1 h-5 min-w-5 px-1.5 text-xs bg-amber-500 text-white">
                       {tabCounts.review}

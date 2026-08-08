@@ -15,6 +15,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useVoiceCommandRecognition } from "@/hooks/useVoiceCommandRecognition";
 import { QUICK_RECORD_SHORTCUT_EVENT } from "@/hooks/useQuickRecordShortcut";
+import { OPEN_VOICE_COMMAND_EVENT } from "@/lib/mobileChromeEvents";
 import { buildCapturePath } from "@/lib/capture";
 import { cn } from "@/lib/utils";
 import {
@@ -304,6 +305,14 @@ export function VoiceCommandTrigger() {
   }, [open, close, openListening, recognition]);
 
   useEffect(() => {
+    const onOpenFromMobile = () => {
+      if (!open) openListening();
+    };
+    window.addEventListener(OPEN_VOICE_COMMAND_EVENT, onOpenFromMobile);
+    return () => window.removeEventListener(OPEN_VOICE_COMMAND_EVENT, onOpenFromMobile);
+  }, [open, openListening]);
+
+  useEffect(() => {
     if (recognition.status === "transcribing") {
       setPanelPhase("working");
       setStatusLine("Searching…");
@@ -437,7 +446,7 @@ export function VoiceCommandTrigger() {
             aria-label="Voice command"
             aria-pressed={open}
             className={cn(
-              "fixed bottom-6 left-6 z-[55] flex h-14 w-14 items-center justify-center rounded-full",
+              "fixed bottom-6 left-6 z-[55] hidden h-14 w-14 items-center justify-center rounded-full lg:flex",
               "border-2 border-[hsl(220,15%,78%)] bg-white text-foreground",
               "shadow-[0_4px_6px_-1px_rgba(15,23,42,0.18),0_10px_24px_-4px_rgba(15,23,42,0.28),0_0_0_1px_rgba(15,23,42,0.06)]",
               "transition-[transform,box-shadow,background-color,border-color] duration-200",
@@ -469,7 +478,7 @@ export function VoiceCommandTrigger() {
 
       {open && (
         <div
-          className="fixed bottom-24 left-6 z-[55] w-[min(100vw-3rem,22rem)]"
+          className="fixed bottom-24 left-4 right-4 z-[55] w-auto max-w-[22rem] mx-auto sm:left-6 sm:right-auto sm:mx-0 sm:w-[min(100vw-3rem,22rem)] lg:bottom-24 max-lg:bottom-[calc(5.5rem+env(safe-area-inset-bottom,0px))]"
           role="dialog"
           aria-label="Voice command"
           data-testid="voice-command-panel"

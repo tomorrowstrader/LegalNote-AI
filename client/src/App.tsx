@@ -13,6 +13,7 @@ import { VoiceCommandTrigger } from "@/components/VoiceCommandTrigger";
 import { useCaptureShortcut } from "@/hooks/useCaptureShortcut";
 import { useQuickRecordShortcut } from "@/hooks/useQuickRecordShortcut";
 import TopNavigation from "@/components/TopNavigation";
+import MobileBottomNav from "@/components/MobileBottomNav";
 import FirmSetupPrompt from "@/components/FirmSetupPrompt";
 import DisplayNameOnboarding from "@/components/DisplayNameOnboarding";
 import IntegrationsOnboarding from "@/components/IntegrationsOnboarding";
@@ -204,8 +205,17 @@ function AuthenticatedAppContent() {
   const recoveryBlocking = showRecoveryModal || showVideoBotRecovery;
 
   return (
-    <div className={`min-h-screen bg-background ${!isLoading && hasAppAccess && !hideAppChrome ? 'pt-16' : ''}`}>
+    <div
+      className={`min-h-screen bg-background ${
+        !isLoading && hasAppAccess && !hideAppChrome
+          ? "pt-[calc(4rem+env(safe-area-inset-top,0px))] pb-[calc(4rem+env(safe-area-inset-bottom,0px))] lg:pb-0"
+          : ""
+      }`}
+    >
       {!isLoading && hasAppAccess && !hideAppChrome && <TopNavigation onRestartTour={handleRestartTour} />}
+      {!isLoading && hasAppAccess && !hideAppChrome && (
+        <MobileBottomNav onRestartTour={handleRestartTour} />
+      )}
       {!isLoading && hasAppAccess && !hideAppChrome && <FirmSetupPrompt />}
       {!isLoading && hasAppAccess && !hideAppChrome && <DisplayNameOnboarding />}
       {!isLoading && hasAppAccess && !hideAppChrome && <IntegrationsOnboarding />}

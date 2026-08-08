@@ -32,6 +32,7 @@ import {
   FileText,
   ExternalLink,
   FolderOpen,
+  MoreHorizontal,
 } from "lucide-react";
 import { format, formatDistanceToNow, isToday, isTomorrow, isPast, addDays, startOfDay } from "date-fns";
 import { useState, useMemo, useEffect } from "react";
@@ -869,71 +870,134 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
                   )
                 ) : null}
 
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setShowCaseDialog(true)}
-                  data-testid={`button-link-case-${meeting.id}`}
-                >
-                  <Briefcase className="w-3 h-3 mr-1" />
-                  {meeting.caseId ? 'Change Case' : 'Link Case'}
-                </Button>
-
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setShowEditDialog(true)}
-                  data-testid={`button-edit-meeting-${meeting.id}`}
-                >
-                  <Pencil className="w-3 h-3 mr-1" />
-                  Edit Meeting
-                </Button>
-                
-                {meeting.clientEmail && meeting.consentStatus === 'pending' && (
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    onClick={() => sendConsentMutation.mutate()}
-                    disabled={sendConsentMutation.isPending}
-                    data-testid={`button-send-consent-${meeting.id}`}
-                  >
-                    {sendConsentMutation.isPending ? (
-                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                    ) : (
-                      <Send className="w-3 h-3 mr-1" />
-                    )}
-                    Send Consent
-                  </Button>
-                )}
-                
-                {meeting.autoRecordEnabled && meeting.meetingUrl && meeting.consentStatus === 'approved' && !meeting.recallBotId && (
-                  <Button 
+                {/* Desktop: full secondary actions */}
+                <div className="hidden md:contents">
+                  <Button
                     size="sm"
-                    onClick={() => deployBotMutation.mutate()}
-                    disabled={deployBotMutation.isPending}
-                    data-testid={`button-deploy-bot-${meeting.id}`}
+                    variant="outline"
+                    onClick={() => setShowCaseDialog(true)}
+                    data-testid={`button-link-case-${meeting.id}`}
                   >
-                    {deployBotMutation.isPending ? (
-                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                    ) : (
-                      <Bot className="w-3 h-3 mr-1" />
-                    )}
-                    Deploy Bot
+                    <Briefcase className="w-3 h-3 mr-1" />
+                    {meeting.caseId ? 'Change Case' : 'Link Case'}
                   </Button>
-                )}
-                
-                <div className="flex-1" />
-                
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="text-destructive"
-                  onClick={() => setShowCancelDialog(true)}
-                  data-testid={`button-cancel-meeting-${meeting.id}`}
-                >
-                  <Ban className="w-3 h-3 mr-1" />
-                  Cancel
-                </Button>
+
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setShowEditDialog(true)}
+                    data-testid={`button-edit-meeting-${meeting.id}`}
+                  >
+                    <Pencil className="w-3 h-3 mr-1" />
+                    Edit Meeting
+                  </Button>
+                  
+                  {meeting.clientEmail && meeting.consentStatus === 'pending' && (
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => sendConsentMutation.mutate()}
+                      disabled={sendConsentMutation.isPending}
+                      data-testid={`button-send-consent-${meeting.id}`}
+                    >
+                      {sendConsentMutation.isPending ? (
+                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                      ) : (
+                        <Send className="w-3 h-3 mr-1" />
+                      )}
+                      Send Consent
+                    </Button>
+                  )}
+                  
+                  {meeting.autoRecordEnabled && meeting.meetingUrl && meeting.consentStatus === 'approved' && !meeting.recallBotId && (
+                    <Button 
+                      size="sm"
+                      onClick={() => deployBotMutation.mutate()}
+                      disabled={deployBotMutation.isPending}
+                      data-testid={`button-deploy-bot-${meeting.id}`}
+                    >
+                      {deployBotMutation.isPending ? (
+                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                      ) : (
+                        <Bot className="w-3 h-3 mr-1" />
+                      )}
+                      Deploy Bot
+                    </Button>
+                  )}
+                  
+                  <div className="flex-1" />
+                  
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-destructive"
+                    onClick={() => setShowCancelDialog(true)}
+                    data-testid={`button-cancel-meeting-${meeting.id}`}
+                  >
+                    <Ban className="w-3 h-3 mr-1" />
+                    Cancel
+                  </Button>
+                </div>
+
+                {/* Mobile: secondary actions in overflow */}
+                <div className="flex md:hidden items-center gap-2 ml-auto">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        aria-label="More meeting actions"
+                        data-testid={`button-meeting-more-${meeting.id}`}
+                      >
+                        <MoreHorizontal className="w-4 h-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-52">
+                      <DropdownMenuItem
+                        onClick={() => setShowCaseDialog(true)}
+                        data-testid={`menu-link-case-${meeting.id}`}
+                      >
+                        <Briefcase className="w-4 h-4 mr-2" />
+                        {meeting.caseId ? 'Change Case' : 'Link Case'}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => setShowEditDialog(true)}
+                        data-testid={`menu-edit-meeting-${meeting.id}`}
+                      >
+                        <Pencil className="w-4 h-4 mr-2" />
+                        Edit Meeting
+                      </DropdownMenuItem>
+                      {meeting.clientEmail && meeting.consentStatus === 'pending' && (
+                        <DropdownMenuItem
+                          onClick={() => sendConsentMutation.mutate()}
+                          disabled={sendConsentMutation.isPending}
+                          data-testid={`menu-send-consent-${meeting.id}`}
+                        >
+                          <Send className="w-4 h-4 mr-2" />
+                          Send Consent
+                        </DropdownMenuItem>
+                      )}
+                      {meeting.autoRecordEnabled && meeting.meetingUrl && meeting.consentStatus === 'approved' && !meeting.recallBotId && (
+                        <DropdownMenuItem
+                          onClick={() => deployBotMutation.mutate()}
+                          disabled={deployBotMutation.isPending}
+                          data-testid={`menu-deploy-bot-${meeting.id}`}
+                        >
+                          <Bot className="w-4 h-4 mr-2" />
+                          Deploy Bot
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuItem
+                        onClick={() => setShowCancelDialog(true)}
+                        className="text-destructive focus:text-destructive"
+                        data-testid={`menu-cancel-meeting-${meeting.id}`}
+                      >
+                        <Ban className="w-4 h-4 mr-2" />
+                        Cancel meeting
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
             )}
           </div>

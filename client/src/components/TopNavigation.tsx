@@ -1,6 +1,5 @@
-import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Menu, User, HelpCircle, Shield, Home, Mic, FolderOpen, Settings, CheckSquare, Users, Clock, ChevronDown, BadgePoundSterling, Link2 } from "lucide-react";
+import { User, HelpCircle, Shield, Home, Mic, FolderOpen, Settings, CheckSquare, Users, Clock, ChevronDown, BadgePoundSterling, Link2 } from "lucide-react";
 import Logo from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,40 +27,31 @@ interface TopNavigationProps {
 interface NavLinkItem {
   path: string;
   label: string;
-  mobileLabel: string;
   icon: typeof Home;
   testId?: string;
-  mobileTestId?: string;
 }
 
 const primaryNavLinks: NavLinkItem[] = [
-  { path: "/", label: "Dashboard", mobileLabel: "Dashboard", testId: "link-dashboard", mobileTestId: "mobile-link-dashboard", icon: Home },
-  { path: "/capture", label: "Capture", mobileLabel: "Capture", testId: "link-capture", mobileTestId: "mobile-link-capture", icon: Mic },
-  { path: "/cases", label: "Cases", mobileLabel: "Saved Cases", testId: "link-cases", mobileTestId: "mobile-link-saved-cases", icon: FolderOpen },
+  { path: "/", label: "Dashboard", testId: "link-dashboard", icon: Home },
+  { path: "/capture", label: "Capture", testId: "link-capture", icon: Mic },
+  { path: "/cases", label: "Cases", testId: "link-cases", icon: FolderOpen },
 ];
 
 const moreNavLinks: NavLinkItem[] = [
-  { path: "/my-actions", label: "My Obligations", mobileLabel: "My Obligations", icon: CheckSquare },
-  { path: "/clients", label: "Clients", mobileLabel: "Clients", icon: Users },
-  { path: "/time-summary", label: "Time Summary", mobileLabel: "Time Summary", icon: Clock },
-  { path: "/settings", label: "Settings", mobileLabel: "Settings", icon: Settings },
+  { path: "/my-actions", label: "My Obligations", icon: CheckSquare },
+  { path: "/clients", label: "Clients", icon: Users },
+  { path: "/time-summary", label: "Time Summary", icon: Clock },
+  { path: "/settings", label: "Settings", icon: Settings },
 ];
 
 export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
   const [location, setLocation] = useLocation();
   const { user, isAdmin, isFirmAdmin, canAccessFirmCompliance } = useAuth();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const visibleMoreNavLinks = moreNavLinks;
-  const visibleAllNavLinks = [...primaryNavLinks, ...visibleMoreNavLinks];
-
-  const handleNavClick = (path: string) => {
-    setLocation(path);
-    setMobileMenuOpen(false);
-  };
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-primary via-black to-primary dark:from-transparent dark:via-transparent dark:to-transparent border-b border-primary-border shadow-lg legalnote-nav">
-      <div className="max-w-7xl mx-auto px-6 lg:px-8">
+    <nav className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-primary via-black to-primary dark:from-transparent dark:via-transparent dark:to-transparent border-b border-primary-border shadow-lg legalnote-nav pt-[env(safe-area-inset-top,0px)]">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center h-16 gap-2">
           <Link href="/" data-testid="link-home">
             <div className="hover-elevate active-elevate-2 rounded-md px-2 py-1 -ml-2 flex-shrink-0">
@@ -122,145 +112,116 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
           </div>
 
           <div className="flex items-center gap-2 ml-auto flex-shrink-0">
-            <CaseQuickSwitch />
-
+            {/* Always mounted so bottom-nav Search can open the dialog on phones */}
             <GlobalSearch />
 
-            <QuickRecordButton />
+            <div className="hidden lg:contents">
+              <CaseQuickSwitch />
+              <QuickRecordButton />
+            </div>
 
             <NotificationsPanel />
 
-            <ThemeToggle />
+            <div className="hidden lg:contents">
+              <ThemeToggle />
 
-            {isAdmin && <AdminQuickAccess />}
+              {isAdmin && <AdminQuickAccess />}
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="text-primary-foreground" data-testid="button-user-menu">
-                  <User className="w-5 h-5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <div className="px-2 py-1.5">
-                  <p className="text-sm font-medium">
-                    {user?.firstName && user?.lastName 
-                      ? `${user.firstName} ${user.lastName}` 
-                      : user?.email?.split('@')[0] || 'User'}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{user?.email || ''}</p>
-                </div>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild data-testid="menu-item-profile">
-                  <Link href="/profile">My Profile</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild data-testid="menu-item-firm-settings">
-                  <Link href="/settings">Firm Settings</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild data-testid="menu-item-undertakings">
-                  <Link href="/undertakings">Undertakings Register</Link>
-                </DropdownMenuItem>
-                {canAccessFirmCompliance && firmComplianceDashboardVisible && (
-                  <DropdownMenuItem asChild data-testid="menu-item-firm-compliance">
-                    <Link href="/compliance">
-                      <BadgePoundSterling className="w-4 h-4 mr-2" />
-                      Firm Compliance
-                    </Link>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="text-primary-foreground" data-testid="button-user-menu">
+                    <User className="w-5 h-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <div className="px-2 py-1.5">
+                    <p className="text-sm font-medium">
+                      {user?.firstName && user?.lastName 
+                        ? `${user.firstName} ${user.lastName}` 
+                        : user?.email?.split('@')[0] || 'User'}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{user?.email || ''}</p>
+                  </div>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild data-testid="menu-item-profile">
+                    <Link href="/profile">My Profile</Link>
                   </DropdownMenuItem>
-                )}
-                {isAdmin && (
-                  <>
-                    <DropdownMenuItem asChild data-testid="menu-item-audit-logs">
-                      <Link href="/audit-logs">Audit Logs</Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild data-testid="menu-item-security">
-                      <Link href="/app/security">
-                        <Shield className="w-4 h-4 mr-2" />
-                        Security & Compliance
+                  <DropdownMenuItem asChild data-testid="menu-item-firm-settings">
+                    <Link href="/settings">Firm Settings</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild data-testid="menu-item-undertakings">
+                    <Link href="/undertakings">Undertakings Register</Link>
+                  </DropdownMenuItem>
+                  {canAccessFirmCompliance && firmComplianceDashboardVisible && (
+                    <DropdownMenuItem asChild data-testid="menu-item-firm-compliance">
+                      <Link href="/compliance">
+                        <BadgePoundSterling className="w-4 h-4 mr-2" />
+                        Firm Compliance
                       </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuItem asChild data-testid="menu-item-demo-generator">
-                      <Link href="/demo-generator">
-                        <Link2 className="w-4 h-4 mr-2" />
-                        Demo Link Generator
-                      </Link>
-                    </DropdownMenuItem>
-                  </>
-                )}
-                {isFirmAdmin && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem asChild data-testid="menu-item-team-management">
-                      <Link href="/team">Team Management</Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild data-testid="menu-item-firm-overview">
-                      <Link href="/firm">Firm Overview</Link>
-                    </DropdownMenuItem>
-                  </>
-                )}
-                {isAdmin && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem asChild data-testid="menu-item-admin-dashboard">
-                      <Link href="/admin">Admin Dashboard</Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild data-testid="menu-item-admin-provision-firm-nav">
-                      <Link href="/admin/provision-firm">Provision evaluation firm</Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild data-testid="menu-item-admin-dpa-mint-nav">
-                      <Link href="/admin/dpa-mint">Mint DPA Link</Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild data-testid="menu-item-admin-dpa-acceptances-nav">
-                      <Link href="/admin/dpa-acceptances">DPA Acceptances</Link>
-                    </DropdownMenuItem>
-                  </>
-                )}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={onRestartTour} data-testid="menu-item-restart-tour">
-                  <HelpCircle className="w-4 h-4 mr-2" />
-                  Restart Tour
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem 
-                  onClick={() => window.location.href = '/api/logout'} 
-                  data-testid="menu-item-logout"
-                >
-                  Log Out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            <DropdownMenu open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-              <DropdownMenuTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="lg:hidden text-primary-foreground" 
-                  data-testid="button-mobile-menu"
-                >
-                  <Menu className="w-5 h-5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                {visibleAllNavLinks.map((link) => {
-                  const isActive = location === link.path || (link.path !== "/" && location.startsWith(link.path));
-                  const Icon = link.icon;
-                  const mobileTestId =
-                    link.mobileTestId ??
-                    `mobile-link-${link.mobileLabel.toLowerCase().replace(/\s+/g, '-')}`;
-                  return (
-                    <DropdownMenuItem
-                      key={link.path}
-                      onClick={() => handleNavClick(link.path)}
-                      className={isActive ? "bg-accent/20" : ""}
-                      data-testid={mobileTestId}
-                    >
-                      <Icon className="w-4 h-4 mr-2" />
-                      {link.mobileLabel}
-                    </DropdownMenuItem>
-                  );
-                })}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  )}
+                  {isAdmin && (
+                    <>
+                      <DropdownMenuItem asChild data-testid="menu-item-audit-logs">
+                        <Link href="/audit-logs">Audit Logs</Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild data-testid="menu-item-security">
+                        <Link href="/app/security">
+                          <Shield className="w-4 h-4 mr-2" />
+                          Security & Compliance
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild data-testid="menu-item-demo-generator">
+                        <Link href="/demo-generator">
+                          <Link2 className="w-4 h-4 mr-2" />
+                          Demo Link Generator
+                        </Link>
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                  {isFirmAdmin && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem asChild data-testid="menu-item-team-management">
+                        <Link href="/team">Team Management</Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild data-testid="menu-item-firm-overview">
+                        <Link href="/firm">Firm Overview</Link>
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                  {isAdmin && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem asChild data-testid="menu-item-admin-dashboard">
+                        <Link href="/admin">Admin Dashboard</Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild data-testid="menu-item-admin-provision-firm-nav">
+                        <Link href="/admin/provision-firm">Provision evaluation firm</Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild data-testid="menu-item-admin-dpa-mint-nav">
+                        <Link href="/admin/dpa-mint">Mint DPA Link</Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild data-testid="menu-item-admin-dpa-acceptances-nav">
+                        <Link href="/admin/dpa-acceptances">DPA Acceptances</Link>
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={onRestartTour} data-testid="menu-item-restart-tour">
+                    <HelpCircle className="w-4 h-4 mr-2" />
+                    Restart Tour
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    onClick={() => window.location.href = '/api/logout'} 
+                    data-testid="menu-item-logout"
+                  >
+                    Log Out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
         </div>
       </div>

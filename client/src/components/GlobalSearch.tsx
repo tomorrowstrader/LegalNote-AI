@@ -32,6 +32,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { OPEN_GLOBAL_SEARCH_EVENT } from "@/lib/mobileChromeEvents";
 import type { SearchHistory, Case } from "@shared/schema";
 
 interface SearchMatch {
@@ -97,6 +98,12 @@ export default function GlobalSearch() {
   const [resultsOpen, setResultsOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [expandedCases, setExpandedCases] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const onOpen = () => setMobileOpen(true);
+    window.addEventListener(OPEN_GLOBAL_SEARCH_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_GLOBAL_SEARCH_EVENT, onOpen);
+  }, []);
 
   // Debounce search query
   useEffect(() => {
@@ -492,13 +499,13 @@ export default function GlobalSearch() {
         </Popover>
       </div>
 
-      {/* Mobile/Tablet search - dialog triggered by icon button */}
+      {/* Tablet search icon — phones use bottom-nav Search; xl+ uses inline bar */}
       <Dialog open={mobileOpen} onOpenChange={setMobileOpen}>
         <DialogTrigger asChild>
           <Button
             variant="ghost"
             size="icon"
-            className="xl:hidden text-primary-foreground"
+            className="hidden lg:inline-flex xl:hidden text-primary-foreground"
             data-testid="button-search"
           >
             <Search className="w-5 h-5" />
