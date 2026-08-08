@@ -19,9 +19,10 @@ import {
   Link2,
   LogOut,
   Mic2,
+  Bell,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { openGlobalSearch, openVoiceCommand } from "@/lib/mobileChromeEvents";
+import { openGlobalSearch, openVoiceCommand, openNotifications } from "@/lib/mobileChromeEvents";
 import { useAuth } from "@/hooks/useAuth";
 import { isFeatureVisible } from "@/lib/features";
 import {
@@ -32,6 +33,7 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { useQuery } from "@tanstack/react-query";
 
 const firmComplianceDashboardVisible = isFeatureVisible("firmComplianceDashboard");
 
@@ -67,6 +69,12 @@ export default function MobileBottomNav({ onRestartTour }: MobileBottomNavProps)
   const [moreOpen, setMoreOpen] = useState(false);
   const { user, isAdmin, isFirmAdmin, canAccessFirmCompliance } = useAuth();
   const { theme, toggle: toggleTheme } = useThemeToggle();
+
+  const { data: notifications = [] } = useQuery<{ readAt?: string }[]>({
+    queryKey: ["/api/notifications"],
+    refetchInterval: 30000,
+  });
+  const unreadCount = notifications.filter((n) => !n.readAt).length;
 
   const isHome = location === "/";
   const isCases = location === "/cases" || location.startsWith("/case/");
@@ -139,7 +147,14 @@ export default function MobileBottomNav({ onRestartTour }: MobileBottomNavProps)
             data-testid="mobile-tab-more"
             aria-expanded={moreOpen}
           >
-            <MoreHorizontal className={cn("w-5 h-5", moreActive && "text-foreground")} strokeWidth={moreActive ? 2.25 : 1.75} />
+            <span className="relative">
+              <MoreHorizontal className={cn("w-5 h-5", moreActive && "text-foreground")} strokeWidth={moreActive ? 2.25 : 1.75} />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1.5 -right-2 min-w-[14px] h-3.5 px-0.5 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
+            </span>
             <span>More</span>
           </button>
         </div>
@@ -147,6 +162,7 @@ export default function MobileBottomNav({ onRestartTour }: MobileBottomNavProps)
 
       <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
         <SheetContent side="bottom" className="lg:hidden rounded-t-2xl max-h-[85vh] overflow-y-auto pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
+          <div className="mx-auto mb-2 h-1 w-10 shrink-0 rounded-full bg-muted-foreground/30" aria-hidden />
           <SheetHeader className="text-left pb-2">
             <SheetTitle className="font-serif text-xl">More</SheetTitle>
             <p className="text-sm text-muted-foreground truncate">
@@ -157,6 +173,29 @@ export default function MobileBottomNav({ onRestartTour }: MobileBottomNavProps)
           </SheetHeader>
 
           <div className="grid gap-1 py-2">
+            <button
+              type="button"
+              onClick={() => {
+                setMoreOpen(false);
+                openNotifications();
+              }}
+              className="flex items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-medium min-h-[44px] hover:bg-muted"
+              data-testid="mobile-more-notifications"
+            >
+              <span className="relative">
+                <Bell className="w-5 h-5 text-muted-foreground" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-0.5 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
+              </span>
+              Notifications
+              {unreadCount > 0 && (
+                <span className="ml-auto text-xs text-muted-foreground">{unreadCount} new</span>
+              )}
+            </button>
+
             {moreNavLinks.map((link) => {
               const Icon = link.icon;
               const active = location === link.path;

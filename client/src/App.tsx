@@ -208,7 +208,7 @@ function AuthenticatedAppContent() {
     <div
       className={`min-h-screen bg-background ${
         !isLoading && hasAppAccess && !hideAppChrome
-          ? "pt-[calc(4rem+env(safe-area-inset-top,0px))] pb-[calc(4rem+env(safe-area-inset-bottom,0px))] lg:pb-0"
+          ? "pt-[env(safe-area-inset-top,0px)] pb-[calc(4rem+env(safe-area-inset-bottom,0px))] lg:pt-[calc(4rem+env(safe-area-inset-top,0px))] lg:pb-0"
           : ""
       }`}
     >

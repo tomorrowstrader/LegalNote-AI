@@ -1374,7 +1374,7 @@ export default function CaseDetail() {
       "flex bg-background overflow-x-hidden",
       isFocusMode
         ? "min-h-screen"
-        : "h-[calc(100dvh-4rem-env(safe-area-inset-top,0px))] max-lg:h-[calc(100dvh-8rem-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px))]",
+        : "h-[calc(100dvh-4rem-env(safe-area-inset-top,0px))] max-lg:h-[calc(100dvh-4rem-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px))]",
     )}>
       {isFocusMode && (
         <div className="fixed top-4 right-4 z-[200]">

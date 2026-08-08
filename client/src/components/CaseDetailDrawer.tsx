@@ -1,9 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { format, isPast } from "date-fns";
 import { 
   FileText, 
   Calendar, 
-  User, 
   Clock, 
   CheckCircle2, 
   Eye, 
@@ -35,6 +34,24 @@ import ShareLinkModal from "@/components/ShareLinkModal";
 import DownloadModal from "@/components/DownloadModal";
 import { cn } from "@/lib/utils";
 
+const COMPACT_BREAKPOINT = 1024;
+
+function useIsCompactLayout() {
+  const [compact, setCompact] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth < COMPACT_BREAKPOINT : true,
+  );
+
+  useEffect(() => {
+    const mql = window.matchMedia(`(max-width: ${COMPACT_BREAKPOINT - 1}px)`);
+    const onChange = () => setCompact(mql.matches);
+    onChange();
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
+
+  return compact;
+}
+
 interface CaseDetailDrawerProps {
   caseItem: Case | null;
   open: boolean;
@@ -43,6 +60,7 @@ interface CaseDetailDrawerProps {
 
 export default function CaseDetailDrawer({ caseItem, open, onOpenChange }: CaseDetailDrawerProps) {
   const [, setLocation] = useLocation();
+  const isCompact = useIsCompactLayout();
   const [showAddNoteModal, setShowAddNoteModal] = useState(false);
   const [showPriorityModal, setShowPriorityModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -145,11 +163,22 @@ export default function CaseDetailDrawer({ caseItem, open, onOpenChange }: CaseD
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent 
-          side="right" 
-          className="w-full sm:max-w-md overflow-y-auto"
+        <SheetContent
+          side={isCompact ? "bottom" : "right"}
+          className={cn(
+            "overflow-y-auto",
+            isCompact
+              ? "h-auto max-h-[min(88dvh,calc(100dvh-1rem))] w-full rounded-t-2xl px-5 pt-5"
+              : "w-full sm:max-w-md",
+          )}
         >
-          <SheetHeader className="text-left pb-4">
+          {isCompact && (
+            <div
+              className="mx-auto mb-3 h-1 w-10 shrink-0 rounded-full bg-muted-foreground/30"
+              aria-hidden
+            />
+          )}
+          <SheetHeader className="text-left pb-4 pr-8">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <SheetTitle className="text-lg font-semibold leading-tight mb-1 truncate">
@@ -216,7 +245,7 @@ export default function CaseDetailDrawer({ caseItem, open, onOpenChange }: CaseD
               
               <Button 
                 variant="default" 
-                className="w-full justify-start gap-2" 
+                className="w-full justify-start gap-2 rounded-xl" 
                 onClick={handleViewDetails}
                 data-testid="drawer-view-details"
               >

@@ -50,7 +50,7 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
   const visibleMoreNavLinks = moreNavLinks;
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-primary via-black to-primary dark:from-transparent dark:via-transparent dark:to-transparent border-b border-primary-border shadow-lg legalnote-nav pt-[env(safe-area-inset-top,0px)]">
+    <nav className="hidden lg:block fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-primary via-black to-primary dark:from-transparent dark:via-transparent dark:to-transparent border-b border-primary-border shadow-lg legalnote-nav pt-[env(safe-area-inset-top,0px)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center h-16 gap-2">
           <Link href="/" data-testid="link-home">
