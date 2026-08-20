@@ -11840,32 +11840,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       const userId = req.user.claims.sub;
       const daysAhead = parseInt(req.query.daysAhead as string) || 7;
       
-      let meetings = await storage.getUpcomingScheduledMeetings(userId, daysAhead);
-
-      // Repair LegalNote-created meetings whose join URL was wiped by calendar sync
-      const needingUrl = meetings
-        .filter(
-          (m) =>
-            !m.meetingUrl &&
-            m.calendarEventId &&
-            !String(m.calendarEventId).startsWith("rescheduled-"),
-        )
-        .slice(0, 8);
-      if (needingUrl.length > 0) {
-        try {
-          const { meetingSchedulerService } = await import("./services/meetingSchedulerService");
-          await Promise.allSettled(
-            needingUrl.map((m) => meetingSchedulerService.refreshMeetingUrlFromCalendar(m)),
-          );
-          meetings = await storage.getUpcomingScheduledMeetings(userId, daysAhead);
-        } catch (backfillErr) {
-          console.warn(
-            "[SCHEDULED_MEETINGS] Join-URL backfill skipped:",
-            backfillErr instanceof Error ? backfillErr.message : backfillErr,
-          );
-        }
-      }
-
+      const meetings = await storage.getUpcomingScheduledMeetings(userId, daysAhead);
       res.json(meetings);
     } catch (error: any) {
       console.error("[SCHEDULED_MEETINGS] Error listing upcoming meetings:", error);
@@ -12169,39 +12144,38 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         status: "scheduled",
       });
 
-      let inviteEmailsSent = 0;
-      if (attendees.length > 0) {
-        try {
-          const { sendMeetingInviteConfirmationEmail } = await import("./email");
-          const results = await Promise.allSettled(
-            attendees.map((a) =>
-              sendMeetingInviteConfirmationEmail({
-                to: a.email,
-                recipientName: a.name,
-                meetingTitle: data.title,
-                startTime,
-                endTime,
-                meetingUrl,
-                meetingPlatform,
-              }),
-            ),
-          );
-          inviteEmailsSent = results.filter(
-            (r) => r.status === "fulfilled" && r.value.success,
-          ).length;
-          for (const r of results) {
-            if (r.status === "rejected") {
-              console.warn("[SCHEDULED_MEETINGS] Invite confirmation email failed:", r.reason);
-            } else if (!r.value.success) {
-              console.warn("[SCHEDULED_MEETINGS] Invite confirmation email failed:", r.value.error);
+      // Do not await outbound mail — email provider latency was causing Cloudflare 502s on schedule.
+      if (attendees.length > 0 && meetingUrl) {
+        void (async () => {
+          try {
+            const { sendMeetingInviteConfirmationEmail } = await import("./email");
+            const results = await Promise.allSettled(
+              attendees.map((a) =>
+                sendMeetingInviteConfirmationEmail({
+                  to: a.email,
+                  recipientName: a.name,
+                  meetingTitle: data.title,
+                  startTime,
+                  endTime,
+                  meetingUrl,
+                  meetingPlatform,
+                }),
+              ),
+            );
+            for (const r of results) {
+              if (r.status === "rejected") {
+                console.warn("[SCHEDULED_MEETINGS] Invite confirmation email failed:", r.reason);
+              } else if (!r.value.success) {
+                console.warn("[SCHEDULED_MEETINGS] Invite confirmation email failed:", r.value.error);
+              }
             }
+          } catch (emailErr) {
+            console.warn(
+              "[SCHEDULED_MEETINGS] Invite confirmation emails failed (non-blocking):",
+              emailErr,
+            );
           }
-        } catch (emailErr) {
-          console.warn(
-            "[SCHEDULED_MEETINGS] Invite confirmation emails failed (non-blocking):",
-            emailErr,
-          );
-        }
+        })();
       }
 
       await storage.createAuditLog({
@@ -12219,7 +12193,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
           meetingUrl: meetingUrl || null,
           meetingPlatform: meetingPlatform || null,
           conferenceAutoCreated: createConference && !providedMeetingUrl,
-          inviteEmailsSent,
+          inviteEmailsQueued: attendees.length > 0,
         },
         severity: "info",
       });
@@ -12551,49 +12525,40 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         replacedByMeetingId: newMeeting.id,
       });
 
-      if (attendeesList.length > 0) {
-        try {
-          const { sendMeetingInviteConfirmationEmail } = await import("./email");
-          const results = await Promise.allSettled(
-            attendeesList.map((a) =>
-              sendMeetingInviteConfirmationEmail({
-                to: a.email,
-                recipientName: a.name,
-                meetingTitle: nextTitle || meeting.title,
-                startTime: parsedStart,
-                endTime: newEndTime ? new Date(newEndTime) : undefined,
-                meetingUrl: replacementMeetingUrl,
-                meetingPlatform: platform,
-                isReschedule: true,
-              }),
-            ),
-          );
-          for (const r of results) {
-            if (r.status === "rejected") {
-              console.warn("[MEETING_RESCHEDULE] Invite confirmation email failed:", r.reason);
-            } else if (!r.value.success) {
-              console.warn("[MEETING_RESCHEDULE] Invite confirmation email failed:", r.value.error);
+      // Fire-and-forget — do not block the reschedule response on email delivery.
+      if (attendeesList.length > 0 || meeting.clientEmail) {
+        void (async () => {
+          try {
+            const { sendMeetingInviteConfirmationEmail } = await import("./email");
+            const recipients =
+              attendeesList.length > 0
+                ? attendeesList
+                : [{ email: meeting.clientEmail!, name: meeting.clientName || undefined }];
+            const results = await Promise.allSettled(
+              recipients.map((a) =>
+                sendMeetingInviteConfirmationEmail({
+                  to: a.email,
+                  recipientName: a.name,
+                  meetingTitle: nextTitle || meeting.title,
+                  startTime: parsedStart,
+                  endTime: newEndTime ? new Date(newEndTime) : undefined,
+                  meetingUrl: replacementMeetingUrl!,
+                  meetingPlatform: platform,
+                  isReschedule: true,
+                }),
+              ),
+            );
+            for (const r of results) {
+              if (r.status === "rejected") {
+                console.warn("[MEETING_RESCHEDULE] Invite confirmation email failed:", r.reason);
+              } else if (!r.value.success) {
+                console.warn("[MEETING_RESCHEDULE] Invite confirmation email failed:", r.value.error);
+              }
             }
+          } catch (emailErr) {
+            console.log(`[MEETING_RESCHEDULE] Notification email failed (non-blocking): ${emailErr}`);
           }
-        } catch (emailErr) {
-          console.log(`[MEETING_RESCHEDULE] Notification email failed (non-blocking): ${emailErr}`);
-        }
-      } else if (meeting.clientEmail) {
-        try {
-          const { sendMeetingInviteConfirmationEmail } = await import("./email");
-          await sendMeetingInviteConfirmationEmail({
-            to: meeting.clientEmail,
-            recipientName: meeting.clientName || undefined,
-            meetingTitle: nextTitle || meeting.title,
-            startTime: parsedStart,
-            endTime: newEndTime ? new Date(newEndTime) : undefined,
-            meetingUrl: replacementMeetingUrl,
-            meetingPlatform: platform,
-            isReschedule: true,
-          });
-        } catch (emailErr) {
-          console.log(`[MEETING_RESCHEDULE] Notification email failed (non-blocking): ${emailErr}`);
-        }
+        })();
       }
       
       await storage.createAuditLog({

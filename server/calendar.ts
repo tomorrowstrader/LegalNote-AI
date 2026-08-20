@@ -411,8 +411,6 @@ export async function createMeetingCalendarEvent(
       (data.createConference !== false && !data.meetingUrl);
     const attendees = (data.attendees || []).filter((a) => a.email);
     const hasAttendees = attendees.length > 0;
-    // Defer invites until Meet URL is known so the first invite includes the join link.
-    const deferAttendees = createConference && hasAttendees;
 
     const eventBody: Record<string, unknown> = {
       summary: data.title,
@@ -434,7 +432,7 @@ export async function createMeetingCalendarEvent(
       },
     };
 
-    if (hasAttendees && !deferAttendees) {
+    if (hasAttendees) {
       eventBody.attendees = attendees.map((a) => ({
         email: a.email,
         displayName: a.name,
@@ -457,7 +455,7 @@ export async function createMeetingCalendarEvent(
     const response = await calendar.events.insert({
       calendarId: 'primary',
       conferenceDataVersion: createConference ? 1 : undefined,
-      sendUpdates: hasAttendees && !deferAttendees ? 'all' : 'none',
+      sendUpdates: hasAttendees ? 'all' : 'none',
       requestBody: eventBody,
     });
 
@@ -473,6 +471,7 @@ export async function createMeetingCalendarEvent(
           const fetched = await calendar.events.get({
             calendarId: 'primary',
             eventId,
+            conferenceDataVersion: 1,
           });
           meetingUrl = extractGoogleMeetUrl(fetched.data) || meetingUrl;
         } catch (fetchErr) {
@@ -509,21 +508,15 @@ export async function createMeetingCalendarEvent(
       meetingPlatform = 'meet';
 
       try {
-        const patchBody: Record<string, unknown> = {
-          description: formatMeetingDescription(data.title, data.description, meetingUrl),
-          location: meetingUrl,
-        };
-        if (deferAttendees) {
-          patchBody.attendees = attendees.map((a) => ({
-            email: a.email,
-            displayName: a.name,
-          }));
-        }
         await calendar.events.patch({
           calendarId: 'primary',
           eventId: eventId!,
-          sendUpdates: hasAttendees ? 'all' : 'none',
-          requestBody: patchBody,
+          // Avoid a second attendee mail blast; Meet join is already on the conference.
+          sendUpdates: 'none',
+          requestBody: {
+            description: formatMeetingDescription(data.title, data.description, meetingUrl),
+            location: meetingUrl,
+          },
         });
       } catch (patchErr) {
         console.warn(
@@ -575,8 +568,6 @@ export async function createOutlookMeetingCalendarEvent(
       (data.createConference !== false && !data.meetingUrl);
     const attendees = (data.attendees || []).filter((a) => a.email);
     const hasAttendees = attendees.length > 0;
-    // Defer invites until Teams join URL is known so the first invite includes the link.
-    const deferAttendees = createOnlineMeeting && hasAttendees;
 
     const event: Record<string, unknown> = {
       subject: data.title,
@@ -605,7 +596,7 @@ export async function createOutlookMeetingCalendarEvent(
       event.onlineMeetingProvider = 'teamsForBusiness';
     }
 
-    if (hasAttendees && !deferAttendees) {
+    if (hasAttendees) {
       event.attendees = attendees.map((a) => ({
         emailAddress: {
           address: a.email,
@@ -636,7 +627,6 @@ export async function createOutlookMeetingCalendarEvent(
       try {
         response = await graphClient.api('/me/events').post(event);
       } catch (retryErr) {
-        // Do not soft-fail to a plain calendar event — invitees would get no join link.
         const detail =
           retryErr instanceof Error ? retryErr.message : String(retryErr);
         console.error('[OUTLOOK] Online meeting create failed:', detail);
@@ -644,8 +634,7 @@ export async function createOutlookMeetingCalendarEvent(
           success: false,
           provider: 'outlook',
           error:
-            detail ||
-            'Failed to create a Teams online meeting. Check that Teams is available for this Microsoft account.',
+            'Could not create a Microsoft Teams meeting for this account. Confirm Teams is enabled for your Microsoft 365 mailbox, or paste a meeting URL instead.',
         };
       }
     }
@@ -684,29 +673,19 @@ export async function createOutlookMeetingCalendarEvent(
         success: false,
         provider: 'outlook',
         error:
-          'Teams join link was not created. Check that Microsoft Teams is enabled for this account.',
+          'Microsoft did not return a Teams join link. This often means Teams is not available on this mailbox — paste a meeting URL, or use Google Calendar with Meet.',
       };
     }
 
-    if (joinUrl && eventId && (createOnlineMeeting || deferAttendees)) {
+    if (joinUrl && eventId && createOnlineMeeting) {
       try {
-        const patchBody: Record<string, unknown> = {
+        await graphClient.api(`/me/events/${eventId}`).patch({
           body: {
             contentType: 'Text',
             content: formatMeetingDescription(data.title, data.description, joinUrl),
           },
           location: { displayName: joinUrl },
-        };
-        if (deferAttendees) {
-          patchBody.attendees = attendees.map((a) => ({
-            emailAddress: {
-              address: a.email,
-              name: a.name || a.email,
-            },
-            type: 'required',
-          }));
-        }
-        await graphClient.api(`/me/events/${eventId}`).patch(patchBody);
+        });
       } catch (patchErr) {
         console.warn(
           '[OUTLOOK] Failed to patch Teams join URL onto event:',

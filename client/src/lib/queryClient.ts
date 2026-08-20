@@ -52,7 +52,14 @@ export function getApiErrorMessage(
   }
 
   message = message.replace(/<[^>]+>/g, " ").replace(/\s{2,}/g, " ").trim();
-  if (!message || /doctype|<!html/i.test(message)) {
+  if (
+    !message ||
+    /doctype|<!html/i.test(message) ||
+    /bad gateway|cloudflare|error code 502|error code 504/i.test(message)
+  ) {
+    if (/502|504|bad gateway|cloudflare/i.test(raw)) {
+      return "The server took too long to respond. Please try again in a moment.";
+    }
     return fallback;
   }
   // Prefer a usable slice over a generic fallback for long provider errors
