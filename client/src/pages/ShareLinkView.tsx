@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,6 +20,7 @@ import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import { normalizeAttendanceSectionLabels } from "@shared/attendanceNoteFormat";
 import { ShareBrandBar, ShareBrandFooter } from "@/components/ShareBrandChrome";
+import { ShareFlagCorrection } from "@/components/ShareFlagCorrection";
 
 interface ShareLinkData {
   requiresSmsVerification: boolean;
@@ -92,6 +93,7 @@ export default function ShareLinkView() {
   const [sentToLastFour, setSentToLastFour] = useState<string | undefined>();
   const [password, setPassword] = useState("");
   const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const [activeDocTab, setActiveDocTab] = useState<string>("attendance");
   const { toast } = useToast();
 
   const { data, isLoading, error, refetch } = useQuery<ShareLinkData>({
@@ -642,6 +644,38 @@ export default function ShareLinkView() {
 
   const canDownload = shareLink?.accessLevel === "download";
 
+  const activeDocument =
+    activeDocTab === "attendance"
+      ? attendanceNote
+      : activeDocTab === "summary"
+        ? summary
+        : activeDocTab === "care-letter"
+          ? careLetter
+          : null;
+  const activeDocumentType =
+    activeDocTab === "transcript"
+      ? "transcript"
+      : activeDocument?.type || null;
+
+  const defaultTab =
+    showCareLetter && !attendanceNote && !summary
+      ? "care-letter"
+      : attendanceNote
+        ? "attendance"
+        : summary
+          ? "summary"
+          : showCareLetter
+            ? "care-letter"
+            : "transcript";
+
+  useEffect(() => {
+    if (attendanceNote || summary || showCareLetter || transcript) {
+      setActiveDocTab(defaultTab);
+    }
+    // Only sync when the unlocked document set first becomes available
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!attendanceNote, !!summary, showCareLetter, !!transcript]);
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <ShareBrandBar />
@@ -714,14 +748,17 @@ export default function ShareLinkView() {
               )}
             </div>
           </CardHeader>
-          <CardContent className="p-4 sm:p-6">
-            <Tabs defaultValue={
-              showCareLetter && !attendanceNote && !summary ? "care-letter" :
-              attendanceNote ? "attendance" : 
-              summary ? "summary" : 
-              showCareLetter ? "care-letter" :
-              "transcript"
-            } className="w-full">
+          <CardContent className="p-4 sm:p-6 space-y-4">
+            <ShareFlagCorrection
+              linkId={linkId!}
+              activeDocumentId={activeDocument?.id}
+              activeDocumentType={activeDocumentType}
+            />
+            <Tabs
+              value={["attendance", "summary", "care-letter", "transcript"].includes(activeDocTab) ? activeDocTab : defaultTab}
+              onValueChange={setActiveDocTab}
+              className="w-full"
+            >
               <TabsList className="grid w-full shrink-0 grid-flow-col auto-cols-fr gap-1">
                 {attendanceNote && (
                   <TabsTrigger 

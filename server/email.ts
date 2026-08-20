@@ -1671,6 +1671,149 @@ export async function sendInvitationEmail(params: SendInvitationEmailParams): Pr
   }
 }
 
+function formatMeetingPlatformLabel(platform?: string | null): string | null {
+  if (!platform) return null;
+  const key = platform.toLowerCase();
+  if (key === 'meet') return 'Google Meet';
+  if (key === 'teams') return 'Microsoft Teams';
+  if (key === 'zoom') return 'Zoom';
+  if (key === 'webex') return 'Webex';
+  return platform;
+}
+
+function formatMeetingWhenUk(startTime: Date): string {
+  return startTime.toLocaleString('en-GB', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Europe/London',
+  });
+}
+
+interface SendMeetingInviteConfirmationEmailParams {
+  to: string;
+  recipientName?: string;
+  meetingTitle: string;
+  startTime: Date;
+  endTime?: Date | null;
+  meetingUrl: string;
+  meetingPlatform?: string | null;
+  /** When true, copy reflects a reschedule rather than a new invite */
+  isReschedule?: boolean;
+}
+
+/**
+ * Sends an invitee-facing LegalNote confirmation with the join link.
+ * Complements the calendar-provider invite so clients always receive a usable URL.
+ */
+export async function sendMeetingInviteConfirmationEmail(
+  params: SendMeetingInviteConfirmationEmailParams
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const {
+    to,
+    recipientName,
+    meetingTitle,
+    startTime,
+    endTime,
+    meetingUrl,
+    meetingPlatform,
+    isReschedule = false,
+  } = params;
+
+  let safeJoinUrl: string;
+  try {
+    const parsed = new URL(meetingUrl.trim());
+    if (parsed.protocol !== 'https:') {
+      return { success: false, error: 'Meeting join URL must be https' };
+    }
+    safeJoinUrl = parsed.href;
+  } catch {
+    return { success: false, error: 'Invalid meeting join URL' };
+  }
+
+  const safeName = escapeHtml(recipientName || 'there');
+  const safeTitle = escapeHtml(meetingTitle);
+  const platformLabel = formatMeetingPlatformLabel(meetingPlatform);
+  const safePlatform = platformLabel ? escapeHtml(platformLabel) : null;
+  const when = formatMeetingWhenUk(startTime);
+  const endWhen =
+    endTime && !isNaN(endTime.getTime())
+      ? endTime.toLocaleTimeString('en-GB', {
+          hour: '2-digit',
+          minute: '2-digit',
+          timeZone: 'Europe/London',
+        })
+      : null;
+
+  const subject = isReschedule
+    ? `Meeting rescheduled: ${meetingTitle}`
+    : `Meeting confirmed: ${meetingTitle}`;
+  const heading = isReschedule ? 'Meeting rescheduled' : 'Meeting confirmation';
+  const intro = isReschedule
+    ? 'Your meeting has been rescheduled. Details and the join link are below.'
+    : 'You have been invited to a meeting. Details and the join link are below.';
+
+  const emailHtml = `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>${escapeHtml(subject)}</title>
+    </head>
+    <body style="margin:0;padding:0;background-color:#faf9f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1a1a1a;">
+      <div style="max-width:600px;margin:0 auto;background:#ffffff;">
+        ${legalNoteBrandHeaderHtml()}
+        <div style="padding:28px 32px 36px;">
+          <h1 style="margin:0 0 8px;font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:400;color:#3d3028;">${heading}</h1>
+          <p style="margin:0 0 20px;font-size:15px;line-height:1.55;color:#4a3f35;">Hi ${safeName},</p>
+          <p style="margin:0 0 20px;font-size:15px;line-height:1.55;color:#4a3f35;">${intro}</p>
+          <div style="background:#faf8f5;border:1px solid #e8e4df;border-radius:8px;padding:16px 18px;margin:0 0 24px;">
+            <p style="margin:0 0 8px;font-size:15px;color:#3d3028;"><strong>${safeTitle}</strong></p>
+            <p style="margin:0;font-size:14px;color:#555555;">${escapeHtml(when)} (UK time)${endWhen ? ` – ${escapeHtml(endWhen)}` : ''}</p>
+            ${safePlatform ? `<p style="margin:8px 0 0;font-size:14px;color:#555555;">Platform: ${safePlatform}</p>` : ''}
+          </div>
+          <p style="margin:0 0 24px;">
+            <a href="${escapeHtml(safeJoinUrl)}" style="display:inline-block;background:#1e3a5f;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:600;font-size:15px;">
+              Join meeting${safePlatform ? ` (${safePlatform})` : ''}
+            </a>
+          </p>
+          <p style="margin:0 0 8px;font-size:12px;color:#8a7d72;">If the button does not work, copy this link into your browser:</p>
+          <p style="margin:0;font-size:12px;color:#555555;word-break:break-all;">
+            <a href="${escapeHtml(safeJoinUrl)}" style="color:#1e3a5f;">${escapeHtml(safeJoinUrl)}</a>
+          </p>
+          <hr style="margin:32px 0;border:none;border-top:1px solid #e8e4df;">
+          <p style="margin:0;font-size:12px;color:#8a7d72;">Sent via LegalNote — Meeting to Matter. A calendar invitation may also arrive from your solicitor&apos;s calendar provider.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  try {
+    const result = await sendEmail({
+      from: 'LegalNote™ <support@legalnote.ai>',
+      to,
+      subject,
+      html: emailHtml,
+    });
+
+    if (!result.success) {
+      console.error('[EMAIL] Failed to send meeting invite confirmation:', result.error);
+    } else {
+      console.log('[EMAIL] Meeting invite confirmation sent:', result.messageId);
+    }
+
+    return result;
+  } catch (error: any) {
+    console.error('[EMAIL] Exception sending meeting invite confirmation:', error);
+    return { success: false, error: error.message || 'Unknown error' };
+  }
+}
+
 interface SendMeetingReminderEmailParams {
   to: string;
   recipientName?: string;

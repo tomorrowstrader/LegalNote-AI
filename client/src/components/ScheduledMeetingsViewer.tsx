@@ -671,13 +671,45 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showLiveBotModal, setShowLiveBotModal] = useState(false);
   const [allocateLater, setAllocateLater] = useState(false);
+  const [resolvedJoinUrl, setResolvedJoinUrl] = useState<string | null>(null);
+  const [refreshingJoinUrl, setRefreshingJoinUrl] = useState(false);
+  /** URL passed into LiveBot for this open — avoids a race with resolvedJoinUrl state. */
+  const [liveBotLaunchUrl, setLiveBotLaunchUrl] = useState<string | null>(null);
 
-  const openLiveBot = (deferMatter: boolean) => {
+  const safeJoinUrl = getSafeHttpsMeetingUrl(meeting.meetingUrl) || resolvedJoinUrl;
+
+  const openLiveBot = async (deferMatter: boolean) => {
     setAllocateLater(deferMatter);
+    let url = getSafeHttpsMeetingUrl(meeting.meetingUrl) || resolvedJoinUrl;
+    if (!url && meeting.calendarEventId && !String(meeting.calendarEventId).startsWith("rescheduled-")) {
+      setRefreshingJoinUrl(true);
+      try {
+        const updated = await apiRequest<ScheduledMeeting>(
+          "POST",
+          `/api/scheduled-meetings/${meeting.id}/refresh-url`,
+        );
+        url = getSafeHttpsMeetingUrl(updated.meetingUrl);
+        if (url) {
+          setResolvedJoinUrl(url);
+          queryClient.invalidateQueries({ queryKey: ["/api/scheduled-meetings"] });
+          onUpdate();
+        }
+      } catch (error) {
+        toast({
+          title: "Could not load meeting link from calendar",
+          description: getApiErrorMessage(
+            error,
+            "Paste the join URL on the next screen, or check the calendar event.",
+          ),
+          variant: "destructive",
+        });
+      } finally {
+        setRefreshingJoinUrl(false);
+      }
+    }
+    setLiveBotLaunchUrl(url);
     setShowLiveBotModal(true);
   };
-
-  const safeJoinUrl = getSafeHttpsMeetingUrl(meeting.meetingUrl);
   
   const startTime = new Date(meeting.startTime);
   const inProgress = isMeetingInProgress(meeting, now);
@@ -837,10 +869,19 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
                         size="sm"
                         className={`rounded-r-none ${joinNow ? "bg-emerald-600 hover:bg-emerald-700 text-white" : ""}`}
                         onClick={() => openLiveBot(false)}
+                        disabled={refreshingJoinUrl}
                         data-testid={`button-join-with-legalnote-${meeting.id}`}
                       >
-                        <Video className="w-3 h-3 mr-1" />
-                        {joinNow ? "Join now with LegalNote" : "Join with LegalNote"}
+                        {refreshingJoinUrl ? (
+                          <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                        ) : (
+                          <Video className="w-3 h-3 mr-1" />
+                        )}
+                        {refreshingJoinUrl
+                          ? "Loading link…"
+                          : joinNow
+                            ? "Join now with LegalNote"
+                            : "Join with LegalNote"}
                       </Button>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -1013,11 +1054,14 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
         open={showLiveBotModal}
         onOpenChange={(next) => {
           setShowLiveBotModal(next);
-          if (!next) setAllocateLater(false);
+          if (!next) {
+            setAllocateLater(false);
+            setLiveBotLaunchUrl(null);
+          }
         }}
         caseId={allocateLater ? null : meeting.caseId}
         caseTitle={allocateLater ? undefined : (linkedCase?.title || meeting.title)}
-        initialMeetingUrl={safeJoinUrl}
+        initialMeetingUrl={liveBotLaunchUrl || safeJoinUrl}
         suggestedClientName={meeting.clientName || linkedCase?.clientName || undefined}
         allocateLater={allocateLater}
       />

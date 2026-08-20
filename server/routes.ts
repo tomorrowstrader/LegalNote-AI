@@ -100,7 +100,7 @@ function resolveTemplatePath(filename: string): string {
 }
 import { storage } from "./storage";
 import { db } from "./db";
-import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema, insertAmlMonitoringNoteSchema, insertAmlDecisionRecordSchema, insertTimeEntrySchema, insertUndertakingSchema, insertConflictCheckSchema, PRACTICE_AREAS, type ScheduledMeeting, PRIMARY_ROLES, PRIMARY_ROLE_LABELS, REGULATORY_DESIGNATIONS, REGULATORY_DESIGNATION_LABELS, type RegulatoryDesignation, demoLeads, dpaRequestSchema, dpaConfirmBodySchema, evaluationOnboardingSubmitSchema, isClientMatterKind, normalizeMatterKind, partyLabelForMatterKind, requiresSealedConsentForProcessing, type InsertCase, adoptFeedbackBodySchema } from "@shared/schema";
+import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema, insertAmlMonitoringNoteSchema, insertAmlDecisionRecordSchema, insertTimeEntrySchema, insertUndertakingSchema, insertConflictCheckSchema, PRACTICE_AREAS, type ScheduledMeeting, PRIMARY_ROLES, PRIMARY_ROLE_LABELS, REGULATORY_DESIGNATIONS, REGULATORY_DESIGNATION_LABELS, type RegulatoryDesignation, demoLeads, dpaRequestSchema, dpaConfirmBodySchema, evaluationOnboardingSubmitSchema, isClientMatterKind, normalizeMatterKind, partyLabelForMatterKind, requiresSealedConsentForProcessing, type InsertCase, adoptFeedbackBodySchema, shareFeedbackBodySchema } from "@shared/schema";
 import { scrubInsightComment } from "@shared/productInsights";
 import { CONSENT_DISCLAIMER_TEXT, CONSENT_DISCLAIMER_VERSION } from "@shared/consent";
 import { defaultRecordingTypeForMatterKind, validateRecordingType } from "@shared/recordingTypes";
@@ -1910,6 +1910,103 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       });
     } catch (error: any) {
       console.error('Error verifying password:', error);
+      next(error);
+    }
+  });
+
+  // Client / external recipient: flag a correction on a verified secure share
+  app.post("/api/share/:linkId/feedback", generalApiLimiter, async (req, res, next) => {
+    try {
+      const { linkId } = req.params;
+      const parsed = shareFeedbackBodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Validation error", errors: parsed.error.format() });
+      }
+
+      const shareLink = await storage.getShareLink(linkId);
+      if (!shareLink) {
+        return res.status(404).json({ message: "Share link not found" });
+      }
+      if (new Date() > new Date(shareLink.expiresAt)) {
+        return res.status(410).json({ message: "Share link has expired" });
+      }
+      if (shareLink.smsProtection && !shareLink.smsVerified) {
+        return res.status(403).json({ message: "SMS verification required before submitting feedback" });
+      }
+      if (shareLink.password) {
+        const sessionKey = `share_password_verified_${linkId}`;
+        if (!req.session || !req.session[sessionKey]) {
+          return res.status(403).json({ message: "Password verification required before submitting feedback" });
+        }
+      }
+
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const recentCount = await storage.countShareFeedbackForLink(linkId, since);
+      if (recentCount >= 10) {
+        return res.status(429).json({
+          message: "Too many correction flags from this link today. Please contact your solicitor directly.",
+        });
+      }
+
+      const { documentId, documentType, selectedText, message, category } = parsed.data;
+      const sharedDocs = shareLink.sharedDocuments || ["attendance_note"];
+      let resolvedDocumentId: string | null = null;
+      let resolvedDocumentType: string | null = documentType?.trim() || null;
+
+      if (documentId) {
+        const docs = await storage.getActiveDocumentsByCase(shareLink.caseId, shareLink.createdBy);
+        const doc = docs.find((d) => d.id === documentId);
+        if (!doc || !sharedDocs.some((t: string) => documentMatchesSharedType(doc.type, t))) {
+          return res.status(400).json({ message: "Document is not available on this share link" });
+        }
+        resolvedDocumentId = doc.id;
+        resolvedDocumentType = doc.type;
+      } else if (resolvedDocumentType) {
+        if (!sharedDocs.some((t: string) => documentMatchesSharedType(resolvedDocumentType!, t))) {
+          return res.status(400).json({ message: "Document type is not available on this share link" });
+        }
+      }
+
+      const scrubbedMessage = scrubInsightComment(message) || message.trim().slice(0, 2000);
+      const scrubbedQuote = selectedText?.trim()
+        ? (scrubInsightComment(selectedText) || selectedText.trim().slice(0, 2000))
+        : null;
+
+      const feedback = await storage.createShareFeedback({
+        shareLinkId: linkId,
+        caseId: shareLink.caseId,
+        documentId: resolvedDocumentId,
+        documentType: resolvedDocumentType,
+        recipientName: shareLink.recipientName,
+        recipientEmail: shareLink.recipientEmail,
+        category: category || "correction",
+        selectedText: scrubbedQuote,
+        message: scrubbedMessage,
+        resolved: false,
+        ipAddress: req.ip,
+        userAgent: req.get("user-agent") || null,
+      });
+
+      await storage.createAuditLog({
+        eventType: "share_feedback_submitted",
+        userId: shareLink.createdBy,
+        caseId: shareLink.caseId,
+        documentId: resolvedDocumentId || undefined,
+        ipAddress: req.ip,
+        userAgent: req.get("user-agent"),
+        metadata: {
+          shareLinkId: linkId,
+          feedbackId: feedback.id,
+          recipientName: shareLink.recipientName,
+          category: feedback.category,
+          documentType: resolvedDocumentType,
+          hasSelectedText: !!scrubbedQuote,
+        },
+        severity: "info",
+      });
+
+      res.status(201).json({ success: true, id: feedback.id });
+    } catch (error: any) {
       next(error);
     }
   });
@@ -6403,6 +6500,51 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         passwordProtected: Boolean(link.password),
         smsProtected: link.smsProtection,
       })));
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.get("/api/cases/:id/share-feedback", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseData = await storage.getCase(req.params.id, userId);
+      if (!caseData) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      const items = await storage.getShareFeedbackByCase(req.params.id, userId);
+      res.json(items);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.patch("/api/cases/:id/share-feedback/:feedbackId", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const body = z.object({ resolved: z.boolean() }).safeParse(req.body);
+      if (!body.success) {
+        return res.status(400).json({ message: "Validation error", errors: body.error.format() });
+      }
+      const caseData = await storage.getCase(req.params.id, userId);
+      if (!caseData) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      const updated = await storage.updateShareFeedback(
+        req.params.feedbackId,
+        req.params.id,
+        userId,
+        { resolved: body.data.resolved },
+      );
+      if (!updated) {
+        return res.status(404).json({ message: "Feedback not found" });
+      }
+      await logAuditEvent(userId, body.data.resolved ? "share_feedback_resolved" : "share_feedback_reopened", {
+        caseId: req.params.id,
+        metadata: { feedbackId: updated.id },
+        req,
+      });
+      res.json(updated);
     } catch (error: any) {
       next(error);
     }
@@ -11698,7 +11840,32 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       const userId = req.user.claims.sub;
       const daysAhead = parseInt(req.query.daysAhead as string) || 7;
       
-      const meetings = await storage.getUpcomingScheduledMeetings(userId, daysAhead);
+      let meetings = await storage.getUpcomingScheduledMeetings(userId, daysAhead);
+
+      // Repair LegalNote-created meetings whose join URL was wiped by calendar sync
+      const needingUrl = meetings
+        .filter(
+          (m) =>
+            !m.meetingUrl &&
+            m.calendarEventId &&
+            !String(m.calendarEventId).startsWith("rescheduled-"),
+        )
+        .slice(0, 8);
+      if (needingUrl.length > 0) {
+        try {
+          const { meetingSchedulerService } = await import("./services/meetingSchedulerService");
+          await Promise.allSettled(
+            needingUrl.map((m) => meetingSchedulerService.refreshMeetingUrlFromCalendar(m)),
+          );
+          meetings = await storage.getUpcomingScheduledMeetings(userId, daysAhead);
+        } catch (backfillErr) {
+          console.warn(
+            "[SCHEDULED_MEETINGS] Join-URL backfill skipped:",
+            backfillErr instanceof Error ? backfillErr.message : backfillErr,
+          );
+        }
+      }
+
       res.json(meetings);
     } catch (error: any) {
       console.error("[SCHEDULED_MEETINGS] Error listing upcoming meetings:", error);
@@ -11867,6 +12034,13 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       const attendees = (data.attendees || []).filter((a) => a.email);
       const description = data.description?.trim() || undefined;
 
+      if (!providedMeetingUrl && !createConference) {
+        return res.status(400).json({
+          message:
+            "Provide a meeting URL or allow LegalNote to create a Google Meet / Teams link.",
+        });
+      }
+
       let calendarEventId: string | undefined;
       let meetingUrl = providedMeetingUrl;
       let meetingPlatform: "zoom" | "teams" | "meet" | "webex" | undefined;
@@ -11936,6 +12110,33 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         else if (urlLower.includes("webex.com")) meetingPlatform = "webex";
       }
 
+      if (!meetingUrl) {
+        if (calendarEventId) {
+          try {
+            if (provider === "outlook") {
+              await deleteOutlookCalendarEvent(
+                userId,
+                calendarEventId,
+                storage,
+                getCanonicalBaseUrl(req),
+              );
+            } else {
+              await deleteCalendarEvent(userId, calendarEventId, storage);
+            }
+          } catch (cleanupErr) {
+            console.warn(
+              "[SCHEDULED_MEETINGS] Failed to clean up link-less calendar event:",
+              cleanupErr,
+            );
+          }
+        }
+        return res.status(502).json({
+          message: createConference
+            ? "Calendar event was created without a join link. Please try again or paste a meeting URL."
+            : "A meeting join URL is required so invitees can access the meeting.",
+        });
+      }
+
       const clientEmail =
         data.clientEmail && data.clientEmail.trim().length > 0
           ? data.clientEmail.trim()
@@ -11968,6 +12169,41 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         status: "scheduled",
       });
 
+      let inviteEmailsSent = 0;
+      if (attendees.length > 0) {
+        try {
+          const { sendMeetingInviteConfirmationEmail } = await import("./email");
+          const results = await Promise.allSettled(
+            attendees.map((a) =>
+              sendMeetingInviteConfirmationEmail({
+                to: a.email,
+                recipientName: a.name,
+                meetingTitle: data.title,
+                startTime,
+                endTime,
+                meetingUrl,
+                meetingPlatform,
+              }),
+            ),
+          );
+          inviteEmailsSent = results.filter(
+            (r) => r.status === "fulfilled" && r.value.success,
+          ).length;
+          for (const r of results) {
+            if (r.status === "rejected") {
+              console.warn("[SCHEDULED_MEETINGS] Invite confirmation email failed:", r.reason);
+            } else if (!r.value.success) {
+              console.warn("[SCHEDULED_MEETINGS] Invite confirmation email failed:", r.value.error);
+            }
+          }
+        } catch (emailErr) {
+          console.warn(
+            "[SCHEDULED_MEETINGS] Invite confirmation emails failed (non-blocking):",
+            emailErr,
+          );
+        }
+      }
+
       await storage.createAuditLog({
         eventType: "meeting_scheduled",
         userId,
@@ -11983,6 +12219,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
           meetingUrl: meetingUrl || null,
           meetingPlatform: meetingPlatform || null,
           conferenceAutoCreated: createConference && !providedMeetingUrl,
+          inviteEmailsSent,
         },
         severity: "info",
       });
@@ -12198,6 +12435,9 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       let calendarSynced = false;
       let replacementMeetingUrl = meeting.meetingUrl || undefined;
       let replacementPlatform = meeting.meetingPlatform || undefined;
+      const attendeesList = Array.isArray(meeting.attendees)
+        ? (meeting.attendees as Array<{ email: string; name?: string }>).filter((a) => a.email)
+        : [];
       
       if (meeting.calendarEventId && !meeting.calendarEventId.startsWith('rescheduled-')) {
         try {
@@ -12223,9 +12463,6 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       }
       
       try {
-        const attendeesList = Array.isArray(meeting.attendees) 
-          ? (meeting.attendees as Array<{ email: string; name?: string }>).filter(a => a.email)
-          : [];
         const parsedEnd = newEndTime ? new Date(newEndTime) : undefined;
         const eventTitle = nextTitle || meeting.title;
 
@@ -12274,6 +12511,13 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       } catch (calErr) {
         return res.status(502).json({ message: `Calendar sync failed: ${calErr instanceof Error ? calErr.message : String(calErr)}` });
       }
+
+      if (!replacementMeetingUrl) {
+        return res.status(502).json({
+          message:
+            "Replacement calendar event was created without a join link. Please add a meeting URL and try again.",
+        });
+      }
       
       const validPlatforms = ['zoom', 'teams', 'meet', 'webex'] as const;
       const platform = validPlatforms.includes(replacementPlatform as typeof validPlatforms[number])
@@ -12306,23 +12550,46 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         status: 'rescheduled',
         replacedByMeetingId: newMeeting.id,
       });
-      
-      if (meeting.clientEmail) {
+
+      if (attendeesList.length > 0) {
         try {
-          const { sendBrandedClientNoticeEmail } = await import("./email");
-          const when = parsedStart.toLocaleString("en-GB", {
-            weekday: "long",
-            day: "numeric",
-            month: "long",
-            year: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-          }).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-          await sendBrandedClientNoticeEmail({
+          const { sendMeetingInviteConfirmationEmail } = await import("./email");
+          const results = await Promise.allSettled(
+            attendeesList.map((a) =>
+              sendMeetingInviteConfirmationEmail({
+                to: a.email,
+                recipientName: a.name,
+                meetingTitle: nextTitle || meeting.title,
+                startTime: parsedStart,
+                endTime: newEndTime ? new Date(newEndTime) : undefined,
+                meetingUrl: replacementMeetingUrl,
+                meetingPlatform: platform,
+                isReschedule: true,
+              }),
+            ),
+          );
+          for (const r of results) {
+            if (r.status === "rejected") {
+              console.warn("[MEETING_RESCHEDULE] Invite confirmation email failed:", r.reason);
+            } else if (!r.value.success) {
+              console.warn("[MEETING_RESCHEDULE] Invite confirmation email failed:", r.value.error);
+            }
+          }
+        } catch (emailErr) {
+          console.log(`[MEETING_RESCHEDULE] Notification email failed (non-blocking): ${emailErr}`);
+        }
+      } else if (meeting.clientEmail) {
+        try {
+          const { sendMeetingInviteConfirmationEmail } = await import("./email");
+          await sendMeetingInviteConfirmationEmail({
             to: meeting.clientEmail,
-            subject: "Meeting rescheduled",
-            heading: "Meeting rescheduled",
-            messageHtml: `<p style="margin:0 0 12px;">A meeting with your solicitor has been rescheduled to <strong>${when}</strong>.</p><p style="margin:0;">If you have questions, reply to your solicitor directly.</p>`,
+            recipientName: meeting.clientName || undefined,
+            meetingTitle: nextTitle || meeting.title,
+            startTime: parsedStart,
+            endTime: newEndTime ? new Date(newEndTime) : undefined,
+            meetingUrl: replacementMeetingUrl,
+            meetingPlatform: platform,
+            isReschedule: true,
           });
         } catch (emailErr) {
           console.log(`[MEETING_RESCHEDULE] Notification email failed (non-blocking): ${emailErr}`);
@@ -12466,6 +12733,40 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       
       res.json(updated);
     } catch (error) {
+      next(error);
+    }
+  });
+
+  // Re-fetch join URL from the linked calendar event (Google Meet / Teams)
+  app.post("/api/scheduled-meetings/:id/refresh-url", isAuthenticated, async (req, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+
+      const meeting = await storage.getScheduledMeeting(id);
+      if (!meeting || meeting.userId !== userId) {
+        return res.status(404).json({ message: "Meeting not found" });
+      }
+
+      const { meetingSchedulerService } = await import("./services/meetingSchedulerService");
+      const updated = await meetingSchedulerService.refreshMeetingUrlFromCalendar(meeting);
+
+      if (!updated.meetingUrl) {
+        return res.status(404).json({
+          message:
+            "No join link found on the calendar event. Paste a meeting URL, or reschedule so LegalNote can create a Meet/Teams link.",
+        });
+      }
+
+      res.json(updated);
+    } catch (error: any) {
+      console.error("[SCHEDULED_MEETINGS] Error refreshing meeting URL:", error);
+      if (error.message?.includes("not connected")) {
+        return res.status(400).json({
+          message: "Calendar not connected. Please reconnect Google or Outlook in Settings.",
+          needsCalendarConnection: true,
+        });
+      }
       next(error);
     }
   });
@@ -13358,6 +13659,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         'case_handover_received',
         'pre_consent_acknowledged', 'pre_consent_declined', 'pre_consent_reschedule_requested',
         'meeting_reminder',
+        'share_feedback_submitted',
       ];
       
       const events = await dbConn

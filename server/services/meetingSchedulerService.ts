@@ -159,6 +159,7 @@ interface OutlookCalendarEvent {
   end?: { dateTime?: string };
   location?: { displayName?: string };
   onlineMeeting?: { joinUrl?: string };
+  onlineMeetingUrl?: string;
   isAllDay?: boolean;
   attendees?: Array<{
     emailAddress?: { address?: string; name?: string };
@@ -168,12 +169,19 @@ interface OutlookCalendarEvent {
 }
 
 function extractOutlookMeetingUrl(event: OutlookCalendarEvent): { url?: string; platform?: 'zoom' | 'teams' | 'meet' | 'webex' } {
-  if (event.onlineMeeting?.joinUrl) {
-    const uri = event.onlineMeeting.joinUrl.toLowerCase();
+  const onlineJoin = event.onlineMeeting?.joinUrl || event.onlineMeetingUrl;
+  if (onlineJoin) {
+    const uri = onlineJoin.toLowerCase();
     if (uri.includes('teams.microsoft.com') || uri.includes('teams.live.com')) {
-      return { url: event.onlineMeeting.joinUrl, platform: 'teams' };
+      return { url: onlineJoin, platform: 'teams' };
     }
-    return { url: event.onlineMeeting.joinUrl, platform: 'teams' };
+    if (uri.includes('meet.google.com')) {
+      return { url: onlineJoin, platform: 'meet' };
+    }
+    if (uri.includes('zoom.us')) {
+      return { url: onlineJoin, platform: 'zoom' };
+    }
+    return { url: onlineJoin, platform: 'teams' };
   }
 
   const textToSearch = `${event.body?.content || ''} ${event.location?.displayName || ''}`;
@@ -265,6 +273,8 @@ export class MeetingSchedulerService {
       singleEvents: true,
       orderBy: 'startTime',
       maxResults: 50,
+      // Required for conferenceData / reliable Meet entry points on list responses
+      conferenceDataVersion: 1,
     });
 
     const events = response.data.items || [];
@@ -331,6 +341,8 @@ export class MeetingSchedulerService {
         endDateTime: thirtyDaysAhead.toISOString(),
         $top: 100,
         $orderby: 'start/dateTime',
+        $select:
+          'id,subject,body,start,end,location,isAllDay,attendees,onlineMeeting,onlineMeetingUrl',
       })
       .get();
 
@@ -378,6 +390,61 @@ export class MeetingSchedulerService {
     }
 
     return scheduledMeetings;
+  }
+
+  /**
+   * Re-fetch the join URL from the linked Google/Outlook calendar event and persist it.
+   * Used when a LegalNote-scheduled meeting is missing meetingUrl (e.g. wiped by an older sync).
+   */
+  async refreshMeetingUrlFromCalendar(meeting: ScheduledMeeting): Promise<ScheduledMeeting> {
+    if (!meeting.calendarEventId || meeting.calendarEventId.startsWith('rescheduled-')) {
+      return meeting;
+    }
+
+    const validPlatforms = ['zoom', 'teams', 'meet', 'webex'] as const;
+    let meetingUrl: string | undefined;
+    let meetingPlatform: (typeof validPlatforms)[number] | undefined;
+
+    if (meeting.calendarProvider === 'outlook') {
+      const accessToken = await ensureFreshOutlookToken(storage, meeting.userId, APP_BASE_URL);
+      const graphClient = Client.initWithMiddleware({
+        authProvider: { getAccessToken: async () => accessToken },
+      });
+      const event = (await graphClient
+        .api(`/me/events/${meeting.calendarEventId}`)
+        .select('id,body,location,onlineMeeting,onlineMeetingUrl')
+        .get()) as OutlookCalendarEvent;
+      const extracted = extractOutlookMeetingUrl(event);
+      meetingUrl = extracted.url;
+      if (validPlatforms.includes(extracted.platform as (typeof validPlatforms)[number])) {
+        meetingPlatform = extracted.platform as (typeof validPlatforms)[number];
+      }
+    } else {
+      const { token } = await getValidAccessToken(meeting.userId);
+      const oauth2Client = new google.auth.OAuth2();
+      oauth2Client.setCredentials({ access_token: token });
+      const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+      const response = await calendar.events.get({
+        calendarId: 'primary',
+        eventId: meeting.calendarEventId,
+        conferenceDataVersion: 1,
+      });
+      const extracted = extractMeetingUrl(response.data);
+      meetingUrl = extracted.url;
+      if (validPlatforms.includes(extracted.platform as (typeof validPlatforms)[number])) {
+        meetingPlatform = extracted.platform as (typeof validPlatforms)[number];
+      }
+    }
+
+    if (!meetingUrl) {
+      return meeting;
+    }
+
+    const updated = await storage.updateScheduledMeeting(meeting.id, {
+      meetingUrl,
+      meetingPlatform: meetingPlatform || meeting.meetingPlatform || null,
+    });
+    return updated || meeting;
   }
 
   async sendConsentEmailForMeeting(meeting: ScheduledMeeting): Promise<boolean> {

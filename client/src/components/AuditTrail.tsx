@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Shield, Eye, FileText, Download, Send, Clock, User, Search, ChevronDown, ChevronRight, Settings } from "lucide-react";
+import { Shield, Eye, FileText, Download, Send, Clock, User, Search, ChevronDown, ChevronRight, Settings, MessageSquare, CheckCircle2 } from "lucide-react";
 import type { AuditTrail as AuditTrailType } from "@shared/schema";
 
 interface AuditTrailProps {
@@ -59,6 +59,9 @@ const EVENT_ICONS: Record<string, any> = {
   share_link_created: Send,
   share_link_accessed: Eye,
   share_link_revoked: Shield,
+  share_feedback_submitted: MessageSquare,
+  share_feedback_resolved: CheckCircle2,
+  share_feedback_reopened: MessageSquare,
   personnel_matter_accessed: Shield,
   action_item_created: FileText,
   action_item_approved: Shield,
@@ -128,6 +131,9 @@ const EVENT_LABELS: Record<string, string> = {
   quick_note_added: "Quick Note Added",
   share_link_created: "Share Link Created",
   share_link_accessed: "Share Link Accessed",
+  share_feedback_submitted: "Client Correction Flagged",
+  share_feedback_resolved: "Client Correction Acknowledged",
+  share_feedback_reopened: "Client Correction Reopened",
   share_link_revoked: "Share Link Revoked",
   personnel_matter_accessed: "LegalNote Personnel Access",
   action_item_created: "Obligation Created",

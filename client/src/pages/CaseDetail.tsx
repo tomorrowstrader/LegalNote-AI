@@ -42,6 +42,7 @@ import ComplianceThread from "@/components/ComplianceThread";
 import AmlTriggerBanner from "@/components/AmlTriggerBanner";
 import SharedHistoryViewer from "@/components/SharedHistoryViewer";
 import ActiveShareLinks from "@/components/ActiveShareLinks";
+import ClientFeedbackPanel from "@/components/ClientFeedbackPanel";
 import ActionItemsViewer from "@/components/ActionItemsViewer";
 import PreMeetingBriefing from "@/components/PreMeetingBriefing";
 import HandoverModal from "@/components/HandoverModal";
@@ -2524,6 +2525,7 @@ export default function CaseDetail() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
               <ActiveShareLinks caseId={caseId!} />
               <SharedHistoryViewer caseId={caseId!} />
+              <ClientFeedbackPanel caseId={caseId!} />
             </div>
           )}
 

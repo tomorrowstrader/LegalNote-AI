@@ -358,6 +358,40 @@ export interface MeetingEventData {
   createConference?: boolean;
 }
 
+/** Include the join URL in the calendar body so invitees can find it outside the Join button. */
+function formatMeetingDescription(
+  title: string,
+  description: string | undefined,
+  meetingUrl: string | undefined,
+): string {
+  const base =
+    (description && description.trim()) ||
+    `Meeting: ${title}\n\nCreated by LegalNote`;
+  if (!meetingUrl) return base;
+  if (base.includes(meetingUrl)) return base;
+  return `${base}\n\nJoin meeting:\n${meetingUrl}`;
+}
+
+function extractGoogleMeetUrl(event: {
+  hangoutLink?: string | null;
+  conferenceData?: {
+    entryPoints?: Array<{ entryPointType?: string | null; uri?: string | null }> | null;
+  } | null;
+}): string | undefined {
+  const hangoutLink = event.hangoutLink || undefined;
+  const videoEntry = event.conferenceData?.entryPoints?.find(
+    (e) => e.entryPointType === 'video' && e.uri,
+  )?.uri;
+  return hangoutLink || videoEntry || undefined;
+}
+
+function extractOutlookJoinUrl(event: {
+  onlineMeeting?: { joinUrl?: string | null } | null;
+  onlineMeetingUrl?: string | null;
+}): string | undefined {
+  return event.onlineMeeting?.joinUrl || event.onlineMeetingUrl || undefined;
+}
+
 export async function createMeetingCalendarEvent(
   userId: string,
   data: MeetingEventData,
@@ -375,10 +409,14 @@ export async function createMeetingCalendarEvent(
     const createConference =
       data.createConference === true ||
       (data.createConference !== false && !data.meetingUrl);
+    const attendees = (data.attendees || []).filter((a) => a.email);
+    const hasAttendees = attendees.length > 0;
+    // Defer invites until Meet URL is known so the first invite includes the join link.
+    const deferAttendees = createConference && hasAttendees;
 
     const eventBody: Record<string, unknown> = {
       summary: data.title,
-      description: data.description || `Meeting: ${data.title}\n\nCreated by LegalNote`,
+      description: formatMeetingDescription(data.title, data.description, data.meetingUrl),
       start: {
         dateTime: data.startTime.toISOString(),
         timeZone: 'Europe/London',
@@ -396,8 +434,8 @@ export async function createMeetingCalendarEvent(
       },
     };
 
-    if (data.attendees && data.attendees.length > 0) {
-      eventBody.attendees = data.attendees.map(a => ({
+    if (hasAttendees && !deferAttendees) {
+      eventBody.attendees = attendees.map((a) => ({
         email: a.email,
         displayName: a.name,
       }));
@@ -419,20 +457,80 @@ export async function createMeetingCalendarEvent(
     const response = await calendar.events.insert({
       calendarId: 'primary',
       conferenceDataVersion: createConference ? 1 : undefined,
-      sendUpdates: data.attendees && data.attendees.length > 0 ? 'all' : 'none',
+      sendUpdates: hasAttendees && !deferAttendees ? 'all' : 'none',
       requestBody: eventBody,
     });
 
+    const eventId = response.data.id || undefined;
     let meetingUrl: string | undefined = data.meetingUrl;
     let meetingPlatform: 'meet' | 'teams' | undefined;
 
     if (createConference) {
-      const hangoutLink = response.data.hangoutLink || undefined;
-      const videoEntry = response.data.conferenceData?.entryPoints?.find(
-        (e) => e.entryPointType === 'video' && e.uri,
-      )?.uri;
-      meetingUrl = hangoutLink || videoEntry || meetingUrl;
-      if (meetingUrl) meetingPlatform = 'meet';
+      meetingUrl = extractGoogleMeetUrl(response.data) || meetingUrl;
+
+      if (!meetingUrl && eventId) {
+        try {
+          const fetched = await calendar.events.get({
+            calendarId: 'primary',
+            eventId,
+          });
+          meetingUrl = extractGoogleMeetUrl(fetched.data) || meetingUrl;
+        } catch (fetchErr) {
+          console.warn(
+            '[CALENDAR] Failed to re-fetch Google Meet link:',
+            fetchErr instanceof Error ? fetchErr.message : fetchErr,
+          );
+        }
+      }
+
+      if (!meetingUrl) {
+        if (eventId) {
+          try {
+            await calendar.events.delete({
+              calendarId: 'primary',
+              eventId,
+              sendUpdates: 'none',
+            });
+          } catch (cleanupErr) {
+            console.warn(
+              '[CALENDAR] Failed to clean up Meet-less event:',
+              cleanupErr instanceof Error ? cleanupErr.message : cleanupErr,
+            );
+          }
+        }
+        return {
+          success: false,
+          provider: 'google',
+          error:
+            'Google Meet link was not created. Check that Google Meet is enabled for this Google account.',
+        };
+      }
+
+      meetingPlatform = 'meet';
+
+      try {
+        const patchBody: Record<string, unknown> = {
+          description: formatMeetingDescription(data.title, data.description, meetingUrl),
+          location: meetingUrl,
+        };
+        if (deferAttendees) {
+          patchBody.attendees = attendees.map((a) => ({
+            email: a.email,
+            displayName: a.name,
+          }));
+        }
+        await calendar.events.patch({
+          calendarId: 'primary',
+          eventId: eventId!,
+          sendUpdates: hasAttendees ? 'all' : 'none',
+          requestBody: patchBody,
+        });
+      } catch (patchErr) {
+        console.warn(
+          '[CALENDAR] Failed to patch Meet join URL onto event (invite may still include conference):',
+          patchErr instanceof Error ? patchErr.message : patchErr,
+        );
+      }
     } else if (meetingUrl?.includes('meet.google.com')) {
       meetingPlatform = 'meet';
     }
@@ -440,7 +538,7 @@ export async function createMeetingCalendarEvent(
     return {
       success: true,
       provider: 'google',
-      eventId: response.data.id || undefined,
+      eventId,
       meetingUrl,
       meetingPlatform,
     };
@@ -475,12 +573,16 @@ export async function createOutlookMeetingCalendarEvent(
     const createOnlineMeeting =
       data.createConference === true ||
       (data.createConference !== false && !data.meetingUrl);
+    const attendees = (data.attendees || []).filter((a) => a.email);
+    const hasAttendees = attendees.length > 0;
+    // Defer invites until Teams join URL is known so the first invite includes the link.
+    const deferAttendees = createOnlineMeeting && hasAttendees;
 
     const event: Record<string, unknown> = {
       subject: data.title,
       body: {
         contentType: 'Text',
-        content: data.description || `Meeting: ${data.title}\n\nCreated by LegalNote`,
+        content: formatMeetingDescription(data.title, data.description, data.meetingUrl),
       },
       start: {
         dateTime: formatGraphLocalDateTime(data.startTime),
@@ -503,8 +605,8 @@ export async function createOutlookMeetingCalendarEvent(
       event.onlineMeetingProvider = 'teamsForBusiness';
     }
 
-    if (data.attendees && data.attendees.length > 0) {
-      event.attendees = data.attendees.map((a) => ({
+    if (hasAttendees && !deferAttendees) {
+      event.attendees = attendees.map((a) => ({
         emailAddress: {
           address: a.email,
           name: a.name || a.email,
@@ -513,11 +615,13 @@ export async function createOutlookMeetingCalendarEvent(
       }));
     }
 
-    let response: {
+    type OutlookEventResponse = {
       id?: string;
-      onlineMeeting?: { joinUrl?: string };
-      onlineMeetingUrl?: string;
+      onlineMeeting?: { joinUrl?: string | null } | null;
+      onlineMeetingUrl?: string | null;
     };
+
+    let response: OutlookEventResponse;
 
     try {
       response = await graphClient.api('/me/events').post(event);
@@ -532,24 +636,89 @@ export async function createOutlookMeetingCalendarEvent(
       try {
         response = await graphClient.api('/me/events').post(event);
       } catch (retryErr) {
-        console.warn(
-          '[OUTLOOK] Online meeting create failed, creating calendar event only:',
-          retryErr instanceof Error ? retryErr.message : retryErr,
-        );
-        delete event.isOnlineMeeting;
-        response = await graphClient.api('/me/events').post(event);
+        // Do not soft-fail to a plain calendar event — invitees would get no join link.
+        const detail =
+          retryErr instanceof Error ? retryErr.message : String(retryErr);
+        console.error('[OUTLOOK] Online meeting create failed:', detail);
+        return {
+          success: false,
+          provider: 'outlook',
+          error:
+            detail ||
+            'Failed to create a Teams online meeting. Check that Teams is available for this Microsoft account.',
+        };
       }
     }
 
-    const joinUrl =
-      response.onlineMeeting?.joinUrl ||
-      response.onlineMeetingUrl ||
-      data.meetingUrl;
+    const eventId = response.id || undefined;
+    let joinUrl =
+      extractOutlookJoinUrl(response) || data.meetingUrl;
+
+    if (!joinUrl && eventId && createOnlineMeeting) {
+      try {
+        const fetched = (await graphClient
+          .api(`/me/events/${eventId}`)
+          .select('id,onlineMeeting,onlineMeetingUrl')
+          .get()) as OutlookEventResponse;
+        joinUrl = extractOutlookJoinUrl(fetched) || joinUrl;
+      } catch (fetchErr) {
+        console.warn(
+          '[OUTLOOK] Failed to re-fetch Teams join URL:',
+          fetchErr instanceof Error ? fetchErr.message : fetchErr,
+        );
+      }
+    }
+
+    if (createOnlineMeeting && !joinUrl) {
+      if (eventId) {
+        try {
+          await graphClient.api(`/me/events/${eventId}`).delete();
+        } catch (cleanupErr) {
+          console.warn(
+            '[OUTLOOK] Failed to clean up Teams-less event:',
+            cleanupErr instanceof Error ? cleanupErr.message : cleanupErr,
+          );
+        }
+      }
+      return {
+        success: false,
+        provider: 'outlook',
+        error:
+          'Teams join link was not created. Check that Microsoft Teams is enabled for this account.',
+      };
+    }
+
+    if (joinUrl && eventId && (createOnlineMeeting || deferAttendees)) {
+      try {
+        const patchBody: Record<string, unknown> = {
+          body: {
+            contentType: 'Text',
+            content: formatMeetingDescription(data.title, data.description, joinUrl),
+          },
+          location: { displayName: joinUrl },
+        };
+        if (deferAttendees) {
+          patchBody.attendees = attendees.map((a) => ({
+            emailAddress: {
+              address: a.email,
+              name: a.name || a.email,
+            },
+            type: 'required',
+          }));
+        }
+        await graphClient.api(`/me/events/${eventId}`).patch(patchBody);
+      } catch (patchErr) {
+        console.warn(
+          '[OUTLOOK] Failed to patch Teams join URL onto event:',
+          patchErr instanceof Error ? patchErr.message : patchErr,
+        );
+      }
+    }
 
     return {
       success: true,
       provider: 'outlook',
-      eventId: response.id || undefined,
+      eventId,
       meetingUrl: joinUrl,
       meetingPlatform: !data.meetingUrl && joinUrl ? 'teams' : undefined,
     };

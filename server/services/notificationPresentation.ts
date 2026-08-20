@@ -120,6 +120,9 @@ export function buildNotificationHref(event: AuditLike): string | undefined {
     case "case_handover_received":
     case "audio_expiring_soon":
     case "deadline_approaching":
+      return base;
+    case "share_feedback_submitted":
+      return `${base}?section=sharing`;
     default:
       return base;
   }
@@ -201,6 +204,15 @@ export function buildNotificationCopy(
         title: "Case handed over to you",
         message: `“${matter}” has been handed over to you.`,
       };
+    case "share_feedback_submitted": {
+      const who =
+        (typeof meta.recipientName === "string" && meta.recipientName.trim()) ||
+        "A recipient";
+      return {
+        title: "Client flagged a correction",
+        message: `${who} flagged a correction on the secure share for “${matter}”.`,
+      };
+    }
     default:
       return {
         title: event.eventType.replace(/_/g, " "),

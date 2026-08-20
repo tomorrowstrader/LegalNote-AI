@@ -16,7 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { LiveBotModal } from "@/components/LiveBotModal";
 import { getSafeHttpsMeetingUrl } from "@/lib/meetingUrl";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 
 type PromptOffset = 30 | 1;
 
@@ -157,9 +157,27 @@ export function UpcomingMeetingPrompt({ blocked = false }: { blocked?: boolean }
   }, [active, briefReady, setLocation]);
 
   /** Opens LiveBotModal so the solicitor must still press Send LegalNote to Call. */
-  const handleJoinWithLegalNote = useCallback((allocateLater = false) => {
+  const handleJoinWithLegalNote = useCallback(async (allocateLater = false) => {
     if (!active) return;
-    const url = getSafeHttpsMeetingUrl(active.meeting.meetingUrl);
+    let url = getSafeHttpsMeetingUrl(active.meeting.meetingUrl);
+    if (
+      !url &&
+      active.meeting.calendarEventId &&
+      !String(active.meeting.calendarEventId).startsWith("rescheduled-")
+    ) {
+      try {
+        const updated = await apiRequest<ScheduledMeeting>(
+          "POST",
+          `/api/scheduled-meetings/${active.meeting.id}/refresh-url`,
+        );
+        url = getSafeHttpsMeetingUrl(updated.meetingUrl);
+        if (url) {
+          queryClient.invalidateQueries({ queryKey: ["/api/scheduled-meetings"] });
+        }
+      } catch {
+        // Fall through — LiveBot will ask for a manual URL
+      }
+    }
     setJoinTarget({
       meetingUrl: url || "",
       caseId: allocateLater ? undefined : (active.meeting.caseId || undefined),

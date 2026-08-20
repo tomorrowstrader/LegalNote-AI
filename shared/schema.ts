@@ -2302,3 +2302,45 @@ export const adoptFeedbackBodySchema = z
     }
   });
 export type AdoptFeedbackBody = z.infer<typeof adoptFeedbackBodySchema>;
+
+/**
+ * Inbound corrections from secure-share recipients (clients / external solicitors).
+ * Gated by the same SMS/password verification as document access.
+ */
+export const shareFeedback = pgTable("share_feedback", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  shareLinkId: varchar("share_link_id").notNull().references(() => shareLinks.id),
+  caseId: varchar("case_id").notNull().references(() => cases.id),
+  documentId: varchar("document_id").references(() => documents.id),
+  documentType: text("document_type"),
+  recipientName: text("recipient_name"),
+  recipientEmail: text("recipient_email"),
+  category: text("category").notNull().default("correction"), // correction | clarification | other
+  selectedText: text("selected_text"),
+  message: text("message").notNull(),
+  resolved: boolean("resolved").notNull().default(false),
+  resolvedAt: timestamp("resolved_at"),
+  resolvedBy: varchar("resolved_by").references(() => users.id),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertShareFeedbackSchema = createInsertSchema(shareFeedback).omit({
+  id: true,
+  createdAt: true,
+  resolvedAt: true,
+  resolvedBy: true,
+});
+
+export type InsertShareFeedback = z.infer<typeof insertShareFeedbackSchema>;
+export type ShareFeedback = typeof shareFeedback.$inferSelect;
+
+export const shareFeedbackBodySchema = z.object({
+  documentId: z.string().min(1).max(64).optional(),
+  documentType: z.string().min(1).max(64).optional(),
+  selectedText: z.string().trim().max(2000).optional(),
+  message: z.string().trim().min(1).max(2000),
+  category: z.enum(["correction", "clarification", "other"]).default("correction"),
+});
+export type ShareFeedbackBody = z.infer<typeof shareFeedbackBodySchema>;

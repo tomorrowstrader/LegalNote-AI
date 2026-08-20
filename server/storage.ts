@@ -42,6 +42,7 @@ import {
   type ConflictCheck, type InsertConflictCheck,
   type SupervisionSignoff, type InsertSupervisionSignoff,
   type ProductInsight, type InsertProductInsight,
+  type ShareFeedback, type InsertShareFeedback,
   users,
   authIdentities,
   clients,
@@ -85,6 +86,7 @@ import {
   conflictChecks,
   supervisionSignoffs,
   productInsights,
+  shareFeedback,
 } from "@shared/schema";
 import crypto, { randomUUID } from "crypto";
 import { db } from "./db";
@@ -626,6 +628,17 @@ export interface IStorage {
   // Product insights (privacy-safe adopt feedback / value pulses)
   createProductInsight(data: InsertProductInsight): Promise<ProductInsight>;
   hasAdoptFeedbackForCase(userId: string, caseId: string): Promise<boolean>;
+
+  // Secure-share client corrections
+  createShareFeedback(data: InsertShareFeedback): Promise<ShareFeedback>;
+  getShareFeedbackByCase(caseId: string, userId: string): Promise<ShareFeedback[]>;
+  updateShareFeedback(
+    id: string,
+    caseId: string,
+    userId: string,
+    updates: { resolved: boolean },
+  ): Promise<ShareFeedback | undefined>;
+  countShareFeedbackForLink(shareLinkId: string, since?: Date): Promise<number>;
   
   // Search methods
   searchCases(query: string, userId: string): Promise<Case[]>;
@@ -885,6 +898,7 @@ export class MemStorage implements IStorage {
   private meetingSessionsMap: Map<string, MeetingSession>;
   private firmProfiles: Map<string, FirmProfile>;
   private productInsightsMap: Map<string, ProductInsight>;
+  private shareFeedbackMap: Map<string, ShareFeedback>;
 
   constructor() {
     this.users = new Map();
@@ -904,6 +918,7 @@ export class MemStorage implements IStorage {
     this.meetingSessionsMap = new Map();
     this.firmProfiles = new Map();
     this.productInsightsMap = new Map();
+    this.shareFeedbackMap = new Map();
   }
 
   async getUser(id: string): Promise<User | undefined> {
@@ -2261,6 +2276,66 @@ export class MemStorage implements IStorage {
         r.caseId === caseId &&
         (r.eventType === "adopt_feedback" || r.eventType === "adopt_feedback_dismissed"),
     );
+  }
+
+  async createShareFeedback(data: InsertShareFeedback): Promise<ShareFeedback> {
+    const id = randomUUID();
+    const row: ShareFeedback = {
+      id,
+      shareLinkId: data.shareLinkId,
+      caseId: data.caseId,
+      documentId: data.documentId ?? null,
+      documentType: data.documentType ?? null,
+      recipientName: data.recipientName ?? null,
+      recipientEmail: data.recipientEmail ?? null,
+      category: data.category ?? "correction",
+      selectedText: data.selectedText ?? null,
+      message: data.message,
+      resolved: data.resolved ?? false,
+      resolvedAt: null,
+      resolvedBy: null,
+      ipAddress: data.ipAddress ?? null,
+      userAgent: data.userAgent ?? null,
+      createdAt: new Date(),
+    };
+    this.shareFeedbackMap.set(id, row);
+    return row;
+  }
+
+  async getShareFeedbackByCase(caseId: string, userId: string): Promise<ShareFeedback[]> {
+    const caseRecord = this.cases.get(caseId);
+    if (!caseRecord || caseRecord.createdBy !== userId) return [];
+    return Array.from(this.shareFeedbackMap.values())
+      .filter((r) => r.caseId === caseId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  async updateShareFeedback(
+    id: string,
+    caseId: string,
+    userId: string,
+    updates: { resolved: boolean },
+  ): Promise<ShareFeedback | undefined> {
+    const existing = this.shareFeedbackMap.get(id);
+    if (!existing || existing.caseId !== caseId) return undefined;
+    const caseRecord = this.cases.get(caseId);
+    if (!caseRecord || caseRecord.createdBy !== userId) return undefined;
+    const updated: ShareFeedback = {
+      ...existing,
+      resolved: updates.resolved,
+      resolvedAt: updates.resolved ? new Date() : null,
+      resolvedBy: updates.resolved ? userId : null,
+    };
+    this.shareFeedbackMap.set(id, updated);
+    return updated;
+  }
+
+  async countShareFeedbackForLink(shareLinkId: string, since?: Date): Promise<number> {
+    return Array.from(this.shareFeedbackMap.values()).filter((r) => {
+      if (r.shareLinkId !== shareLinkId) return false;
+      if (since && r.createdAt < since) return false;
+      return true;
+    }).length;
   }
   
   async searchCases(query: string, userId: string): Promise<Case[]> {
@@ -4942,6 +5017,57 @@ export class DbStorage implements IStorage {
       .limit(1);
     return rows.length > 0;
   }
+
+  async createShareFeedback(data: InsertShareFeedback): Promise<ShareFeedback> {
+    const inserted = await db.insert(shareFeedback).values(data).returning();
+    return inserted[0];
+  }
+
+  async getShareFeedbackByCase(caseId: string, userId: string): Promise<ShareFeedback[]> {
+    const caseRecord = await this.getCase(caseId, userId);
+    if (!caseRecord) return [];
+    return db
+      .select()
+      .from(shareFeedback)
+      .where(eq(shareFeedback.caseId, caseId))
+      .orderBy(desc(shareFeedback.createdAt));
+  }
+
+  async updateShareFeedback(
+    id: string,
+    caseId: string,
+    userId: string,
+    updates: { resolved: boolean },
+  ): Promise<ShareFeedback | undefined> {
+    const caseRecord = await this.getCase(caseId, userId);
+    if (!caseRecord) return undefined;
+    const existing = await db
+      .select()
+      .from(shareFeedback)
+      .where(and(eq(shareFeedback.id, id), eq(shareFeedback.caseId, caseId)))
+      .limit(1);
+    if (!existing[0]) return undefined;
+    const result = await db
+      .update(shareFeedback)
+      .set({
+        resolved: updates.resolved,
+        resolvedAt: updates.resolved ? new Date() : null,
+        resolvedBy: updates.resolved ? userId : null,
+      })
+      .where(eq(shareFeedback.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async countShareFeedbackForLink(shareLinkId: string, since?: Date): Promise<number> {
+    const conditions = [eq(shareFeedback.shareLinkId, shareLinkId)];
+    if (since) conditions.push(gte(shareFeedback.createdAt, since));
+    const rows = await db
+      .select({ value: count() })
+      .from(shareFeedback)
+      .where(and(...conditions));
+    return Number(rows[0]?.value ?? 0);
+  }
   
   async searchCases(query: string, userId: string): Promise<Case[]> {
     // Normalize query: collapse whitespace, trim, lowercase, remove accents
@@ -5946,8 +6072,9 @@ export class DbStorage implements IStorage {
         set: {
           title: meetingData.title,
           description: meetingData.description || null,
-          meetingUrl: meetingData.meetingUrl || null,
-          meetingPlatform: meetingData.meetingPlatform || null,
+          // Never wipe a known join URL when calendar poll can't re-extract it
+          meetingUrl: sql`COALESCE(excluded.meeting_url, ${scheduledMeetings.meetingUrl})`,
+          meetingPlatform: sql`COALESCE(excluded.meeting_platform, ${scheduledMeetings.meetingPlatform})`,
           startTime: meetingData.startTime,
           endTime: meetingData.endTime || null,
           attendees: meetingData.attendees || [],

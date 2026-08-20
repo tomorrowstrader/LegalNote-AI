@@ -278,12 +278,13 @@ export default function ScheduleMeetingModal({
           : meeting.meetingPlatform === "teams"
             ? "Teams"
             : null;
+      const attendeeCount = Array.isArray(meeting.attendees) ? meeting.attendees.length : 0;
       toast({
         title: "Meeting scheduled",
         description: platform
-          ? `Added to your calendar with a ${platform} link.`
+          ? `Added to your calendar with a ${platform} link.${attendeeCount > 0 ? " Invitees were emailed a confirmation with the join link." : ""}`
           : meeting.meetingUrl
-            ? "Added to your calendar and Upcoming Meetings."
+            ? `Added to your calendar and Upcoming Meetings.${attendeeCount > 0 ? " Invitees were emailed a confirmation with the join link." : ""}`
             : `Added to your calendar. ${autoConferenceName} link may appear after refresh if your account supports it.`,
       });
       queryClient.invalidateQueries({ queryKey: ["/api/scheduled-meetings"] });
@@ -315,8 +316,9 @@ export default function ScheduleMeetingModal({
             Schedule Meeting
           </DialogTitle>
           <DialogDescription>
-            Create the meeting here — we&apos;ll add it to your calendar and generate a{" "}
-            {autoConferenceName} link automatically.
+            Create the meeting here — we&apos;ll add it to your calendar, generate a{" "}
+            {autoConferenceName} link automatically, and email invitees a confirmation with the join
+            link.
           </DialogDescription>
         </DialogHeader>
 
