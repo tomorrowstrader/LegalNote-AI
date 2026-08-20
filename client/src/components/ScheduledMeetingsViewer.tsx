@@ -132,18 +132,6 @@ function categorizeMeeting(meeting: ScheduledMeeting): MeetingTimeTab {
   return "later";
 }
 
-function pickDefaultMeetingTab(meetings: ScheduledMeeting[]): MeetingTimeTab {
-  const counts = { today: 0, tomorrow: 0, next7: 0, later: 0 };
-  for (const m of meetings) {
-    counts[categorizeMeeting(m)] += 1;
-  }
-  if (counts.today > 0) return "today";
-  if (counts.tomorrow > 0) return "tomorrow";
-  if (counts.next7 > 0) return "next7";
-  if (counts.later > 0) return "later";
-  return "today";
-}
-
 function useIsDesktop(breakpointPx = 768) {
   const [isDesktop, setIsDesktop] = useState(() =>
     typeof window !== "undefined" ? window.matchMedia(`(min-width: ${breakpointPx}px)`).matches : true,
@@ -1198,7 +1186,6 @@ export function ScheduledMeetingsViewer() {
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<MeetingTimeTab>("today");
-  const [hasUserPickedTab, setHasUserPickedTab] = useState(false);
   const [showMore, setShowMore] = useState(false);
   const isDesktop = useIsDesktop();
 
@@ -1237,11 +1224,6 @@ export function ScheduledMeetingsViewer() {
     }
     return counts;
   }, [meetings]);
-
-  useEffect(() => {
-    if (!meetings || meetings.length === 0 || hasUserPickedTab) return;
-    setActiveTab(pickDefaultMeetingTab(meetings));
-  }, [meetings, hasUserPickedTab]);
 
   useEffect(() => {
     setShowMore(false);
@@ -1309,7 +1291,6 @@ export function ScheduledMeetingsViewer() {
   };
 
   const handleTabChange = (tab: MeetingTimeTab) => {
-    setHasUserPickedTab(true);
     setActiveTab(tab);
   };
 
