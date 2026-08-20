@@ -546,9 +546,30 @@ export async function createMeetingCalendarEvent(
   }
 }
 
+async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`)),
+          ms,
+        );
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 /**
  * Create a meeting on the user's OAuth-connected Outlook calendar (Microsoft Graph).
  * Prefer this over the Replit connector for production users who connected via Settings.
+ *
+ * Note: `onlineMeetingProvider: teamsForBusiness` often hangs or returns no join URL on
+ * personal Microsoft accounts. We try isOnlineMeeting without a provider first, then
+ * teamsForBusiness for work/school mailboxes — each Graph call has a hard timeout.
  */
 export async function createOutlookMeetingCalendarEvent(
   userId: string,
@@ -557,7 +578,11 @@ export async function createOutlookMeetingCalendarEvent(
   baseUrl: string,
 ): Promise<CalendarSyncResult> {
   try {
-    const accessToken = await ensureFreshOutlookToken(storage, userId, baseUrl);
+    const accessToken = await withTimeout(
+      ensureFreshOutlookToken(storage, userId, baseUrl),
+      10000,
+      'Outlook token refresh',
+    );
     const graphClient = Client.initWithMiddleware({
       authProvider: { getAccessToken: async () => accessToken },
     });
@@ -569,137 +594,192 @@ export async function createOutlookMeetingCalendarEvent(
     const attendees = (data.attendees || []).filter((a) => a.email);
     const hasAttendees = attendees.length > 0;
 
-    const event: Record<string, unknown> = {
-      subject: data.title,
-      body: {
-        contentType: 'Text',
-        content: formatMeetingDescription(data.title, data.description, data.meetingUrl),
-      },
-      start: {
-        dateTime: formatGraphLocalDateTime(data.startTime),
-        timeZone: 'Europe/London',
-      },
-      end: {
-        dateTime: formatGraphLocalDateTime(endTime),
-        timeZone: 'Europe/London',
-      },
-      isReminderOn: true,
-      reminderMinutesBeforeStart: 15,
-    };
-
-    if (data.meetingUrl) {
-      event.location = { displayName: data.meetingUrl };
-    }
-
-    if (createOnlineMeeting) {
-      event.isOnlineMeeting = true;
-      event.onlineMeetingProvider = 'teamsForBusiness';
-    }
-
-    if (hasAttendees) {
-      event.attendees = attendees.map((a) => ({
-        emailAddress: {
-          address: a.email,
-          name: a.name || a.email,
-        },
-        type: 'required',
-      }));
-    }
-
     type OutlookEventResponse = {
       id?: string;
       onlineMeeting?: { joinUrl?: string | null } | null;
       onlineMeetingUrl?: string | null;
     };
 
-    let response: OutlookEventResponse;
+    const buildEventBody = (opts: {
+      withOnlineMeeting: boolean;
+      /** Work/school Teams; omit for personal Microsoft accounts (teamsForBusiness often hangs). */
+      useTeamsForBusiness?: boolean;
+    }): Record<string, unknown> => {
+      const event: Record<string, unknown> = {
+        subject: data.title,
+        body: {
+          contentType: 'Text',
+          content: formatMeetingDescription(data.title, data.description, data.meetingUrl),
+        },
+        start: {
+          dateTime: formatGraphLocalDateTime(data.startTime),
+          timeZone: 'Europe/London',
+        },
+        end: {
+          dateTime: formatGraphLocalDateTime(endTime),
+          timeZone: 'Europe/London',
+        },
+        isReminderOn: true,
+        reminderMinutesBeforeStart: 15,
+      };
 
-    try {
-      response = await graphClient.api('/me/events').post(event);
-    } catch (onlineErr) {
-      if (!createOnlineMeeting) throw onlineErr;
-
-      console.warn(
-        '[OUTLOOK] Teams-for-business create failed, retrying without provider:',
-        onlineErr instanceof Error ? onlineErr.message : onlineErr,
-      );
-      delete event.onlineMeetingProvider;
-      try {
-        response = await graphClient.api('/me/events').post(event);
-      } catch (retryErr) {
-        const detail =
-          retryErr instanceof Error ? retryErr.message : String(retryErr);
-        console.error('[OUTLOOK] Online meeting create failed:', detail);
-        return {
-          success: false,
-          provider: 'outlook',
-          error:
-            'Could not create a Microsoft Teams meeting for this account. Confirm Teams is enabled for your Microsoft 365 mailbox, or paste a meeting URL instead.',
-        };
+      if (data.meetingUrl) {
+        event.location = { displayName: data.meetingUrl };
       }
-    }
 
-    const eventId = response.id || undefined;
-    let joinUrl =
-      extractOutlookJoinUrl(response) || data.meetingUrl;
+      if (opts.withOnlineMeeting) {
+        event.isOnlineMeeting = true;
+        if (opts.useTeamsForBusiness) {
+          event.onlineMeetingProvider = 'teamsForBusiness';
+        }
+      }
 
-    if (!joinUrl && eventId && createOnlineMeeting) {
+      if (hasAttendees) {
+        event.attendees = attendees.map((a) => ({
+          emailAddress: {
+            address: a.email,
+            name: a.name || a.email,
+          },
+          type: 'required',
+        }));
+      }
+
+      return event;
+    };
+
+    const postEvent = (body: Record<string, unknown>, label: string) =>
+      withTimeout(
+        graphClient.api('/me/events').post(body) as Promise<OutlookEventResponse>,
+        12000,
+        label,
+      );
+
+    const fetchJoinUrl = async (eventId: string): Promise<string | undefined> => {
       try {
-        const fetched = (await graphClient
-          .api(`/me/events/${eventId}`)
-          .select('id,onlineMeeting,onlineMeetingUrl')
-          .get()) as OutlookEventResponse;
-        joinUrl = extractOutlookJoinUrl(fetched) || joinUrl;
+        const fetched = await withTimeout(
+          graphClient
+            .api(`/me/events/${eventId}`)
+            .select('id,onlineMeeting,onlineMeetingUrl')
+            .get() as Promise<OutlookEventResponse>,
+          8000,
+          'Outlook join URL fetch',
+        );
+        return extractOutlookJoinUrl(fetched);
       } catch (fetchErr) {
         console.warn(
           '[OUTLOOK] Failed to re-fetch Teams join URL:',
           fetchErr instanceof Error ? fetchErr.message : fetchErr,
         );
+        return undefined;
       }
-    }
+    };
 
-    if (createOnlineMeeting && !joinUrl) {
-      if (eventId) {
-        try {
-          await graphClient.api(`/me/events/${eventId}`).delete();
-        } catch (cleanupErr) {
-          console.warn(
-            '[OUTLOOK] Failed to clean up Teams-less event:',
-            cleanupErr instanceof Error ? cleanupErr.message : cleanupErr,
-          );
-        }
+    const deleteEventQuietly = async (eventId: string) => {
+      try {
+        await withTimeout(
+          graphClient.api(`/me/events/${eventId}`).delete(),
+          8000,
+          'Outlook event cleanup',
+        );
+      } catch (cleanupErr) {
+        console.warn(
+          '[OUTLOOK] Failed to clean up event:',
+          cleanupErr instanceof Error ? cleanupErr.message : cleanupErr,
+        );
       }
+    };
+
+    // No conference requested — plain calendar event (pasted URL or none).
+    if (!createOnlineMeeting) {
+      const response = await postEvent(
+        buildEventBody({ withOnlineMeeting: false }),
+        'Outlook calendar event create',
+      );
       return {
-        success: false,
+        success: true,
         provider: 'outlook',
-        error:
-          'Microsoft did not return a Teams join link. This often means Teams is not available on this mailbox — paste a meeting URL, or use Google Calendar with Meet.',
+        eventId: response.id || undefined,
+        meetingUrl: data.meetingUrl,
+        meetingPlatform: undefined,
       };
     }
 
-    if (joinUrl && eventId && createOnlineMeeting) {
+    // Personal Microsoft accounts often hang or ignore teamsForBusiness.
+    // Try isOnlineMeeting without provider first; then teamsForBusiness for M365 work mailboxes.
+    const attempts: Array<{ label: string; useTeamsForBusiness: boolean }> = [
+      { label: 'Outlook online meeting (no provider)', useTeamsForBusiness: false },
+      { label: 'Outlook Teams for Business meeting', useTeamsForBusiness: true },
+    ];
+
+    let lastError = '';
+    for (const attempt of attempts) {
+      let response: OutlookEventResponse | undefined;
       try {
-        await graphClient.api(`/me/events/${eventId}`).patch({
-          body: {
-            contentType: 'Text',
-            content: formatMeetingDescription(data.title, data.description, joinUrl),
-          },
-          location: { displayName: joinUrl },
-        });
-      } catch (patchErr) {
-        console.warn(
-          '[OUTLOOK] Failed to patch Teams join URL onto event:',
-          patchErr instanceof Error ? patchErr.message : patchErr,
+        response = await postEvent(
+          buildEventBody({
+            withOnlineMeeting: true,
+            useTeamsForBusiness: attempt.useTeamsForBusiness,
+          }),
+          attempt.label,
         );
+      } catch (attemptErr) {
+        lastError =
+          attemptErr instanceof Error ? attemptErr.message : String(attemptErr);
+        console.warn(`[OUTLOOK] ${attempt.label} failed:`, lastError);
+        continue;
+      }
+
+      const eventId = response.id || undefined;
+      let joinUrl =
+        extractOutlookJoinUrl(response) || data.meetingUrl || undefined;
+      if (!joinUrl && eventId) {
+        joinUrl = await fetchJoinUrl(eventId);
+      }
+
+      if (joinUrl && eventId) {
+        try {
+          await withTimeout(
+            graphClient.api(`/me/events/${eventId}`).patch({
+              body: {
+                contentType: 'Text',
+                content: formatMeetingDescription(data.title, data.description, joinUrl),
+              },
+              location: { displayName: joinUrl },
+            }),
+            8000,
+            'Outlook join URL patch',
+          );
+        } catch (patchErr) {
+          console.warn(
+            '[OUTLOOK] Failed to patch Teams join URL onto event:',
+            patchErr instanceof Error ? patchErr.message : patchErr,
+          );
+        }
+
+        return {
+          success: true,
+          provider: 'outlook',
+          eventId,
+          meetingUrl: joinUrl,
+          meetingPlatform: !data.meetingUrl ? 'teams' : undefined,
+        };
+      }
+
+      if (eventId) {
+        console.warn(
+          `[OUTLOOK] ${attempt.label} created event without join URL — cleaning up`,
+        );
+        await deleteEventQuietly(eventId);
       }
     }
 
     return {
-      success: true,
+      success: false,
       provider: 'outlook',
-      eventId,
-      meetingUrl: joinUrl,
-      meetingPlatform: !data.meetingUrl && joinUrl ? 'teams' : undefined,
+      error:
+        lastError && /timed out/i.test(lastError)
+          ? 'Microsoft Graph timed out while creating a Teams meeting. Paste a meeting URL, or schedule with Google Calendar (Meet) instead.'
+          : 'Could not create a Teams join link for this Outlook account. Work/school Microsoft 365 mailboxes work best — or paste a meeting URL / use Google Meet.',
     };
   } catch (error: unknown) {
     const err = error instanceof Error ? error : new Error(String(error));

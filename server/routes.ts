@@ -12037,8 +12037,15 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         );
 
         if (!outlookResult.success || !outlookResult.eventId) {
-          return res.status(502).json({
-            message: `Failed to create Outlook calendar event: ${outlookResult.error || "Unknown error"}`,
+          const detail = outlookResult.error || "Unknown error";
+          // Client-actionable Graph/Teams failures should not look like infrastructure 502s.
+          const clientFault = /timed out|Teams join link|Microsoft Graph|paste a meeting|Google Meet|mailbox/i.test(
+            detail,
+          );
+          return res.status(clientFault ? 400 : 502).json({
+            message: clientFault
+              ? detail
+              : `Failed to create Outlook calendar event: ${detail}`,
           });
         }
         calendarEventId = outlookResult.eventId;
