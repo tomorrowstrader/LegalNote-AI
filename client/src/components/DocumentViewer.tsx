@@ -34,9 +34,15 @@ import { isClientMatterKind } from "@shared/matterKinds";
 import DownloadModal from "@/components/DownloadModal";
 import PrintModal from "@/components/PrintModal";
 import ShareLinkModal from "@/components/ShareLinkModal";
+import { AdoptFeedbackDialog } from "@/components/AdoptFeedbackDialog";
 import { apiRequest, getApiErrorMessage, queryClient } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
+import {
+  adoptFeedbackStorageKey,
+  buildValuePulseCopy,
+  valuePulseStorageKey,
+} from "@shared/productInsights";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
@@ -1657,6 +1663,7 @@ export default function DocumentViewer({
   // Reasoning gap state
   const [showGapPanel, setShowGapPanel] = useState<string | null>(null); // document ID
   const [gapInputs, setGapInputs] = useState<Record<string, Record<string, string>>>({}); // docId -> sectionName -> text
+  const [showAdoptFeedback, setShowAdoptFeedback] = useState(false);
   const [reasoningNoteInputs, setReasoningNoteInputs] = useState<Record<string, string>>({}); // docId -> note text
   const [showRationaleSection, setShowRationaleSection] = useState<Record<string, boolean>>({}); // docId -> expanded
   const [pendingApprovalDocId, setPendingApprovalDocId] = useState<string | null>(null); // doc waiting for soft gate confirm
@@ -1971,11 +1978,57 @@ export default function DocumentViewer({
           duration: 5000,
         });
       } else {
-        toast({
-          title: "Document Approved",
-          description: "Document has been marked as final and is now locked",
-          duration: 6000,
-        });
+        // Moment B — quiet value pulse when the last adoptable doc is locked
+        const durationSeconds =
+          (focusSessionId
+            ? sessions?.find((s) => s.id === focusSessionId)?.durationSeconds
+            : undefined) ??
+          sessions?.find((s) => s.durationSeconds != null)?.durationSeconds ??
+          null;
+        const pulse = buildValuePulseCopy(durationSeconds, "adopt");
+        const pulseKey = valuePulseStorageKey(caseId, "adopt");
+        let alreadyPulsed = false;
+        try {
+          alreadyPulsed = localStorage.getItem(pulseKey) === "1";
+        } catch {
+          /* ignore */
+        }
+        if (pulse && !alreadyPulsed && !isDemoMode) {
+          try {
+            localStorage.setItem(pulseKey, "1");
+          } catch {
+            /* ignore */
+          }
+          toast({
+            title: pulse.title,
+            description: pulse.description,
+            duration: 7000,
+          });
+          void apiRequest("POST", "/api/product-insights/value-pulse", {
+            caseId,
+            kind: "adopt",
+            meetingDurationSeconds: durationSeconds,
+          }).catch(() => undefined);
+        } else {
+          toast({
+            title: "Document Approved",
+            description: "Document has been marked as final and is now locked",
+            duration: 6000,
+          });
+        }
+
+        // Moment A — once-per-matter micro-survey after full adoption
+        if (!isDemoMode) {
+          let localDone = false;
+          try {
+            localDone = !!localStorage.getItem(adoptFeedbackStorageKey(caseId));
+          } catch {
+            /* ignore */
+          }
+          if (!localDone) {
+            window.setTimeout(() => setShowAdoptFeedback(true), 900);
+          }
+        }
       }
     },
     onError: () => {
@@ -4237,6 +4290,17 @@ export default function DocumentViewer({
           hasTranscript: !!transcriptContent,
           hasCareLetter: !!clientCareLetter,
         }}
+      />
+
+      <AdoptFeedbackDialog
+        open={showAdoptFeedback}
+        onOpenChange={setShowAdoptFeedback}
+        caseId={caseId}
+        meetingDurationSeconds={
+          focusedSession?.durationSeconds ??
+          sessions?.find((s) => s.durationSeconds != null)?.durationSeconds ??
+          null
+        }
       />
 
       <Dialog

@@ -41,6 +41,7 @@ import {
   type RoleChangeLog, type InsertRoleChangeLog,
   type ConflictCheck, type InsertConflictCheck,
   type SupervisionSignoff, type InsertSupervisionSignoff,
+  type ProductInsight, type InsertProductInsight,
   users,
   authIdentities,
   clients,
@@ -83,6 +84,7 @@ import {
   roleChangeLogs,
   conflictChecks,
   supervisionSignoffs,
+  productInsights,
 } from "@shared/schema";
 import crypto, { randomUUID } from "crypto";
 import { db } from "./db";
@@ -620,6 +622,10 @@ export interface IStorage {
   // User Preferences methods
   getUserPreferences(userId: string): Promise<UserPreferences | undefined>;
   updateUserPreferences(userId: string, updates: Partial<UserPreferences>): Promise<UserPreferences>;
+
+  // Product insights (privacy-safe adopt feedback / value pulses)
+  createProductInsight(data: InsertProductInsight): Promise<ProductInsight>;
+  hasAdoptFeedbackForCase(userId: string, caseId: string): Promise<boolean>;
   
   // Search methods
   searchCases(query: string, userId: string): Promise<Case[]>;
@@ -878,6 +884,7 @@ export class MemStorage implements IStorage {
   private searchHistoryRecords: Map<string, SearchHistory>;
   private meetingSessionsMap: Map<string, MeetingSession>;
   private firmProfiles: Map<string, FirmProfile>;
+  private productInsightsMap: Map<string, ProductInsight>;
 
   constructor() {
     this.users = new Map();
@@ -896,6 +903,7 @@ export class MemStorage implements IStorage {
     this.searchHistoryRecords = new Map();
     this.meetingSessionsMap = new Map();
     this.firmProfiles = new Map();
+    this.productInsightsMap = new Map();
   }
 
   async getUser(id: string): Promise<User | undefined> {
@@ -2225,6 +2233,34 @@ export class MemStorage implements IStorage {
   async updateUserPreferences(userId: string, updates: Partial<UserPreferences>): Promise<UserPreferences> {
     // MemStorage: In-memory implementation - not used in production
     throw new Error('User preferences operations require database storage');
+  }
+
+  async createProductInsight(data: InsertProductInsight): Promise<ProductInsight> {
+    const id = randomUUID();
+    const row: ProductInsight = {
+      id,
+      userId: data.userId,
+      firmId: data.firmId ?? null,
+      caseId: data.caseId ?? null,
+      eventType: data.eventType,
+      accuracy: data.accuracy ?? null,
+      speed: data.speed ?? null,
+      comment: data.comment ?? null,
+      meetingDurationSeconds: data.meetingDurationSeconds ?? null,
+      metadata: data.metadata ?? {},
+      createdAt: new Date(),
+    };
+    this.productInsightsMap.set(id, row);
+    return row;
+  }
+
+  async hasAdoptFeedbackForCase(userId: string, caseId: string): Promise<boolean> {
+    return Array.from(this.productInsightsMap.values()).some(
+      (r) =>
+        r.userId === userId &&
+        r.caseId === caseId &&
+        (r.eventType === "adopt_feedback" || r.eventType === "adopt_feedback_dismissed"),
+    );
   }
   
   async searchCases(query: string, userId: string): Promise<Case[]> {
@@ -4885,6 +4921,26 @@ export class DbStorage implements IStorage {
         .returning();
       return inserted[0];
     }
+  }
+
+  async createProductInsight(data: InsertProductInsight): Promise<ProductInsight> {
+    const inserted = await db.insert(productInsights).values(data).returning();
+    return inserted[0];
+  }
+
+  async hasAdoptFeedbackForCase(userId: string, caseId: string): Promise<boolean> {
+    const rows = await db
+      .select({ id: productInsights.id })
+      .from(productInsights)
+      .where(
+        and(
+          eq(productInsights.userId, userId),
+          eq(productInsights.caseId, caseId),
+          inArray(productInsights.eventType, ["adopt_feedback", "adopt_feedback_dismissed"]),
+        ),
+      )
+      .limit(1);
+    return rows.length > 0;
   }
   
   async searchCases(query: string, userId: string): Promise<Case[]> {

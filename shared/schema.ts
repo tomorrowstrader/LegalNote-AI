@@ -2255,3 +2255,50 @@ export const dpaConfirmBodySchema = z.object({
   evaluationAccepted: z.literal(true),
 });
 export type DpaConfirmBody = z.infer<typeof dpaConfirmBodySchema>;
+
+/**
+ * Privacy-safe product insights (Moment A/B feedback).
+ * Never store case titles, client names, note text, or transcripts here.
+ * caseId is opaque dedupe only.
+ */
+export const productInsights = pgTable("product_insights", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  firmId: varchar("firm_id").references(() => firms.id),
+  caseId: varchar("case_id").references(() => cases.id),
+  eventType: text("event_type").notNull(), // adopt_feedback | value_pulse_shown
+  accuracy: text("accuracy"), // accurate | mostly | needs_work
+  speed: text("speed"), // fast | fine | slow
+  comment: text("comment"),
+  meetingDurationSeconds: integer("meeting_duration_seconds"),
+  metadata: jsonb("metadata").default({}),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertProductInsightSchema = createInsertSchema(productInsights).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertProductInsight = z.infer<typeof insertProductInsightSchema>;
+export type ProductInsight = typeof productInsights.$inferSelect;
+
+export const adoptFeedbackBodySchema = z
+  .object({
+    caseId: z.string().min(1).max(64),
+    accuracy: z.enum(["accurate", "mostly", "needs_work"]).optional(),
+    speed: z.enum(["fast", "fine", "slow"]).optional(),
+    comment: z.string().trim().max(280).optional(),
+    meetingDurationSeconds: z.number().int().min(0).max(60 * 60 * 24).nullable().optional(),
+    dismissed: z.boolean().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (!data.dismissed && !data.accuracy) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Accuracy is required",
+        path: ["accuracy"],
+      });
+    }
+  });
+export type AdoptFeedbackBody = z.infer<typeof adoptFeedbackBodySchema>;

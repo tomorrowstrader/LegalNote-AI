@@ -100,7 +100,8 @@ function resolveTemplatePath(filename: string): string {
 }
 import { storage } from "./storage";
 import { db } from "./db";
-import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema, insertAmlMonitoringNoteSchema, insertAmlDecisionRecordSchema, insertTimeEntrySchema, insertUndertakingSchema, insertConflictCheckSchema, PRACTICE_AREAS, type ScheduledMeeting, PRIMARY_ROLES, PRIMARY_ROLE_LABELS, REGULATORY_DESIGNATIONS, REGULATORY_DESIGNATION_LABELS, type RegulatoryDesignation, demoLeads, dpaRequestSchema, dpaConfirmBodySchema, evaluationOnboardingSubmitSchema, isClientMatterKind, normalizeMatterKind, partyLabelForMatterKind, requiresSealedConsentForProcessing, type InsertCase } from "@shared/schema";
+import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema, insertAmlMonitoringNoteSchema, insertAmlDecisionRecordSchema, insertTimeEntrySchema, insertUndertakingSchema, insertConflictCheckSchema, PRACTICE_AREAS, type ScheduledMeeting, PRIMARY_ROLES, PRIMARY_ROLE_LABELS, REGULATORY_DESIGNATIONS, REGULATORY_DESIGNATION_LABELS, type RegulatoryDesignation, demoLeads, dpaRequestSchema, dpaConfirmBodySchema, evaluationOnboardingSubmitSchema, isClientMatterKind, normalizeMatterKind, partyLabelForMatterKind, requiresSealedConsentForProcessing, type InsertCase, adoptFeedbackBodySchema } from "@shared/schema";
+import { scrubInsightComment } from "@shared/productInsights";
 import { CONSENT_DISCLAIMER_TEXT, CONSENT_DISCLAIMER_VERSION } from "@shared/consent";
 import { defaultRecordingTypeForMatterKind, validateRecordingType } from "@shared/recordingTypes";
 import { getAmlRiskDefault } from "./services/practiceAreaConfig";
@@ -3500,6 +3501,95 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       }
       
       res.json(approvedDocument);
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Privacy-safe product insights (Moment A — post-adopt feedback)
+  app.post("/api/product-insights/adopt-feedback", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const parsed = adoptFeedbackBodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Validation error", errors: parsed.error.format() });
+      }
+
+      const { caseId, accuracy, speed, comment, meetingDurationSeconds, dismissed } = parsed.data;
+      const ownedCase = await storage.getCase(caseId, userId);
+      if (!ownedCase) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+
+      const already = await storage.hasAdoptFeedbackForCase(userId, caseId);
+      if (already) {
+        return res.json({ success: true, alreadyRecorded: true });
+      }
+
+      const user = await storage.getUser(userId);
+      await storage.createProductInsight({
+        userId,
+        firmId: user?.firmId ?? ownedCase.firmId ?? null,
+        caseId,
+        eventType: dismissed ? "adopt_feedback_dismissed" : "adopt_feedback",
+        accuracy: dismissed ? null : accuracy ?? null,
+        speed: dismissed ? null : speed ?? null,
+        comment: dismissed ? null : scrubInsightComment(comment),
+        meetingDurationSeconds: meetingDurationSeconds ?? null,
+        metadata: {
+          source: "post_adopt",
+          dismissed: !!dismissed,
+        },
+      });
+
+      res.json({ success: true });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.get("/api/product-insights/adopt-feedback/:caseId", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseId = req.params.caseId;
+      const ownedCase = await storage.getCase(caseId, userId);
+      if (!ownedCase) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+      const recorded = await storage.hasAdoptFeedbackForCase(userId, caseId);
+      res.json({ recorded });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  app.post("/api/product-insights/value-pulse", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const schema = z.object({
+        caseId: z.string().min(1).max(64),
+        kind: z.enum(["adopt", "produce"]),
+        meetingDurationSeconds: z.number().int().min(0).max(60 * 60 * 24).nullable().optional(),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Validation error", errors: parsed.error.format() });
+      }
+      const { caseId, kind, meetingDurationSeconds } = parsed.data;
+      const ownedCase = await storage.getCase(caseId, userId);
+      if (!ownedCase) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+      const user = await storage.getUser(userId);
+      await storage.createProductInsight({
+        userId,
+        firmId: user?.firmId ?? ownedCase.firmId ?? null,
+        caseId,
+        eventType: `value_pulse_${kind}`,
+        meetingDurationSeconds: meetingDurationSeconds ?? null,
+        metadata: { kind },
+      });
+      res.json({ success: true });
     } catch (error: any) {
       next(error);
     }

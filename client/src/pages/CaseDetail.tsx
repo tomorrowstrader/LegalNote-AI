@@ -56,6 +56,10 @@ import { useLocation, useParams, useSearch } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import {
+  buildValuePulseCopy,
+  valuePulseStorageKey,
+} from "@shared/productInsights";
 import { useCaseActions } from "@/hooks/useCaseActions";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
@@ -681,7 +685,41 @@ export default function CaseDetail() {
         (d.status ?? "draft") !== "approved",
     ).length;
 
-    if (pendingCount > 0) {
+    const durationSeconds =
+      meetingSessions.find((s) => s.id === activeSessionId)?.durationSeconds ??
+      meetingSessions.find((s) => s.durationSeconds != null)?.durationSeconds ??
+      null;
+    const pulse = buildValuePulseCopy(durationSeconds, "produce");
+    const pulseKey = caseId ? valuePulseStorageKey(caseId, "produce") : null;
+    let alreadyPulsed = false;
+    try {
+      alreadyPulsed = !!(pulseKey && localStorage.getItem(pulseKey) === "1");
+    } catch {
+      /* ignore */
+    }
+
+    if (pulse && !alreadyPulsed && pulseKey) {
+      try {
+        localStorage.setItem(pulseKey, "1");
+      } catch {
+        /* ignore */
+      }
+      toast({
+        title: pulse.title,
+        description:
+          pendingCount > 0
+            ? `${pulse.description} ${pendingCount} document${pendingCount === 1 ? "" : "s"} ready to adopt.`
+            : pulse.description,
+        duration: 7500,
+      });
+      if (caseId) {
+        void apiRequest("POST", "/api/product-insights/value-pulse", {
+          caseId,
+          kind: "produce",
+          meetingDurationSeconds: durationSeconds,
+        }).catch(() => undefined);
+      }
+    } else if (pendingCount > 0) {
       toast({
         title: `${pendingCount} document${pendingCount === 1 ? "" : "s"} ready to adopt`,
         description: "Review each note below, then adopt when you are satisfied.",
@@ -694,7 +732,7 @@ export default function CaseDetail() {
         duration: 5000,
       });
     }
-  }, [caseData, documents, documentsFetched, documentsFetching, shouldLoadCaseContent, toast]);
+  }, [caseData, documents, documentsFetched, documentsFetching, shouldLoadCaseContent, toast, meetingSessions, activeSessionId, caseId]);
 
   useEffect(() => {
     if (
