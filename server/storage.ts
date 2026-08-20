@@ -101,6 +101,7 @@ import {
   type VerificationResolveDisposition,
   type VerificationWarning,
 } from "@shared/verificationWarnings";
+import { allAdoptionDocsApproved } from "@shared/documentAdoption";
 
 // Enhanced search result with granular match information
 export interface SearchMatch {
@@ -500,6 +501,10 @@ export interface IStorage {
   getCase(id: string, userId: string): Promise<Case | undefined>;
   updateCase(id: string, updates: Partial<Case>, userId: string): Promise<Case | undefined>;
   markCaseAsReviewed(id: string, reviewed: boolean, userId: string): Promise<Case | undefined>;
+  /** When all adoption-gated docs are approved, clear the Dashboard "Review" queue. */
+  syncCaseReviewedIfFullyAdopted(caseId: string, userId: string): Promise<Case | undefined>;
+  /** Repair completed+unreviewed matters that already have all docs adopted. */
+  reconcileFullyAdoptedCases(userId: string): Promise<number>;
   archiveCase(id: string, archived: boolean, userId: string): Promise<Case | undefined>;
   assignCaseToUser(id: string, assignedToUserId: string | null, userId: string): Promise<Case | undefined>;
   
@@ -1161,6 +1166,30 @@ export class MemStorage implements IStorage {
 
   async markCaseAsReviewed(id: string, reviewed: boolean, userId: string): Promise<Case | undefined> {
     return this.updateCase(id, { reviewed }, userId);
+  }
+
+  async syncCaseReviewedIfFullyAdopted(caseId: string, userId: string): Promise<Case | undefined> {
+    const caseRecord = this.cases.get(caseId);
+    if (!caseRecord || caseRecord.createdBy !== userId) return undefined;
+    if (caseRecord.reviewed || caseRecord.archived) return caseRecord;
+
+    const docs = Array.from(this.documents.values()).filter((d) => d.caseId === caseId);
+    if (!allAdoptionDocsApproved(docs)) return caseRecord;
+
+    return this.updateCase(caseId, { reviewed: true }, userId);
+  }
+
+  async reconcileFullyAdoptedCases(userId: string): Promise<number> {
+    let fixed = 0;
+    for (const c of Array.from(this.cases.values())) {
+      if (c.createdBy !== userId || c.archived || c.reviewed) continue;
+      // Only repair the Dashboard "Review" queue (completed + unreviewed)
+      if (c.status !== "completed") continue;
+      const wasReviewed = c.reviewed;
+      const updated = await this.syncCaseReviewedIfFullyAdopted(c.id, userId);
+      if (updated?.reviewed && !wasReviewed) fixed += 1;
+    }
+    return fixed;
   }
 
   async archiveCase(id: string, archived: boolean, userId: string): Promise<Case | undefined> {
@@ -1854,6 +1883,8 @@ export class MemStorage implements IStorage {
         reasoningGapsReviewed: reasoningGapsReviewed ?? false,
       },
     });
+
+    await this.syncCaseReviewedIfFullyAdopted(existing.caseId, userId);
     
     return updated;
   }
@@ -3405,6 +3436,31 @@ export class DbStorage implements IStorage {
     return this.updateCase(id, { reviewed }, userId);
   }
 
+  async syncCaseReviewedIfFullyAdopted(caseId: string, userId: string): Promise<Case | undefined> {
+    const caseRecord = await this.getCase(caseId, userId);
+    if (!caseRecord) return undefined;
+    if (caseRecord.reviewed || caseRecord.archived) return caseRecord;
+
+    const docs = await this.getDocumentsByCase(caseId, userId);
+    if (!allAdoptionDocsApproved(docs)) return caseRecord;
+
+    return this.updateCase(caseId, { reviewed: true }, userId);
+  }
+
+  async reconcileFullyAdoptedCases(userId: string): Promise<number> {
+    const userCases = await this.getCases(userId, true);
+    let fixed = 0;
+    for (const c of userCases) {
+      if (c.archived || c.reviewed) continue;
+      // Only repair the Dashboard "Review" queue (completed + unreviewed)
+      if (c.status !== "completed") continue;
+      const wasReviewed = c.reviewed;
+      const updated = await this.syncCaseReviewedIfFullyAdopted(c.id, userId);
+      if (updated?.reviewed && !wasReviewed) fixed += 1;
+    }
+    return fixed;
+  }
+
   async archiveCase(id: string, archived: boolean, userId: string): Promise<Case | undefined> {
     return this.updateCase(id, { archived }, userId);
   }
@@ -4179,6 +4235,8 @@ export class DbStorage implements IStorage {
         reasoningGapsReviewed: reasoningGapsReviewed ?? false,
       },
     });
+
+    await this.syncCaseReviewedIfFullyAdopted(document[0].caseId, userId);
     
     return result[0];
   }

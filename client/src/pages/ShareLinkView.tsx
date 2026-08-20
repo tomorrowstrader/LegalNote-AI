@@ -20,6 +20,7 @@ import ReactMarkdown from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import { normalizeAttendanceSectionLabels } from "@shared/attendanceNoteFormat";
+import { ShareBrandBar, ShareBrandFooter } from "@/components/ShareBrandChrome";
 
 interface ShareLinkData {
   requiresSmsVerification: boolean;
@@ -325,15 +326,19 @@ export default function ShareLinkView() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="w-full max-w-2xl">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Lock className="h-5 w-5 text-muted-foreground" />
-              <CardTitle>Loading secure document access...</CardTitle>
-            </div>
-          </CardHeader>
-        </Card>
+      <div className="min-h-screen bg-background flex flex-col">
+        <ShareBrandBar />
+        <div className="flex-1 flex items-center justify-center p-4">
+          <Card className="w-full max-w-2xl">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Lock className="h-5 w-5 text-muted-foreground" />
+                <CardTitle>Loading secure document access...</CardTitle>
+              </div>
+            </CardHeader>
+          </Card>
+        </div>
+        <ShareBrandFooter />
       </div>
     );
   }
@@ -344,31 +349,37 @@ export default function ShareLinkView() {
     const isNotFound = errorMessage.includes("not found");
 
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="w-full max-w-2xl">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-destructive" />
-              <CardTitle>
-                {isExpired ? "Link Expired" : isNotFound ? "Link Not Found" : "Access Error"}
-              </CardTitle>
-            </div>
-            <CardDescription>
-              {isExpired
-                ? "This secure document link has expired. Please contact your solicitor for a new link."
-                : isNotFound
-                ? "The document link you're trying to access could not be found."
-                : errorMessage}
-            </CardDescription>
-          </CardHeader>
-        </Card>
+      <div className="min-h-screen bg-background flex flex-col">
+        <ShareBrandBar />
+        <div className="flex-1 flex items-center justify-center p-4">
+          <Card className="w-full max-w-2xl">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-5 w-5 text-destructive" />
+                <CardTitle>
+                  {isExpired ? "Link Expired" : isNotFound ? "Link Not Found" : "Access Error"}
+                </CardTitle>
+              </div>
+              <CardDescription>
+                {isExpired
+                  ? "This secure document link has expired. Please contact your solicitor for a new link."
+                  : isNotFound
+                  ? "The document link you're trying to access could not be found."
+                  : errorMessage}
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        </div>
+        <ShareBrandFooter />
       </div>
     );
   }
 
   if (data?.requiresPassword) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <div className="min-h-screen bg-background flex flex-col">
+        <ShareBrandBar />
+        <div className="flex-1 flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardHeader>
             <div className="flex items-center gap-2">
@@ -424,13 +435,17 @@ export default function ShareLinkView() {
             </Button>
           </CardContent>
         </Card>
+        </div>
+        <ShareBrandFooter />
       </div>
     );
   }
 
   if (data?.requiresSmsVerification) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <div className="min-h-screen bg-background flex flex-col">
+        <ShareBrandBar />
+        <div className="flex-1 flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardHeader>
             <div className="flex items-center gap-2">
@@ -589,6 +604,8 @@ export default function ShareLinkView() {
             </Alert>
           </CardContent>
         </Card>
+        </div>
+        <ShareBrandFooter />
       </div>
     );
   }
@@ -628,8 +645,9 @@ export default function ShareLinkView() {
   const canDownload = shareLink?.accessLevel === "download";
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container max-w-5xl mx-auto py-8 px-4">
+    <div className="min-h-screen bg-background flex flex-col">
+      <ShareBrandBar />
+      <div className="container max-w-5xl mx-auto py-8 px-4 flex-1">
         {/* Header */}
         <Card className="mb-6">
           <CardHeader>
@@ -676,13 +694,13 @@ export default function ShareLinkView() {
         </Card>
 
         {/* Documents Tabs */}
-        <Card className="sticky top-4 flex h-[calc(100dvh-2rem)] flex-col overflow-hidden">
+        <Card className="sticky top-16 flex h-[calc(100dvh-6rem)] flex-col overflow-hidden">
           <CardHeader className="relative z-20 shrink-0 border-b bg-card">
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>Case Documents</CardTitle>
                 <CardDescription>
-                  Review the documents prepared for this matter
+                  Documents prepared for this matter
                 </CardDescription>
               </div>
               {canDownload && (
@@ -782,6 +800,7 @@ export default function ShareLinkView() {
           </CardContent>
         </Card>
       </div>
+      <ShareBrandFooter />
 
       {/* Download Modal */}
       <DownloadModal

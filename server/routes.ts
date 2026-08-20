@@ -2416,6 +2416,8 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       const userId = req.user.claims.sub;
       // Include archived cases so the dashboard can show them in the Archived tab
       const includeArchived = req.query.includeArchived !== 'false';
+      // Repair stuck "Review" matters: fully adopted docs but reviewed still false
+      await storage.reconcileFullyAdoptedCases(userId);
       const cases = await storage.getCases(userId, includeArchived);
       res.json(cases);
     } catch (error: any) {
@@ -4269,8 +4271,9 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         sharedDocuments,
       });
       
-      // Auto-mark case as completed (actioned) when shared with client
-      await storage.updateCase(req.params.id, { status: "completed" }, userId);
+      // Sharing means the fee-earner has finished and actioned the matter —
+      // clear the Dashboard "Review" queue as well as marking completed.
+      await storage.updateCase(req.params.id, { status: "completed", reviewed: true }, userId);
       
       // Get firm profile for email branding
       const firmProfile = await storage.getFirmProfile();
