@@ -669,8 +669,8 @@ html.dark {
     inset 0 1px 0 hsl(210 30% 50% / 0.12);
 }
 
-/* Glass effect for inputs */
-input:not([type="checkbox"]):not([type="radio"]),
+/* Glass effect for inputs (exclude top-nav global search — needs solid white in light mode) */
+input:not([type="checkbox"]):not([type="radio"]):not(.global-search-input),
 textarea,
 select {
   background: hsl(var(--background) / 0.7) !important;
@@ -678,33 +678,36 @@ select {
   -webkit-backdrop-filter: blur(8px);
 }
 
-.dark input:not([type="checkbox"]):not([type="radio"]),
+.dark input:not([type="checkbox"]):not([type="radio"]):not(.global-search-input),
 .dark textarea,
 .dark select {
   background: hsl(var(--background) / 0.5) !important;
 }
 
-/* Top nav global search: pure white + dark text in light mode; dark keeps glass */
-input.global-search-input {
+/* Top nav global search: pure white + dark text in light mode; dark keeps glass.
+   Specificity must beat the glass input rule (two :not() attribute selectors). */
+input.global-search-input:not([type="checkbox"]):not([type="radio"]) {
   background: #ffffff !important;
+  background-color: #ffffff !important;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   color: #000000;
 }
 
-input.global-search-input::placeholder {
+input.global-search-input:not([type="checkbox"]):not([type="radio"])::placeholder {
   color: hsl(0 0% 20%);
   opacity: 1;
 }
 
-.dark input.global-search-input {
+.dark input.global-search-input:not([type="checkbox"]):not([type="radio"]) {
   background: hsl(var(--background) / 0.5) !important;
+  background-color: hsl(var(--background) / 0.5) !important;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   color: hsl(var(--foreground));
 }
 
-.dark input.global-search-input::placeholder {
+.dark input.global-search-input:not([type="checkbox"]):not([type="radio"])::placeholder {
   color: hsl(var(--muted-foreground));
 }
 

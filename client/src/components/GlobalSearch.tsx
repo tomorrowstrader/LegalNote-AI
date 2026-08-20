@@ -469,7 +469,7 @@ export default function GlobalSearch() {
                   e.stopPropagation();
                   setResultsOpen(true);
                 }}
-                className="global-search-input pl-10 border-border text-black placeholder:text-neutral-800 dark:border-white/50 dark:text-foreground dark:placeholder:text-muted-foreground"
+                className="global-search-input pl-10 border-border !bg-white text-black placeholder:text-neutral-800 dark:border-white/50 dark:!bg-[hsl(var(--background)/0.5)] dark:text-foreground dark:placeholder:text-muted-foreground"
                 data-testid="input-global-search"
               />
             </div>
