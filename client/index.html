@@ -10,12 +10,28 @@
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
-    <meta name="theme-color" content="#0f1419">
+    <meta name="theme-color" content="#0b1220" media="(prefers-color-scheme: dark)">
+    <meta name="theme-color" content="#faf7f2" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#faf7f2">
+    <meta name="color-scheme" content="light dark">
     <meta name="application-name" content="LegalNote">
     <meta name="apple-mobile-web-app-title" content="LegalNote">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <script>
+      (function () {
+        try {
+          var theme = localStorage.getItem("theme") === "dark" ? "dark" : "light";
+          var root = document.documentElement;
+          root.classList.toggle("dark", theme === "dark");
+          root.style.colorScheme = theme;
+          var color = theme === "dark" ? "#0b1220" : "#faf7f2";
+          var metas = document.querySelectorAll('meta[name="theme-color"]');
+          for (var i = 0; i < metas.length; i++) metas[i].setAttribute("content", color);
+        } catch (e) {}
+      })();
+    </script>
     <meta property="og:image" content="https://legalnote.ai/legalnote-icon.png">
     <meta name="twitter:card" content="summary">
     <meta name="twitter:image" content="https://legalnote.ai/legalnote-icon.png">

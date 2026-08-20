@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Moon, Sun, Menu, X } from "lucide-react";
 import Logo from "@/components/Logo";
 import { motion, AnimatePresence } from "framer-motion";
+import { applyTheme } from "@/lib/theme";
 
 export function useTheme() {
   const [theme, setTheme] = useState<"light" | "dark">(() => {
@@ -15,8 +16,7 @@ export function useTheme() {
   });
 
   useEffect(() => {
-    document.documentElement.classList.toggle("dark", theme === "dark");
-    localStorage.setItem("theme", theme);
+    applyTheme(theme === "dark" ? "dark" : "light");
   }, [theme]);
 
   const toggleTheme = () => {

@@ -3,12 +3,20 @@
 @tailwind utilities;
 
 /* Smooth scroll behavior for the entire page */
-html, body {
+html, body, #root {
   overflow-x: hidden;
+  min-height: 100%;
+  background-color: hsl(var(--background));
 }
 
 html {
   scroll-behavior: smooth;
+  /* Prevent iOS Safari from painting a white strip behind the status bar */
+  background-color: hsl(var(--background));
+}
+
+body {
+  background-color: hsl(var(--background));
 }
 
 /* iOS PWA / notch + home-indicator safe areas (used with viewport-fit=cover) */
@@ -342,7 +350,6 @@ html {
       hsl(40 33% 98%) 0%,
       hsl(36 28% 95%) 100%
     );
-    background-attachment: fixed;
   }
 
   /* Deep mid navy gradient for dark mode - matches LegalNote branding */
@@ -354,7 +361,6 @@ html {
       hsl(220, 28%, 7%) 70%,
       hsl(220, 25%, 5%) 100%
     );
-    background-attachment: fixed;
   }
 
   /* Premium card styling for light mode */
@@ -581,7 +587,6 @@ body.app-body {
     hsl(40 33% 98%) 0%,
     hsl(36 28% 95%) 100%
   );
-  background-attachment: fixed;
 }
 
 /* Editor text selection colour — brand-consistent, both modes */
@@ -594,9 +599,11 @@ body.app-body {
 
 /* LegalNote navy dark mode background - overrides body gradient for brand consistency */
 .dark body.app-body,
-.dark {
+.dark html,
+html.dark {
   /* ORIGINAL: linear warm charcoal hsl(25, ...) gradient */
-  background: linear-gradient(135deg, hsl(220 35% 6%) 0%, hsl(220 30% 8%) 50%, hsl(220 28% 10%) 100%);
+  background-color: hsl(220 35% 6%);
+  background-image: linear-gradient(135deg, hsl(220 35% 6%) 0%, hsl(220 30% 8%) 50%, hsl(220 28% 10%) 100%);
 }
 
 /* Glass effect for cards */

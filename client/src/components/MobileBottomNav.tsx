@@ -34,6 +34,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useQuery } from "@tanstack/react-query";
+import { applyTheme, getStoredTheme, type AppTheme } from "@/lib/theme";
 
 const firmComplianceDashboardVisible = isFeatureVisible("firmComplianceDashboard");
 
@@ -49,16 +50,12 @@ const moreNavLinks = [
 ] as const;
 
 function useThemeToggle() {
-  const [theme, setTheme] = useState<"light" | "dark">(() => {
-    if (typeof window === "undefined") return "light";
-    return (localStorage.getItem("theme") as "light" | "dark") || "light";
-  });
+  const [theme, setTheme] = useState<AppTheme>(() => getStoredTheme());
 
   const toggle = () => {
     const next = theme === "light" ? "dark" : "light";
     setTheme(next);
-    localStorage.setItem("theme", next);
-    document.documentElement.classList.toggle("dark", next === "dark");
+    applyTheme(next);
   };
 
   return { theme, toggle };

@@ -848,7 +848,8 @@ function scrollToGapCitation(citation: string, section?: string, gapIndex?: numb
   }
 }
 
-function findScrollableAncestor(el: HTMLElement): HTMLElement | null {
+function findScrollableAncestors(el: HTMLElement): HTMLElement[] {
+  const ancestors: HTMLElement[] = [];
   let node: HTMLElement | null = el.parentElement;
   while (node && node !== document.body) {
     const style = window.getComputedStyle(node);
@@ -856,25 +857,33 @@ function findScrollableAncestor(el: HTMLElement): HTMLElement | null {
     const canScroll =
       (overflowY === "auto" || overflowY === "scroll" || overflowY === "overlay") &&
       node.scrollHeight > node.clientHeight + 4;
-    if (canScroll) return node;
+    if (canScroll) ancestors.push(node);
     node = node.parentElement;
   }
-  return null;
+  return ancestors;
+}
+
+function scrollElementIntoViewCentered(scrollParent: HTMLElement, target: HTMLElement) {
+  const parentRect = scrollParent.getBoundingClientRect();
+  const targetRect = target.getBoundingClientRect();
+  // Keep sticky docs chrome / mobile section menu from covering the highlight
+  const stickyOffset = Math.min(140, Math.max(64, parentRect.height * 0.18));
+  const nextTop =
+    scrollParent.scrollTop +
+    (targetRect.top - parentRect.top) -
+    stickyOffset -
+    Math.min(targetRect.height, parentRect.height * 0.25);
+  scrollParent.scrollTo({ top: Math.max(0, nextTop), behavior: "smooth" });
 }
 
 function highlightAndScrollToElement(target: HTMLElement) {
-  // Use the nearest actually-scrollable ancestor. Page View has its own
-  // overflow-y-auto container nested inside <main>, so hardcoding <main> misses.
-  const scrollParent = findScrollableAncestor(target);
-  if (scrollParent && scrollParent !== document.body) {
-    const parentRect = scrollParent.getBoundingClientRect();
-    const targetRect = target.getBoundingClientRect();
-    const nextTop =
-      scrollParent.scrollTop +
-      (targetRect.top - parentRect.top) -
-      parentRect.height / 2 +
-      targetRect.height / 2;
-    scrollParent.scrollTo({ top: Math.max(0, nextTop), behavior: "smooth" });
+  // Scroll every overflow ancestor (Page View + <main>) so mobile layouts where the
+  // gap panel sits below the note still bring the citation into the visible viewport.
+  const ancestors = findScrollableAncestors(target);
+  if (ancestors.length > 0) {
+    for (const parent of ancestors) {
+      scrollElementIntoViewCentered(parent, target);
+    }
   } else {
     target.scrollIntoView({ behavior: "smooth", block: "center" });
   }
@@ -2841,7 +2850,15 @@ export default function DocumentViewer({
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => setShowGapPanel(prev => prev === document.id ? null : document.id)}
+                  onClick={() => {
+                    const opening = showGapPanel !== document.id;
+                    setShowGapPanel(opening ? document.id : null);
+                    if (opening && docGaps[0]) {
+                      // Wait for panel layout (mobile stacks above the note) then jump to advice
+                      window.setTimeout(() => scrollToReasoningGap(docGaps[0], 0), 120);
+                      window.setTimeout(() => scrollToReasoningGap(docGaps[0], 0), 320);
+                    }
+                  }}
                   className={cn(
                     "gap-1.5 border-amber-500/70 bg-amber-50 text-amber-800 shadow-sm",
                     "hover:bg-amber-100 hover:text-amber-900",
@@ -2855,7 +2872,7 @@ export default function DocumentViewer({
                   {gapCount} reasoning gap{gapCount !== 1 ? 's' : ''}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Open the reasoning gaps panel to review and fill each gap</TooltipContent>
+              <TooltipContent>Open the reasoning gaps panel and jump to the related advice in the note</TooltipContent>
             </Tooltip>
           )}
           {isApproved ? (
@@ -3556,7 +3573,7 @@ export default function DocumentViewer({
               />
             </div>
           )}
-          <div className={`flex gap-4 items-start min-w-0 max-w-full ${showComments || (attendanceNote && showGapPanel === attendanceNote.id) ? 'flex-col lg:flex-row' : ''}`}>
+          <div className={`flex gap-4 items-start min-w-0 max-w-full ${showComments || (attendanceNote && showGapPanel === attendanceNote.id) ? 'flex-col-reverse lg:flex-row' : ''}`}>
             <Card className={cn(
               showComments || (attendanceNote && showGapPanel === attendanceNote.id) ? 'flex-1' : 'w-full',
               'min-w-0 max-w-full overflow-x-clip overscroll-x-none touch-pan-y',
@@ -3788,7 +3805,7 @@ export default function DocumentViewer({
               />
             </div>
           )}
-          <div className={`flex gap-4 items-start min-w-0 max-w-full ${showComments || (summary && showGapPanel === summary.id) ? 'flex-col lg:flex-row' : ''}`}>
+          <div className={`flex gap-4 items-start min-w-0 max-w-full ${showComments || (summary && showGapPanel === summary.id) ? 'flex-col-reverse lg:flex-row' : ''}`}>
             <Card className={cn(
               showComments || (summary && showGapPanel === summary.id) ? 'flex-1' : 'w-full',
               'min-w-0 max-w-full overflow-x-clip',

@@ -168,7 +168,6 @@ export async function sendCaseEmail(params: SendCaseEmailParams): Promise<{ succ
     ? escapeHtml(systemMessage).replace(/\n/g, '<br>')
     : '';
   const safeFirmName = firmProfile?.firmName ? escapeHtml(firmProfile.firmName) : '';
-  const logoSrc = firmProfile?.logoUrl?.trim() || '';
 
   // YouSign-inspired layout: light/black split, firm branding only, white overlay card, black CTA
   const emailHtml = `
@@ -185,12 +184,9 @@ export async function sendCaseEmail(params: SendCaseEmailParams): Promise<{ succ
           <td align="center" style="padding:0;">
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;margin:0 auto;">
               ${legalNoteBrandHeaderTableRow()}
-              <!-- Light top band with firm branding only (no client / matter data) -->
+              <!-- Light top band with firm name only (logo omitted — often broken / clipped in clients) -->
               <tr>
                 <td align="center" style="background-color:#f3f3f3;padding:40px 24px 56px;">
-                  ${logoSrc ? `
-                    <img src="${escapeHtml(logoSrc)}" alt="${safeFirmName || 'Firm'}" width="56" height="56" style="display:block;width:56px;height:56px;border-radius:50%;object-fit:cover;margin:0 auto 16px;" />
-                  ` : ''}
                   ${safeFirmName ? `
                     <h1 style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:400;line-height:1.3;color:#1a1a1a;text-align:center;">
                       ${safeFirmName}

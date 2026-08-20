@@ -32,7 +32,7 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
+>(({ className, children, onPointerDownOutside, onInteractOutside, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
@@ -42,7 +42,7 @@ const DialogContent = React.forwardRef<
         // Mobile: inset bottom sheet — rounded, not edge-to-edge blocky
         "left-1/2 w-[calc(100%-1.5rem)] max-w-lg -translate-x-1/2",
         "bottom-[max(0.75rem,env(safe-area-inset-bottom,0px))] top-auto translate-y-0 rounded-2xl",
-        "max-h-[min(85dvh,calc(100dvh-5.5rem))] overflow-y-auto",
+        "max-h-[min(85dvh,calc(100dvh-5.5rem))] overflow-x-hidden overflow-y-auto",
         "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
         "data-[state=closed]:slide-out-to-bottom-4 data-[state=open]:slide-in-from-bottom-4",
         // Desktop: centered modal
@@ -52,6 +52,21 @@ const DialogContent = React.forwardRef<
         "sm:data-[state=open]:slide-in-from-left-1/2 sm:data-[state=open]:slide-in-from-top-[48%]",
         className
       )}
+      // Keep portalled Select menus interactive while this dialog is open
+      onPointerDownOutside={(event) => {
+        const target = event.target as HTMLElement | null;
+        if (target?.closest("[data-radix-select-content]")) {
+          event.preventDefault();
+        }
+        onPointerDownOutside?.(event);
+      }}
+      onInteractOutside={(event) => {
+        const target = event.target as HTMLElement | null;
+        if (target?.closest("[data-radix-select-content]")) {
+          event.preventDefault();
+        }
+        onInteractOutside?.(event);
+      }}
       {...props}
     >
       {children}

@@ -578,7 +578,7 @@ export default function ShareLinkModal({
                 <SelectTrigger id="expiration" data-testid="select-expiration">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent position="popper" className="z-[80]">
                   <SelectItem value="24hours">24 Hours</SelectItem>
                   <SelectItem value="7days">7 Days</SelectItem>
                   <SelectItem value="30days">30 Days</SelectItem>
@@ -593,7 +593,7 @@ export default function ShareLinkModal({
                 <SelectTrigger id="access" data-testid="select-access">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent position="popper" className="z-[80]">
                   <SelectItem value="view">View Only</SelectItem>
                   <SelectItem value="download">View + Download</SelectItem>
                 </SelectContent>

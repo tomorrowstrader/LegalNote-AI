@@ -19,6 +19,7 @@ import { EarlyAccessForm } from "@/components/EarlyAccessForm";
 import { useToast } from "@/hooks/use-toast";
 import { WorkflowInfographic } from "@/components/WorkflowInfographic";
 import { ExploreModal, useExploreModal } from "@/components/ExploreModal";
+import { applyTheme } from "@/lib/theme";
 import heroSolicitorImage from "@assets/openart-subject-female-professional-early-40s-british-exotic-l_1769257060192.jpg";
 import heroSolicitorImageWide from "@assets/Female_Solicitor_(Widescreen)_1769259641561.png";
 
@@ -32,14 +33,13 @@ function useTheme() {
     const savedTheme = localStorage.getItem("theme") as "light" | "dark" | null;
     const initialTheme = savedTheme || "light";
     setTheme(initialTheme);
-    document.documentElement.classList.toggle("dark", initialTheme === "dark");
+    applyTheme(initialTheme);
   }, []);
 
   const toggleTheme = () => {
     const newTheme = theme === "light" ? "dark" : "light";
     setTheme(newTheme);
-    localStorage.setItem("theme", newTheme);
-    document.documentElement.classList.toggle("dark", newTheme === "dark");
+    applyTheme(newTheme);
   };
 
   return { theme, toggleTheme };
