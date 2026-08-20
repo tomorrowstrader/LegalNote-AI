@@ -15,7 +15,6 @@ import { apiRequest, getApiErrorMessage } from "@/lib/queryClient";
 import { exportToPDF, exportToWord } from "@/lib/documentExport";
 import type { FirmProfile } from "@shared/schema";
 import DownloadModal from "@/components/DownloadModal";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import ReactMarkdown from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
@@ -69,19 +68,18 @@ function SharedDocumentContent({
   const displayContent = attendance
     ? normalizeAttendanceSectionLabels(content)
     : content;
+  // Page-level scroll only — avoid nested ScrollArea (double scrollbar).
   return (
-    <ScrollArea type="always" className="h-full pr-3">
-      <div
-        className={`prose prose-sm sm:prose-base dark:prose-invert max-w-none pb-8 ${
-          transcript ? "font-mono text-xs sm:text-sm" : ""
-        }`}
-        data-testid={testId}
-      >
-        <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
-          {displayContent}
-        </ReactMarkdown>
-      </div>
-    </ScrollArea>
+    <div
+      className={`prose prose-sm sm:prose-base dark:prose-invert max-w-none pb-2 ${
+        transcript ? "font-mono text-xs sm:text-sm" : ""
+      }`}
+      data-testid={testId}
+    >
+      <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
+        {displayContent}
+      </ReactMarkdown>
+    </div>
   );
 }
 
@@ -693,10 +691,10 @@ export default function ShareLinkView() {
           </CardContent>
         </Card>
 
-        {/* Documents Tabs */}
-        <Card className="sticky top-16 flex h-[calc(100dvh-6rem)] flex-col overflow-hidden">
+        {/* Documents — natural page scroll (single scrollbar) */}
+        <Card className="overflow-hidden">
           <CardHeader className="relative z-20 shrink-0 border-b bg-card">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
               <div>
                 <CardTitle>Case Documents</CardTitle>
                 <CardDescription>
@@ -716,14 +714,14 @@ export default function ShareLinkView() {
               )}
             </div>
           </CardHeader>
-          <CardContent className="min-h-0 flex-1 overflow-hidden p-4 sm:p-6">
+          <CardContent className="p-4 sm:p-6">
             <Tabs defaultValue={
               showCareLetter && !attendanceNote && !summary ? "care-letter" :
               attendanceNote ? "attendance" : 
               summary ? "summary" : 
               showCareLetter ? "care-letter" :
               "transcript"
-            } className="flex h-full min-h-0 flex-col">
+            } className="w-full">
               <TabsList className="grid w-full shrink-0 grid-flow-col auto-cols-fr gap-1">
                 {attendanceNote && (
                   <TabsTrigger 
@@ -760,7 +758,7 @@ export default function ShareLinkView() {
               </TabsList>
 
               {attendanceNote && (
-                <TabsContent value="attendance" className="mt-4 min-h-0 flex-1 overflow-hidden">
+                <TabsContent value="attendance" className="mt-4">
                   <SharedDocumentContent
                     content={attendanceNote.content}
                     testId="content-attendance-note"
@@ -770,7 +768,7 @@ export default function ShareLinkView() {
               )}
 
               {summary && (
-                <TabsContent value="summary" className="mt-4 min-h-0 flex-1 overflow-hidden">
+                <TabsContent value="summary" className="mt-4">
                   <SharedDocumentContent
                     content={summary.content}
                     testId="content-summary"
@@ -779,7 +777,7 @@ export default function ShareLinkView() {
               )}
 
               {showCareLetter && careLetter && (
-                <TabsContent value="care-letter" className="mt-4 min-h-0 flex-1 overflow-hidden">
+                <TabsContent value="care-letter" className="mt-4">
                   <SharedDocumentContent
                     content={careLetter.content}
                     testId="content-care-letter"
@@ -788,7 +786,7 @@ export default function ShareLinkView() {
               )}
 
               {transcript && (
-                <TabsContent value="transcript" className="mt-4 min-h-0 flex-1 overflow-hidden">
+                <TabsContent value="transcript" className="mt-4">
                   <SharedDocumentContent
                     content={transcript.content}
                     testId="content-transcript"

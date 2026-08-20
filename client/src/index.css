@@ -684,18 +684,28 @@ select {
   background: hsl(var(--background) / 0.5) !important;
 }
 
-/* Top nav global search: solid dashboard fill in light mode; dark keeps glass */
+/* Top nav global search: pure white + dark text in light mode; dark keeps glass */
 input.global-search-input {
-  background: hsl(var(--background)) !important;
+  background: #ffffff !important;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
-  color: hsl(var(--foreground));
+  color: #000000;
+}
+
+input.global-search-input::placeholder {
+  color: hsl(0 0% 20%);
+  opacity: 1;
 }
 
 .dark input.global-search-input {
   background: hsl(var(--background) / 0.5) !important;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+  color: hsl(var(--foreground));
+}
+
+.dark input.global-search-input::placeholder {
+  color: hsl(var(--muted-foreground));
 }
 
 /* Glass effect for badges and pills */
