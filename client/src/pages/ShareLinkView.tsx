@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -611,7 +611,25 @@ export default function ShareLinkView() {
   }
 
   if (!data?.caseData) {
-    return null;
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <ShareBrandBar />
+        <div className="flex-1 flex items-center justify-center p-4">
+          <Card className="w-full max-w-2xl">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-5 w-5 text-destructive" />
+                <CardTitle>Unable to load documents</CardTitle>
+              </div>
+              <CardDescription>
+                Verification succeeded, but the shared documents could not be loaded. Please try the link again or contact your solicitor.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        </div>
+        <ShareBrandFooter />
+      </div>
+    );
   }
 
   const { caseData, documents, transcript, shareLink } = data;
@@ -668,13 +686,8 @@ export default function ShareLinkView() {
             ? "care-letter"
             : "transcript";
 
-  useEffect(() => {
-    if (attendanceNote || summary || showCareLetter || transcript) {
-      setActiveDocTab(defaultTab);
-    }
-    // Only sync when the unlocked document set first becomes available
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [!!attendanceNote, !!summary, showCareLetter, !!transcript]);
+  // Do not put hooks here — early returns above would change hook order after SMS unlock
+  // and white-screen the page. Tabs already fall back via value={... ? activeDocTab : defaultTab}.
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
