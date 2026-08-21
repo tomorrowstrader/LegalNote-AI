@@ -36,6 +36,8 @@ export interface IncompleteVideoImport {
 
 /** Persist dismissals so the recovery prompt does not reappear every login for the same import+status. */
 const DISMISS_PREFIX = "ln-video-bot-recovery-dismissed:";
+/** Snapshot of imports that triggered the prompt — used if the modal query has not loaded yet when dismissing. */
+const PENDING_SNAPSHOT_KEY = "ln-video-bot-recovery-pending-snapshot";
 
 function dismissKey(importId: string, status: string): string {
   return `${DISMISS_PREFIX}${importId}:${status}`;
@@ -67,6 +69,62 @@ function markImportsDismissed(imports: Pick<IncompleteVideoImport, "importId" | 
 
 function filterUndismissed(imports: IncompleteVideoImport[]): IncompleteVideoImport[] {
   return imports.filter((i) => !isVideoBotRecoveryDismissed(i.importId, i.status));
+}
+
+function savePendingSnapshot(imports: Pick<IncompleteVideoImport, "importId" | "status">[]): void {
+  try {
+    sessionStorage.setItem(PENDING_SNAPSHOT_KEY, JSON.stringify(imports));
+  } catch {
+    /* ignore */
+  }
+}
+
+function readPendingSnapshot(): Pick<IncompleteVideoImport, "importId" | "status">[] {
+  try {
+    const raw = sessionStorage.getItem(PENDING_SNAPSHOT_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (row): row is Pick<IncompleteVideoImport, "importId" | "status"> =>
+        !!row && typeof row.importId === "string" && typeof row.status === "string",
+    );
+  } catch {
+    return [];
+  }
+}
+
+function clearPendingSnapshot(): void {
+  try {
+    sessionStorage.removeItem(PENDING_SNAPSHOT_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Resolve which imports to acknowledge. Prefer an explicit list, then currently
+ * visible rows, then the pre-open snapshot / a fresh fetch — so Dismiss never
+ * no-ops while the modal query is still loading (which caused the prompt to
+ * return on every subsequent login).
+ */
+async function resolveImportsToDismiss(
+  preferred: Pick<IncompleteVideoImport, "importId" | "status">[],
+): Promise<Pick<IncompleteVideoImport, "importId" | "status">[]> {
+  if (preferred.length > 0) return preferred;
+
+  const snapshot = readPendingSnapshot();
+  if (snapshot.length > 0) return snapshot;
+
+  try {
+    const response = await fetch("/api/recall/imports/incomplete", { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : []))
+      .catch(() => []);
+    const list = Array.isArray(response) ? (response as IncompleteVideoImport[]) : [];
+    return filterUndismissed(list);
+  } catch {
+    return [];
+  }
 }
 
 interface VideoBotRecoveryModalProps {
@@ -114,8 +172,10 @@ export function VideoBotRecoveryModal({ open, onOpenChange }: VideoBotRecoveryMo
   );
 
   const acknowledgeAndClose = useCallback(
-    (importsToDismiss: Pick<IncompleteVideoImport, "importId" | "status">[] = visibleImports) => {
-      markImportsDismissed(importsToDismiss);
+    async (importsToDismiss?: Pick<IncompleteVideoImport, "importId" | "status">[]) => {
+      const toDismiss = await resolveImportsToDismiss(importsToDismiss ?? visibleImports);
+      markImportsDismissed(toDismiss);
+      clearPendingSnapshot();
       onOpenChange(false);
     },
     [onOpenChange, visibleImports],
@@ -124,8 +184,12 @@ export function VideoBotRecoveryModal({ open, onOpenChange }: VideoBotRecoveryMo
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
       if (!nextOpen) {
-        // X / escape / overlay — treat as acknowledged so it does not return next login
-        markImportsDismissed(visibleImports);
+        // X / escape / overlay — treat as acknowledged (async resolve if list not loaded yet)
+        void (async () => {
+          const toDismiss = await resolveImportsToDismiss(visibleImports);
+          markImportsDismissed(toDismiss);
+          clearPendingSnapshot();
+        })();
       }
       onOpenChange(nextOpen);
     },
@@ -134,9 +198,17 @@ export function VideoBotRecoveryModal({ open, onOpenChange }: VideoBotRecoveryMo
 
   useEffect(() => {
     if (open && !isLoading && visibleImports.length === 0) {
+      clearPendingSnapshot();
       onOpenChange(false);
     }
   }, [open, isLoading, visibleImports.length, onOpenChange]);
+
+  // Keep snapshot fresh once the modal query returns (covers status changes).
+  useEffect(() => {
+    if (open && visibleImports.length > 0) {
+      savePendingSnapshot(visibleImports);
+    }
+  }, [open, visibleImports]);
 
   const processMutation = useMutation({
     mutationFn: async (importId: string) =>
@@ -344,6 +416,7 @@ export function useVideoBotRecovery(enabled: boolean = true) {
         const pending = filterUndismissed(list.filter((i) => i.importId !== activeId));
 
         if (pending.length > 0) {
+          savePendingSnapshot(pending);
           setShowVideoBotRecovery(true);
         }
         setHasChecked(true);

@@ -88,6 +88,7 @@ export function LiveBotSessionIndicator() {
   const [processingStep, setProcessingStep] = useState<ProcessingStep>("saving");
   const [didToastEnd, setDidToastEnd] = useState(false);
   const flushedRef = useRef<string | null>(null);
+  const autoMinimizedRef = useRef<string | null>(null);
 
   const notesActive =
     !!session &&
@@ -135,6 +136,31 @@ export function LiveBotSessionIndicator() {
       phase === "complete" ||
       phase === "awaiting_assignment" ||
       phase === "error");
+
+  // Auto-minimize the blocking "Call ended" overlay so users can keep working;
+  // production often takes 1–2+ minutes. Status pill remains bottom-right.
+  useEffect(() => {
+    if (!session) return;
+    if (!(phase === "ended" || phase === "processing")) return;
+    if (!panelOpen) return;
+    if (autoMinimizedRef.current === session.importId) return;
+
+    const timer = window.setTimeout(() => {
+      autoMinimizedRef.current = session.importId;
+      setPanelOpen(false);
+      toast({
+        title: "Producing in the background",
+        description: "Use the status pill bottom-right to check progress anytime.",
+        duration: 5000,
+      });
+    }, 20_000);
+
+    return () => window.clearTimeout(timer);
+  }, [session, phase, panelOpen, setPanelOpen, toast]);
+
+  useEffect(() => {
+    if (!session) autoMinimizedRef.current = null;
+  }, [session?.importId]);
 
   // Flush solicitor notes into the matter Notes section when the call ends
   useEffect(() => {
@@ -488,14 +514,19 @@ export function LiveBotSessionIndicator() {
           )}
 
           {(phase === "ended" || phase === "processing") && (
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={() => setPanelOpen(false)}
-              data-testid="button-live-bot-minimize-progress"
-            >
-              Continue in background
-            </Button>
+            <div className="space-y-2 pt-1">
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => setPanelOpen(false)}
+                data-testid="button-live-bot-minimize-progress"
+              >
+                Continue in background
+              </Button>
+              <p className="text-center text-xs text-muted-foreground px-1">
+                This usually takes a couple of minutes. The dialog closes automatically so you can keep working — watch the status pill bottom-right.
+              </p>
+            </div>
           )}
         </DialogContent>
       </Dialog>

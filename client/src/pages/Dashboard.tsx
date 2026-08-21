@@ -580,6 +580,53 @@ export default function Dashboard() {
           </div>
         )}
 
+        {/* Unassigned Recordings — above Case Files so assignment isn't buried */}
+        {unassignedImports && unassignedImports.length > 0 && (
+          <div className="mb-6 border border-amber-500/30 bg-amber-500/5 rounded-lg overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-amber-500/20">
+              <Video className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+              <p className="text-sm font-semibold text-amber-700 dark:text-amber-300">
+                {unassignedImports.length} recording{unassignedImports.length !== 1 ? 's' : ''} awaiting assignment
+              </p>
+            </div>
+            <div className="divide-y divide-amber-500/10">
+              {unassignedImports.map((imp) => (
+                <div key={imp.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3" data-testid={`row-unassigned-import-${imp.id}`}>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">{imp.meetingTitle || "Untitled meeting"}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {imp.meetingStartTime ? format(new Date(imp.meetingStartTime), "d MMM yyyy, HH:mm") : format(new Date(imp.createdAt), "d MMM yyyy, HH:mm")}
+                      {imp.durationSeconds ? ` · ${Math.round(imp.durationSeconds / 60)} min` : ""}
+                      {" · "}{imp.meetingPlatform ? imp.meetingPlatform.charAt(0).toUpperCase() + imp.meetingPlatform.slice(1) : "Video call"}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5"
+                      onClick={() => { setAssignImport(imp); setAssignCaseId(""); setAssignRecordingType("full_meeting"); }}
+                      data-testid={`button-assign-import-${imp.id}`}
+                    >
+                      <FolderPlus className="w-3.5 h-3.5" />
+                      Assign to matter
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      onClick={() => { setDiscardTarget(imp); setDiscardConfirmed(false); }}
+                      disabled={discardMutation.isPending}
+                      data-testid={`button-discard-import-${imp.id}`}
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-muted-foreground" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="bg-card border border-border rounded-lg overflow-hidden mb-6">
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as StatusTab)} className="w-full">
             {/* Sticky Header with Title, Tabs, Search */}
@@ -767,53 +814,6 @@ export default function Dashboard() {
             </div>
           </Tabs>
         </div>
-
-        {/* Unassigned Recordings Panel */}
-        {unassignedImports && unassignedImports.length > 0 && (
-          <div className="mb-6 border border-amber-500/30 bg-amber-500/5 rounded-lg overflow-hidden">
-            <div className="flex items-center gap-2 px-4 py-3 border-b border-amber-500/20">
-              <Video className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-              <p className="text-sm font-semibold text-amber-700 dark:text-amber-300">
-                {unassignedImports.length} recording{unassignedImports.length !== 1 ? 's' : ''} awaiting assignment
-              </p>
-            </div>
-            <div className="divide-y divide-amber-500/10">
-              {unassignedImports.map((imp) => (
-                <div key={imp.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3" data-testid={`row-unassigned-import-${imp.id}`}>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{imp.meetingTitle || "Untitled meeting"}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {imp.meetingStartTime ? format(new Date(imp.meetingStartTime), "d MMM yyyy, HH:mm") : format(new Date(imp.createdAt), "d MMM yyyy, HH:mm")}
-                      {imp.durationSeconds ? ` · ${Math.round(imp.durationSeconds / 60)} min` : ""}
-                      {" · "}{imp.meetingPlatform ? imp.meetingPlatform.charAt(0).toUpperCase() + imp.meetingPlatform.slice(1) : "Video call"}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="gap-1.5"
-                      onClick={() => { setAssignImport(imp); setAssignCaseId(""); setAssignRecordingType("full_meeting"); }}
-                      data-testid={`button-assign-import-${imp.id}`}
-                    >
-                      <FolderPlus className="w-3.5 h-3.5" />
-                      Assign to matter
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="outline"
-                      onClick={() => { setDiscardTarget(imp); setDiscardConfirmed(false); }}
-                      disabled={discardMutation.isPending}
-                      data-testid={`button-discard-import-${imp.id}`}
-                    >
-                      <Trash2 className="w-3.5 h-3.5 text-muted-foreground" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* Upcoming Meetings Section */}
         <div className="mb-6">
