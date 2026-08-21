@@ -4,7 +4,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -361,7 +360,7 @@ export default function IntegrationsOnboarding() {
       }}
     >
       <DialogContent
-        className="sm:max-w-lg gap-5 p-6 sm:p-8"
+        className="max-w-lg gap-5 overflow-x-visible p-6 pb-7 sm:max-w-xl sm:p-8 sm:pb-8"
         data-testid="dialog-integrations-onboarding"
         onInteractOutside={(e) => e.preventDefault()}
       >
@@ -398,7 +397,7 @@ export default function IntegrationsOnboarding() {
           <Progress value={progressValue} className="h-1.5" />
         </div>
 
-        <div className="min-h-[160px] py-1">
+        <div className="min-h-0 py-1">
           {step === "welcome" && (
             <ul className="space-y-3.5 text-sm text-muted-foreground">
               <li className="flex gap-3">
@@ -620,16 +619,17 @@ export default function IntegrationsOnboarding() {
           )}
         </div>
 
-        <DialogFooter className="flex-col gap-3 border-t border-border/60 pt-5 sm:flex-row sm:justify-between sm:space-x-0">
+        {/* Plain footer — avoid DialogFooter's space-x + justify-between overflow clip */}
+        <div className="flex w-full min-w-0 flex-col gap-3 border-t border-border/60 pt-5 sm:flex-row sm:items-center sm:justify-between">
           <Button
             variant="ghost"
-            className="-ml-2 sm:ml-0"
+            className="justify-start px-3 text-muted-foreground hover:text-foreground"
             onClick={handleRemindLater}
             data-testid="button-onboarding-remind-later"
           >
             Remind me later
           </Button>
-          <div className="flex gap-2.5">
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2.5">
             {stepIndex > 0 && step !== "done" && (
               <Button variant="outline" onClick={goBack} data-testid="button-onboarding-back">
                 Back
@@ -656,7 +656,7 @@ export default function IntegrationsOnboarding() {
               </Button>
             )}
           </div>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );
