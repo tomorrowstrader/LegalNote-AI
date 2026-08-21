@@ -686,8 +686,9 @@ export default function CaseDetail() {
         (d.status ?? "draft") !== "approved",
     ).length;
 
+    const sessionIdForPulse = focusSessionId || urlSessionId;
     const durationSeconds =
-      meetingSessions.find((s) => s.id === activeSessionId)?.durationSeconds ??
+      meetingSessions.find((s) => s.id === sessionIdForPulse)?.durationSeconds ??
       meetingSessions.find((s) => s.durationSeconds != null)?.durationSeconds ??
       null;
     const pulse = buildValuePulseCopy(durationSeconds, "produce");
@@ -733,7 +734,7 @@ export default function CaseDetail() {
         duration: 5000,
       });
     }
-  }, [caseData, documents, documentsFetched, documentsFetching, shouldLoadCaseContent, toast, meetingSessions, activeSessionId, caseId]);
+  }, [caseData, documents, documentsFetched, documentsFetching, shouldLoadCaseContent, toast, meetingSessions, focusSessionId, urlSessionId, caseId]);
 
   useEffect(() => {
     if (

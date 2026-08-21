@@ -5,7 +5,8 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function toTitleCase(str: string): string {
+export function toTitleCase(str: string | null | undefined): string {
+  if (!str) return "";
   return str
     .replace(/_/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());

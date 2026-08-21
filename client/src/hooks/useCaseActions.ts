@@ -93,11 +93,18 @@ export function useBulkCaseActions({ onSuccess }: UseBulkCaseActionsOptions = {}
       const results = await Promise.allSettled(
         caseIds.map((id) => apiRequest('POST', `/api/cases/${id}/archive`, { archived }))
       );
-      const failed = results.filter((r) => r.status === "rejected").length;
+      const failedResults = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
+      const failed = failedResults.length;
       const succeeded = results.length - failed;
-      return { succeeded, failed, archived };
+      const firstError =
+        failedResults[0]?.reason instanceof Error
+          ? failedResults[0].reason.message
+          : failedResults[0]
+            ? String(failedResults[0].reason)
+            : null;
+      return { succeeded, failed, archived, firstError };
     },
-    onSuccess: ({ succeeded, failed, archived }) => {
+    onSuccess: ({ succeeded, failed, archived, firstError }) => {
       queryClient.invalidateQueries({ queryKey: ['/api/cases'] });
       const action = archived ? "archived" : "restored";
       if (failed === 0) {
@@ -108,7 +115,9 @@ export function useBulkCaseActions({ onSuccess }: UseBulkCaseActionsOptions = {}
       } else {
         toast({
           title: "Partial success",
-          description: `${succeeded} ${action}, ${failed} failed`,
+          description: firstError
+            ? `${succeeded} ${action}, ${failed} failed — ${firstError}`
+            : `${succeeded} ${action}, ${failed} failed`,
           variant: "destructive",
         });
       }
