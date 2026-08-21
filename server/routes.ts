@@ -25,7 +25,9 @@ function buildCalendarOAuthReturnUrl(
   params: Record<string, string>,
 ): string {
   if (popup) {
-    const search = new URLSearchParams(params);
+    // Always include popup=1 so the client can detect popup mode even when
+    // Microsoft COOP has nullified window.opener after the login redirect.
+    const search = new URLSearchParams({ ...params, popup: '1' });
     return `/oauth/callback?${search.toString()}`;
   }
   const search = new URLSearchParams({ tab: 'integrations', ...params });

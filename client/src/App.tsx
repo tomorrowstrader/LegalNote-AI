@@ -73,6 +73,7 @@ import DemoGenerator from "@/pages/DemoGenerator";
 import MeetingNotesPopout from "@/pages/MeetingNotesPopout";
 import { isFeatureVisible } from "@/lib/features";
 import { isMeetingNotesPopoutRoute } from "@/lib/meetingNotesPopout";
+import { isCalendarOAuthPopupWindow } from "@/lib/calendarOAuthBridge";
 
 const firmComplianceDashboardVisible = isFeatureVisible("firmComplianceDashboard");
 const publicComplianceBadgeVisible = isFeatureVisible("publicComplianceBadge");
@@ -201,8 +202,48 @@ function AuthenticatedAppContent() {
 
   const isPublicDemoRoute = location.startsWith("/demo/");
   const isNotesPopout = isMeetingNotesPopoutRoute(location);
-  const hideAppChrome = isPublicDemoRoute || isNotesPopout || isFocusMode;
+  const isOAuthPopup = isCalendarOAuthPopupWindow();
+  const hideAppChrome = isPublicDemoRoute || isNotesPopout || isFocusMode || isOAuthPopup;
   const recoveryBlocking = showRecoveryModal || showVideoBotRecovery;
+
+  // Stray OAuth popup that landed on a full app route (e.g. Settings after
+  // opener was severed) — close it so onboarding cannot run in the wrong window.
+  useEffect(() => {
+    if (!isOAuthPopup) return;
+    if (location.startsWith("/oauth/callback")) return;
+    try {
+      window.close();
+    } catch {
+      /* ignore */
+    }
+  }, [isOAuthPopup, location]);
+
+  // If the browser blocked window.close(), show a minimal shell instead of the full app.
+  if (isOAuthPopup && !location.startsWith("/oauth/callback")) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-8">
+        <div className="mx-auto max-w-sm space-y-4 px-2 text-center">
+          <h1 className="text-xl font-semibold tracking-tight">You can close this window</h1>
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            Calendar connection finished in the background. Return to your original LegalNote tab to continue setup.
+          </p>
+          <button
+            type="button"
+            className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-6 text-sm font-medium text-primary-foreground"
+            onClick={() => {
+              try {
+                window.close();
+              } catch {
+                /* ignore */
+              }
+            }}
+          >
+            Close window
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

@@ -2266,7 +2266,7 @@ export default function Settings() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="max-w-5xl mx-auto px-6 lg:px-8 py-8">
+      <div className="max-w-5xl mx-auto px-6 sm:px-8 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-semibold text-foreground">Firm Settings</h1>
           <p className="text-sm text-muted-foreground mt-1">

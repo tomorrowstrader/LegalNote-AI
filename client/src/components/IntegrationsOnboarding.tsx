@@ -24,6 +24,10 @@ import {
   RefreshCw,
   Sparkles,
 } from "lucide-react";
+import {
+  markCalendarOAuthPopup,
+  subscribeCalendarOAuthResult,
+} from "@/lib/calendarOAuthBridge";
 
 type StepId = "welcome" | "calendar" | "video" | "sync" | "done";
 
@@ -188,12 +192,9 @@ export default function IntegrationsOnboarding() {
     }
   }, [open, stepIndex]);
 
-  // Listen for calendar OAuth popup completion
+  // Listen for calendar OAuth popup completion (BroadcastChannel + postMessage)
   useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return;
-      if (event.data?.source !== "calendar-oauth-callback") return;
-
+    return subscribeCalendarOAuthResult((data) => {
       setIsConnectingCalendar(false);
       if (popupRef.current && !popupRef.current.closed) {
         popupRef.current.close();
@@ -201,26 +202,42 @@ export default function IntegrationsOnboarding() {
       refetchConnections();
       queryClient.invalidateQueries({ queryKey: ["/api/oauth/connections"] });
 
-      if (event.data.success) {
+      if (data.success) {
         toast({
           title: "Calendar connected",
           description: `Successfully connected ${
-            event.data.provider === "google" ? "Google Calendar" : "Outlook Calendar"
+            data.provider === "google" ? "Google Calendar" : "Outlook Calendar"
           }.`,
         });
         setStepIndex(STEPS.indexOf("video"));
-      } else if (event.data.error) {
+      } else if (data.error) {
         toast({
           title: "Calendar connection failed",
-          description: String(event.data.error),
+          description: String(data.error),
           variant: "destructive",
         });
       }
-    };
-
-    window.addEventListener("message", handleMessage);
-    return () => window.removeEventListener("message", handleMessage);
+    });
   }, [refetchConnections, toast]);
+
+  // Safety net: if the bridge message is missed but the connection landed, advance.
+  useEffect(() => {
+    if (!open || !isConnectingCalendar) return;
+    if (!calendarConnected) return;
+    setIsConnectingCalendar(false);
+    if (popupRef.current && !popupRef.current.closed) {
+      popupRef.current.close();
+    }
+    setStepIndex(STEPS.indexOf("video"));
+  }, [open, isConnectingCalendar, calendarConnected]);
+
+  useEffect(() => {
+    if (!open || !isConnectingCalendar) return;
+    const id = window.setInterval(() => {
+      void refetchConnections();
+    }, 1500);
+    return () => window.clearInterval(id);
+  }, [open, isConnectingCalendar, refetchConnections]);
 
   const goNext = () => setStepIndex((i) => Math.min(i + 1, STEPS.length - 1));
   const goBack = () => setStepIndex((i) => Math.max(i - 1, 0));
@@ -284,6 +301,7 @@ export default function IntegrationsOnboarding() {
     }
 
     popupRef.current = popup;
+    markCalendarOAuthPopup(popup);
 
     try {
       const response = await fetch(`/api/calendar/auth/${provider}?popup=true`, {
@@ -297,6 +315,9 @@ export default function IntegrationsOnboarding() {
       const { authUrl } = await response.json();
       popup.location.href = authUrl;
 
+      // Do not treat COOP browsing-context switches as "user closed the popup".
+      // Only stop the spinner when we get a bridge message or the popup truly closes
+      // after a longer quiet period with a successful refetch.
       const checkClosed = setInterval(() => {
         if (popup.closed) {
           clearInterval(checkClosed);
@@ -340,20 +361,20 @@ export default function IntegrationsOnboarding() {
       }}
     >
       <DialogContent
-        className="sm:max-w-lg"
+        className="sm:max-w-lg gap-5 p-6 sm:p-8"
         data-testid="dialog-integrations-onboarding"
         onInteractOutside={(e) => e.preventDefault()}
       >
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-accent" />
+        <DialogHeader className="space-y-2 pr-8 text-left">
+          <DialogTitle className="flex items-center gap-2 leading-snug">
+            <Sparkles className="h-5 w-5 shrink-0 text-accent" />
             {step === "welcome" && "Welcome to LegalNote"}
             {step === "calendar" && `Connect ${calendarLabel}`}
             {step === "video" && "Connect video conferencing"}
             {step === "sync" && "Sync upcoming meetings"}
             {step === "done" && "You're all set"}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="leading-relaxed">
             {step === "welcome" &&
               "Connect a few tools so LegalNote can sync deadlines, pull in video meetings, and prepare attendance notes."}
             {step === "calendar" &&
@@ -368,7 +389,7 @@ export default function IntegrationsOnboarding() {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-1">
+        <div className="space-y-2">
           <div className="flex justify-between text-xs text-muted-foreground">
             <span>
               Step {stepIndex + 1} of {STEPS.length}
@@ -377,26 +398,26 @@ export default function IntegrationsOnboarding() {
           <Progress value={progressValue} className="h-1.5" />
         </div>
 
-        <div className="py-2 min-h-[160px]">
+        <div className="min-h-[160px] py-1">
           {step === "welcome" && (
-            <ul className="space-y-3 text-sm text-muted-foreground">
+            <ul className="space-y-3.5 text-sm text-muted-foreground">
               <li className="flex gap-3">
-                <Calendar className="h-5 w-5 shrink-0 text-foreground" />
-                <span>
+                <Calendar className="mt-0.5 h-5 w-5 shrink-0 text-foreground" />
+                <span className="leading-relaxed">
                   Connect <strong className="text-foreground">{calendarLabel}</strong> to sync case
                   deadlines and find upcoming meetings.
                 </span>
               </li>
               <li className="flex gap-3">
-                <Video className="h-5 w-5 shrink-0 text-foreground" />
-                <span>
+                <Video className="mt-0.5 h-5 w-5 shrink-0 text-foreground" />
+                <span className="leading-relaxed">
                   Connect your <strong className="text-foreground">video conferencing</strong> so
                   recordings from Zoom, Teams, and Meet can become attendance notes.
                 </span>
               </li>
               <li className="flex gap-3">
-                <RefreshCw className="h-5 w-5 shrink-0 text-foreground" />
-                <span>
+                <RefreshCw className="mt-0.5 h-5 w-5 shrink-0 text-foreground" />
+                <span className="leading-relaxed">
                   <strong className="text-foreground">Sync upcoming meetings</strong> from your
                   calendar onto your dashboard.
                 </span>
@@ -406,14 +427,14 @@ export default function IntegrationsOnboarding() {
 
           {step === "calendar" && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between rounded-md border p-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+              <div className="flex items-center justify-between gap-3 rounded-md border px-4 py-4">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted">
                     <Calendar className="h-5 w-5 text-muted-foreground" />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="font-medium">{calendarLabel}</p>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="truncate text-sm text-muted-foreground">
                       {calendarConnected
                         ? connections?.[preferredCalendar]?.email || "Connected"
                         : "Recommended for your account"}
@@ -421,13 +442,14 @@ export default function IntegrationsOnboarding() {
                   </div>
                 </div>
                 {calendarConnected ? (
-                  <Badge variant="outline" className="gap-1">
+                  <Badge variant="outline" className="shrink-0 gap-1.5 px-2.5 py-1">
                     <CheckCircle2 className="h-3 w-3" />
                     Connected
                   </Badge>
                 ) : (
                   <Button
                     size="sm"
+                    className="shrink-0"
                     onClick={() => connectCalendar(preferredCalendar)}
                     disabled={isConnectingCalendar}
                     data-testid="button-onboarding-connect-calendar"
@@ -447,7 +469,7 @@ export default function IntegrationsOnboarding() {
               {!calendarConnected && (
                 <button
                   type="button"
-                  className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+                  className="px-0.5 text-xs text-muted-foreground underline-offset-2 hover:underline"
                   onClick={() => connectCalendar(otherProvider)}
                   disabled={isConnectingCalendar}
                   data-testid="button-onboarding-connect-other-calendar"
@@ -477,24 +499,25 @@ export default function IntegrationsOnboarding() {
                   </AlertDescription>
                 </Alert>
               ) : (
-                <div className="flex items-center justify-between rounded-md border p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+                <div className="flex items-center justify-between gap-3 rounded-md border px-4 py-4">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted">
                       <Video className="h-5 w-5 text-muted-foreground" />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <p className="font-medium">Meeting recording import</p>
                       <p className="text-sm text-muted-foreground">Zoom, Teams, and Google Meet</p>
                     </div>
                   </div>
                   {videoConnected ? (
-                    <Badge variant="outline" className="gap-1">
+                    <Badge variant="outline" className="shrink-0 gap-1.5 px-2.5 py-1">
                       <CheckCircle2 className="h-3 w-3" />
                       Connected
                     </Badge>
                   ) : (
                     <Button
                       size="sm"
+                      className="shrink-0"
                       onClick={() => connectVideoMutation.mutate()}
                       disabled={connectVideoMutation.isPending}
                       data-testid="button-onboarding-connect-video"
@@ -530,7 +553,7 @@ export default function IntegrationsOnboarding() {
                 </Alert>
               ) : (
                 <>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm leading-relaxed text-muted-foreground">
                     LegalNote will look for Zoom, Teams, and Meet links on your calendar and list
                     them on your dashboard.
                   </p>
@@ -563,49 +586,50 @@ export default function IntegrationsOnboarding() {
           )}
 
           {step === "done" && (
-            <div className="space-y-3 text-sm">
-              <div className="flex items-center gap-2">
+            <div className="space-y-3.5 text-sm">
+              <div className="flex items-center gap-2.5">
                 {anyCalendarConnected ? (
-                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                  <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600" />
                 ) : (
-                  <span className="h-4 w-4 rounded-full border border-muted-foreground/40" />
+                  <span className="h-4 w-4 shrink-0 rounded-full border border-muted-foreground/40" />
                 )}
                 <span>Calendar {anyCalendarConnected ? "connected" : "skipped"}</span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5">
                 {videoConnected ? (
-                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                  <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600" />
                 ) : (
-                  <span className="h-4 w-4 rounded-full border border-muted-foreground/40" />
+                  <span className="h-4 w-4 shrink-0 rounded-full border border-muted-foreground/40" />
                 )}
                 <span>Video conferencing {videoConnected ? "connected" : "skipped"}</span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5">
                 {syncMeetingsMutation.isSuccess ? (
-                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                  <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600" />
                 ) : (
-                  <span className="h-4 w-4 rounded-full border border-muted-foreground/40" />
+                  <span className="h-4 w-4 shrink-0 rounded-full border border-muted-foreground/40" />
                 )}
                 <span>
                   Meeting sync {syncMeetingsMutation.isSuccess ? "completed" : "available anytime"}
                 </span>
               </div>
-              <p className="pt-2 text-muted-foreground">
+              <p className="pt-1 leading-relaxed text-muted-foreground">
                 Manage integrations later under Settings → Integrations.
               </p>
             </div>
           )}
         </div>
 
-        <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
+        <DialogFooter className="flex-col gap-3 border-t border-border/60 pt-5 sm:flex-row sm:justify-between sm:space-x-0">
           <Button
             variant="ghost"
+            className="-ml-2 sm:ml-0"
             onClick={handleRemindLater}
             data-testid="button-onboarding-remind-later"
           >
             Remind me later
           </Button>
-          <div className="flex gap-2">
+          <div className="flex gap-2.5">
             {stepIndex > 0 && step !== "done" && (
               <Button variant="outline" onClick={goBack} data-testid="button-onboarding-back">
                 Back

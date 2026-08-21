@@ -22,6 +22,10 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { format } from "date-fns";
+import {
+  markCalendarOAuthPopup,
+  subscribeCalendarOAuthResult,
+} from "@/lib/calendarOAuthBridge";
 
 interface SyncCalendarModalProps {
   open: boolean;
@@ -57,92 +61,79 @@ export default function SyncCalendarModal({
     enabled: open,
   });
 
-  // Listen for OAuth popup callback
+  // Listen for OAuth popup callback (BroadcastChannel + postMessage)
   useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      // Security: verify origin
-      if (event.origin !== window.location.origin) {
-        return;
-      }
+    return subscribeCalendarOAuthResult((data) => {
+      if (data.success) {
+        const { provider, syncSuccess, syncError, caseId: messageCaseId } = data;
 
-      // Check if message is from OAuth callback
-      if (event.data?.source === 'calendar-oauth-callback' && event.data?.success) {
-        const { provider, syncSuccess, syncError, caseId: messageCaseId } = event.data;
-        
         // Defensive: verify the popup's caseId matches the currently open case (prevent cross-case races)
         if (messageCaseId && messageCaseId !== caseId) {
-          console.warn('OAuth callback caseId mismatch - ignoring message');
+          console.warn("OAuth callback caseId mismatch - ignoring message");
           return;
         }
-        
+
         setIsConnecting(false);
-        
-        // Close popup if still open
+
         if (popupRef.current && !popupRef.current.closed) {
           popupRef.current.close();
         }
 
-        // Refetch connections to update UI
         refetchConnections();
-        queryClient.invalidateQueries({ queryKey: ['/api/oauth/connections'] });
+        queryClient.invalidateQueries({ queryKey: ["/api/oauth/connections"] });
 
-        // Check if auto-sync was successful
         if (syncSuccess) {
-          // Auto-sync succeeded!
-          queryClient.invalidateQueries({ queryKey: ['/api/cases'] });
-          queryClient.invalidateQueries({ queryKey: ['/api/cases', caseId] });
-          
+          queryClient.invalidateQueries({ queryKey: ["/api/cases"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/cases", caseId] });
+
           toast({
             title: "Calendar Synced!",
-            description: `Connected ${provider === 'google' ? 'Google Calendar' : 'Outlook'} and synced deadline automatically.`,
+            description: `Connected ${provider === "google" ? "Google Calendar" : "Outlook"} and synced deadline automatically.`,
             duration: 6000,
           });
-          
-          // Close modal
+
           onOpenChange(false);
         } else if (syncError) {
-          // Auto-sync failed, but connection succeeded
           const errorMessages: Record<string, string> = {
             case_not_found: "Case not found.",
             event_creation_failed: "Calendar event creation failed.",
             unknown: "Auto-sync failed.",
           };
-          
+
           toast({
             title: "Calendar Connected",
             description: `${errorMessages[syncError] || "Auto-sync failed."} You can try syncing manually.`,
             duration: 8000,
           });
-          
-          // Set the provider so user can retry manually
-          setSelectedProvider(provider);
+
+          if (provider === "google" || provider === "outlook") {
+            setSelectedProvider(provider);
+          }
         } else {
-          // Just connected, no sync attempt (shouldn't happen with our new flow)
           toast({
             title: "Calendar Connected",
-            description: `Successfully connected ${provider === 'google' ? 'Google Calendar' : 'Outlook Calendar'}. You can now sync case deadlines and launch upcoming video conference meetings from your dashboard.`,
+            description: `Successfully connected ${provider === "google" ? "Google Calendar" : "Outlook Calendar"}. You can now sync case deadlines and launch upcoming video conference meetings from your dashboard.`,
             duration: 3000,
           });
-          
-          setSelectedProvider(provider);
+
+          if (provider === "google" || provider === "outlook") {
+            setSelectedProvider(provider);
+          }
         }
-      } else if (event.data?.source === 'calendar-oauth-callback' && event.data?.error) {
+      } else if (data.error) {
         setIsConnecting(false);
-        
+
         if (popupRef.current && !popupRef.current.closed) {
           popupRef.current.close();
         }
 
         toast({
           title: "Connection Failed",
-          description: event.data.error || "Failed to connect calendar",
+          description: data.error || "Failed to connect calendar",
           variant: "destructive",
         });
       }
-    };
-
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
+    });
   }, [caseId, onOpenChange, refetchConnections, toast]);
 
   const syncMutation = useMutation({
@@ -285,6 +276,7 @@ export default function SyncCalendarModal({
     }
 
     popupRef.current = popup;
+    markCalendarOAuthPopup(popup);
 
     try {
       // POST with sync context - backend will handle auto-sync after OAuth
