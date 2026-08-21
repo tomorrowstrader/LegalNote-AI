@@ -10,7 +10,7 @@ interface OnboardingTourProps {
 }
 
 export default function OnboardingTour({ restartTrigger = 0 }: OnboardingTourProps) {
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading, isAdmin } = useAuth();
   const [run, setRun] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
 
@@ -124,7 +124,9 @@ export default function OnboardingTour({ restartTrigger = 0 }: OnboardingTourPro
         <div className="space-y-2">
           <h3 className="text-lg font-semibold">User Menu & Settings</h3>
           <p className="text-sm leading-relaxed text-muted-foreground">
-            Access your profile, firm settings, audit logs, and more from this menu. You can also restart this tour anytime from here.
+            {isAdmin
+              ? "Access your profile, firm settings, audit logs, and more from this menu. You can also restart this tour anytime from here."
+              : "Access your profile, firm settings, and more from this menu. You can also restart this tour anytime from here."}
           </p>
         </div>
       ),
@@ -146,10 +148,19 @@ export default function OnboardingTour({ restartTrigger = 0 }: OnboardingTourPro
     },
     {
       target: "body",
-      content: (
+      content: isAdmin ? (
         <div className="space-y-3">
           <h2 className="text-2xl font-bold tracking-tight">Your audit trail is active.</h2>
-          <p className="text-muted-foreground">Create your first matter to begin generating contemporaneous, cryptographically-sealed attendance notes. Every recording, transcript and document is preserved to your audit trail from the moment of creation.</p>
+          <p className="text-muted-foreground leading-relaxed">
+            Create your first matter to begin generating contemporaneous, cryptographically-sealed attendance notes. Every recording, transcript and document is preserved — you can review the audit log anytime from your user menu.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <h2 className="text-2xl font-bold tracking-tight">You're ready to start.</h2>
+          <p className="text-muted-foreground leading-relaxed">
+            Create your first matter to begin generating contemporaneous, cryptographically-sealed attendance notes. Every recording, transcript and document is preserved from the moment of creation.
+          </p>
         </div>
       ),
       placement: "center",
