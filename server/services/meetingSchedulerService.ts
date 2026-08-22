@@ -521,12 +521,14 @@ export class MeetingSchedulerService {
     if (!meeting.meetingUrl) {
       console.error(`[MEETING_SCHEDULER] No meeting URL for meeting ${meeting.id}`);
       await storage.updateScheduledMeeting(meeting.id, { botStatus: 'failed' });
+      await this.notifyRecordingFailure(meeting, 'No meeting URL available for the bot to join');
       return false;
     }
 
     if (!recallService.isConfigured()) {
       console.error(`[MEETING_SCHEDULER] Recall.ai not configured`);
       await storage.updateScheduledMeeting(meeting.id, { botStatus: 'failed' });
+      await this.notifyRecordingFailure(meeting, 'Recording service is not configured');
       return false;
     }
 
@@ -545,7 +547,33 @@ export class MeetingSchedulerService {
     } catch (error) {
       console.error(`[MEETING_SCHEDULER] Failed to deploy bot:`, error);
       await storage.updateScheduledMeeting(meeting.id, { botStatus: 'failed' });
+      await this.notifyRecordingFailure(
+        meeting,
+        error instanceof Error ? error.message : 'Bot deployment failed',
+      );
       return false;
+    }
+  }
+
+  private async notifyRecordingFailure(
+    meeting: ScheduledMeeting,
+    reason: string,
+  ): Promise<void> {
+    try {
+      await storage.createAuditLog({
+        eventType: 'meeting_recording_failed',
+        userId: meeting.userId,
+        caseId: meeting.caseId || undefined,
+        ipAddress: 'server-process',
+        metadata: {
+          meetingId: meeting.id,
+          meetingTitle: meeting.title,
+          reason,
+        },
+        severity: 'warning',
+      });
+    } catch (err) {
+      console.warn('[MEETING_SCHEDULER] Failed to write recording failure audit:', err);
     }
   }
 
@@ -584,6 +612,13 @@ export class MeetingSchedulerService {
         updates.status = 'completed';
       }
       await storage.updateScheduledMeeting(meeting.id, updates);
+
+      if (botStatus === 'failed' && meeting.botStatus !== 'failed') {
+        await this.notifyRecordingFailure(
+          meeting,
+          `Bot reported status: ${status}`,
+        );
+      }
 
       if (botStatus === 'done' && meeting.botStatus !== 'done' && meeting.caseId) {
         try {

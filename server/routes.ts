@@ -6815,6 +6815,33 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       const now = new Date();
       await storage.recordDocumentAcknowledgement(document.id, now, clientEmail, ip);
 
+      const notifyUserId = document.createdBy;
+      await storage.createAuditLog({
+        eventType: "document_acknowledged",
+        userId: notifyUserId,
+        caseId: document.caseId,
+        documentId: document.id,
+        ipAddress: ip,
+        metadata: {
+          acknowledgedByEmail: clientEmail || null,
+          documentType: document.type,
+          documentLabel:
+            document.type === "client_care_letter" ? "Client care letter" : "Document",
+        },
+        severity: "info",
+      });
+
+      try {
+        const userClients = sseClients.get(notifyUserId);
+        userClients?.forEach((client) => {
+          client.write(
+            `data: ${JSON.stringify({ type: "document_acknowledged" })}\n\n`,
+          );
+        });
+      } catch (sseError) {
+        console.warn("[ACKNOWLEDGE] SSE notify failed:", sseError);
+      }
+
       res.json({ success: true, acknowledgedAt: now.toISOString() });
     } catch (error: any) {
       next(error);
@@ -13846,6 +13873,15 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       } = await import("./services/notificationPresentation");
       
       const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // last 7 days
+
+      try {
+        const { expireStaleMeetingBookingProposals } = await import(
+          "./services/meetingBookingService"
+        );
+        await expireStaleMeetingBookingProposals(userId);
+      } catch (expireErr) {
+        console.warn("[NOTIFICATIONS] Booking expiry sweep failed:", expireErr);
+      }
       
       const notifiableEvents = [
         'transcript_generated', 'transcription_completed',
@@ -13855,7 +13891,10 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         'pre_consent_acknowledged', 'pre_consent_declined', 'pre_consent_reschedule_requested',
         'meeting_reminder',
         'share_feedback_submitted',
-        'meeting_booking_confirmed', 'meeting_booking_declined',
+        'meeting_booking_confirmed', 'meeting_booking_declined', 'meeting_booking_expired',
+        'document_acknowledged',
+        'meeting_recording_failed',
+        'firm_invite_accepted',
       ];
       
       const events = await dbConn
@@ -14841,7 +14880,36 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       });
 
       // Mark invitation as accepted
-      await storage.updateFirmInvitation(invitation.id, { status: "accepted" });
+      await storage.updateFirmInvitation(invitation.id, {
+        status: "accepted",
+        acceptedAt: new Date(),
+        acceptedByUserId: userId,
+      });
+
+      await storage.createAuditLog({
+        eventType: "firm_invite_accepted",
+        userId: invitation.invitingUserId,
+        metadata: {
+          invitationId: invitation.id,
+          acceptedByUserId: userId,
+          acceptedEmail: invitation.email,
+          firmId: invitation.firmId,
+          firmName: (await storage.getFirm(invitation.firmId))?.name || null,
+          pendingApproval: true,
+        },
+        severity: "info",
+      });
+
+      try {
+        const userClients = sseClients.get(invitation.invitingUserId);
+        userClients?.forEach((client) => {
+          client.write(
+            `data: ${JSON.stringify({ type: "firm_invite_accepted" })}\n\n`,
+          );
+        });
+      } catch (sseError) {
+        console.warn("[Invite] SSE notify failed:", sseError);
+      }
 
       const firm = await storage.getFirm(invitation.firmId);
       res.json({

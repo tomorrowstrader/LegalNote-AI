@@ -43,17 +43,21 @@ const notificationIcon = (type: string) => {
     case "consent_confirmed":
     case "pre_consent_acknowledged":
     case "pre_consent_declined":
+    case "document_acknowledged":
       return Shield;
     case "pre_consent_reschedule_requested":
     case "meeting_booking_confirmed":
     case "meeting_booking_declined":
+    case "meeting_booking_expired":
     case "meeting_reminder":
     case "deadline_approaching":
       return Calendar;
     case "audio_expiring":
     case "audio_expiring_soon":
+    case "meeting_recording_failed":
       return AlertCircle;
     case "case_handover_received":
+    case "firm_invite_accepted":
       return Users;
     default:
       return Bell;
@@ -70,11 +74,15 @@ const notificationColor = (type: string) => {
     case "meeting_reminder":
     case "pre_consent_reschedule_requested":
     case "meeting_booking_declined":
+    case "meeting_booking_expired":
+    case "meeting_recording_failed":
       return "text-amber-500";
     case "consent_given":
     case "consent_confirmed":
     case "pre_consent_acknowledged":
     case "meeting_booking_confirmed":
+    case "document_acknowledged":
+    case "firm_invite_accepted":
       return "text-emerald-500";
     case "transcription_complete":
     case "transcription_completed":

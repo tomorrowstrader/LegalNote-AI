@@ -95,9 +95,14 @@ export function buildNotificationHref(event: AuditLike): string | undefined {
     }
     if (
       event.eventType === "meeting_booking_confirmed" ||
-      event.eventType === "meeting_booking_declined"
+      event.eventType === "meeting_booking_declined" ||
+      event.eventType === "meeting_booking_expired" ||
+      event.eventType === "meeting_recording_failed"
     ) {
       return "/";
+    }
+    if (event.eventType === "firm_invite_accepted") {
+      return "/team";
     }
     return undefined;
   }
@@ -122,7 +127,11 @@ export function buildNotificationHref(event: AuditLike): string | undefined {
     case "pre_consent_reschedule_requested":
     case "meeting_booking_confirmed":
     case "meeting_booking_declined":
+    case "meeting_booking_expired":
+    case "document_acknowledged":
       return `${base}?tab=compliance`;
+    case "meeting_recording_failed":
+      return `${base}?section=briefing`;
     case "meeting_reminder":
       return `${base}?section=briefing`;
     case "case_handover_received":
@@ -131,6 +140,8 @@ export function buildNotificationHref(event: AuditLike): string | undefined {
       return base;
     case "share_feedback_submitted":
       return `${base}?section=sharing`;
+    case "firm_invite_accepted":
+      return "/team";
     default:
       return base;
   }
@@ -222,6 +233,55 @@ export function buildNotificationCopy(
         message: `${who} could not make any proposed times${
           meta.clientMessage ? `: “${meta.clientMessage}”` : "."
         }`,
+      };
+    }
+    case "meeting_booking_expired": {
+      const title =
+        (typeof meta.title === "string" && meta.title.trim()) || "a proposed meeting";
+      const who =
+        (typeof meta.clientEmail === "string" && meta.clientEmail.trim()) ||
+        "the recipient";
+      return {
+        title: "Booking link expired",
+        message: `No response was received for “${title}” (${who}). Propose new times if still needed.`,
+      };
+    }
+    case "document_acknowledged": {
+      const label =
+        (typeof meta.documentLabel === "string" && meta.documentLabel.trim()) ||
+        documentLabel(documentType);
+      const who =
+        (typeof meta.acknowledgedByEmail === "string" && meta.acknowledgedByEmail.trim()) ||
+        "Someone";
+      return {
+        title: `${label} acknowledged`,
+        message: `${who} acknowledged the ${label.toLowerCase()} for “${matter}”.`,
+      };
+    }
+    case "meeting_recording_failed": {
+      const meetingTitle =
+        (typeof meta.meetingTitle === "string" && meta.meetingTitle.trim()) ||
+        "Your meeting";
+      const reason =
+        typeof meta.reason === "string" && meta.reason.trim()
+          ? ` ${meta.reason.trim()}`
+          : "";
+      return {
+        title: "Meeting recording failed",
+        message: `${meetingTitle} could not be recorded.${reason}${
+          caseRecord?.title ? ` · ${matter}` : ""
+        }`,
+      };
+    }
+    case "firm_invite_accepted": {
+      const email =
+        (typeof meta.acceptedEmail === "string" && meta.acceptedEmail.trim()) ||
+        "A colleague";
+      const firmName =
+        (typeof meta.firmName === "string" && meta.firmName.trim()) || "your firm";
+      return {
+        title: "Team invite accepted",
+        message: `${email} accepted their invite to ${firmName} and is pending approval.`,
       };
     }
     case "audio_expiring_soon":

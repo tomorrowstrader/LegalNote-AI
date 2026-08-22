@@ -202,6 +202,8 @@ export async function listMeetingBookingProposals(
   userId: string,
   opts?: { status?: string },
 ): Promise<ProposalWithSlots[]> {
+  await expireStaleMeetingBookingProposals(userId);
+
   const conditions = [eq(meetingBookingProposals.userId, userId)];
   if (opts?.status) {
     conditions.push(eq(meetingBookingProposals.status, opts.status));
@@ -286,6 +288,70 @@ export async function cancelMeetingBookingProposal(
   return updated;
 }
 
+async function markProposalExpired(proposal: MeetingBookingProposal): Promise<void> {
+  const result = await db.execute(sql`
+    UPDATE meeting_booking_proposals
+    SET status = 'expired',
+        updated_at = NOW()
+    WHERE id = ${proposal.id}
+      AND status = 'pending'
+    RETURNING id
+  `);
+  const rows = (result.rows ?? result) as Array<{ id: string }>;
+  if (!rows.length) return;
+
+  await db
+    .update(meetingBookingSlots)
+    .set({ status: "withdrawn" })
+    .where(
+      and(
+        eq(meetingBookingSlots.proposalId, proposal.id),
+        eq(meetingBookingSlots.status, "available"),
+      ),
+    );
+
+  await storage.createAuditLog({
+    eventType: "meeting_booking_expired",
+    userId: proposal.userId,
+    caseId: proposal.caseId || undefined,
+    metadata: {
+      proposalId: proposal.id,
+      title: proposal.title,
+      clientEmail: proposal.clientEmail,
+      clientName: proposal.clientName,
+      expiresAt: proposal.expiresAt?.toISOString?.() ?? proposal.expiresAt,
+    },
+    severity: "info",
+  });
+}
+
+/** Expire pending proposals past expiresAt and emit bell notifications (once each). */
+export async function expireStaleMeetingBookingProposals(userId?: string): Promise<number> {
+  const now = new Date();
+  const conditions = [
+    eq(meetingBookingProposals.status, "pending"),
+    sql`${meetingBookingProposals.expiresAt} <= ${now}`,
+  ];
+  if (userId) {
+    conditions.push(eq(meetingBookingProposals.userId, userId));
+  }
+
+  const stale = await db
+    .select()
+    .from(meetingBookingProposals)
+    .where(and(...conditions))
+    .limit(50);
+
+  for (const proposal of stale) {
+    try {
+      await markProposalExpired(proposal);
+    } catch (err) {
+      console.warn("[MEETING_BOOKING] Failed to expire proposal", proposal.id, err);
+    }
+  }
+  return stale.length;
+}
+
 async function loadPublicProposal(
   token: string,
 ): Promise<{ proposal: MeetingBookingProposal; slots: MeetingBookingSlot[] } | null> {
@@ -298,15 +364,7 @@ async function loadPublicProposal(
   if (!proposal) return null;
 
   if (proposal.status === "pending" && proposal.expiresAt <= new Date()) {
-    await db
-      .update(meetingBookingProposals)
-      .set({ status: "expired", updatedAt: new Date() })
-      .where(
-        and(
-          eq(meetingBookingProposals.id, proposal.id),
-          eq(meetingBookingProposals.status, "pending"),
-        ),
-      );
+    await markProposalExpired(proposal);
     proposal.status = "expired";
   }
 

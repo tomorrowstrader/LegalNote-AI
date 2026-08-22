@@ -451,6 +451,23 @@ export async function processBotRecording(importRecord: MeetingImport): Promise<
     jobQueue.off('job:failed', onFailed);
     console.error(`[RecallProcessing] Processing pipeline failed for import ${importId}:`, job.error);
     await storage.updateMeetingImport(importId, { status: 'failed', errorMessage: job.error || 'Processing failed' });
+    try {
+      await storage.createAuditLog({
+        eventType: 'meeting_recording_failed',
+        userId,
+        caseId,
+        ipAddress: 'server-process',
+        metadata: {
+          importId,
+          botId,
+          reason: job.error || 'Processing failed',
+          source: 'recall_bot',
+        },
+        severity: 'warning',
+      });
+    } catch (auditErr) {
+      console.warn('[RecallProcessing] Failed to write recording failure audit:', auditErr);
+    }
   };
   jobQueue.on('job:completed', onCompleted);
   jobQueue.on('job:failed', onFailed);
@@ -497,6 +514,25 @@ export async function checkLiveImports(): Promise<void> {
             status: 'failed',
             errorMessage: 'Bot encountered an unrecoverable error',
           });
+          try {
+            await storage.createAuditLog({
+              eventType: 'meeting_recording_failed',
+              userId: imp.userId,
+              caseId: imp.caseId || undefined,
+              ipAddress: 'server-process',
+              metadata: {
+                importId: imp.id,
+                botId: imp.recallBotId,
+                reason: subCode
+                  ? `Bot fatal error (${subCode})`
+                  : 'Bot encountered an unrecoverable error',
+                source: 'recall_bot',
+              },
+              severity: 'warning',
+            });
+          } catch (auditErr) {
+            console.warn('[RecallProcessing] Failed to write fatal-bot audit:', auditErr);
+          }
         }
       } else if (statusCode) {
         await storage.updateMeetingImport(imp.id, { botStatus: statusCode });
