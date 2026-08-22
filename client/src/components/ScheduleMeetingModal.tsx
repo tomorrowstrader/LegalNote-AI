@@ -416,6 +416,8 @@ export default function ScheduleMeetingModal({
   const clientEmailReady = parseAttendeeEmails(attendeesRaw).length > 0;
   const proposeSlotsReady =
     proposedSlots.filter((s) => s.date && s.startTime).length >= 2;
+
+  return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto" data-testid="dialog-schedule-meeting">
         <DialogHeader>
