@@ -201,20 +201,29 @@ export function buildNotificationCopy(
               timeZone: "Europe/London",
             })
           : null;
+      const who =
+        (typeof meta.clientName === "string" && meta.clientName.trim()) ||
+        (typeof meta.clientEmail === "string" && meta.clientEmail.trim()) ||
+        "Someone";
       return {
         title: "Meeting time booked",
-        message: `${(meta.clientName as string) || "Your client"} booked ${when ? when : "a proposed time"}${
+        message: `${who} booked ${when ? when : "a proposed time"}${
           caseRecord?.title ? ` · ${matter}` : ""
         }.`,
       };
     }
-    case "meeting_booking_declined":
+    case "meeting_booking_declined": {
+      const who =
+        (typeof meta.clientName === "string" && meta.clientName.trim()) ||
+        (typeof meta.clientEmail === "string" && meta.clientEmail.trim()) ||
+        "Someone";
       return {
         title: "No proposed times worked",
-        message: `${(meta.clientName as string) || "Your client"} could not make any proposed times${
+        message: `${who} could not make any proposed times${
           meta.clientMessage ? `: “${meta.clientMessage}”` : "."
         }`,
       };
+    }
     case "audio_expiring_soon":
       return {
         title: "Audio expiring soon",

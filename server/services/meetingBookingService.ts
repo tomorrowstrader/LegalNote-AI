@@ -16,7 +16,7 @@ import {
   deleteOutlookCalendarEvent,
   getConnectedProviders,
 } from "../calendar";
-import { sendMeetingBookingProposalEmail, sendMeetingInviteConfirmationEmail } from "../email";
+import { sendMeetingBookingProposalEmail, sendMeetingInviteConfirmationEmail, sendMeetingBookingResponseNotification } from "../email";
 
 const MIN_SLOTS = 2;
 const MAX_SLOTS = 5;
@@ -146,6 +146,12 @@ export async function createMeetingBookingProposal(
 
   const bookingUrl = `${input.baseUrl.replace(/\/$/, "")}/book/${token}`;
 
+  const organiserUser = await storage.getUser(input.userId);
+  const organiserFirm = organiserUser?.firmId
+    ? await storage.getFirmProfile(organiserUser.firmId)
+    : await storage.getFirmProfile();
+  const organiserName = organiserFirm?.firmName?.trim() || null;
+
   try {
     const emailResult = await sendMeetingBookingProposalEmail({
       to: proposal.clientEmail,
@@ -153,6 +159,7 @@ export async function createMeetingBookingProposal(
       bookingUrl,
       slots: insertedSlots.map((s) => ({ startsAt: s.startsAt, endsAt: s.endsAt })),
       durationMinutes: proposal.durationMinutes,
+      organiserName,
     });
 
     await db
@@ -344,6 +351,8 @@ export async function getPublicBookingProposal(token: string) {
               endsAt: s.endsAt,
             }))
         : [],
+    /** Firm name only when configured — never a “solicitor” role fallback. */
+    organiserName: firm?.firmName?.trim() || null,
     firmProfile: firm
       ? { firmName: firm.firmName, logoUrl: firm.logoUrl || null }
       : null,
@@ -535,6 +544,16 @@ export async function bookMeetingSlot(params: {
       severity: "info",
     });
 
+    void notifyOrganiserOfBookingResponse({
+      userId: proposal.userId,
+      responseStatus: "booked",
+      meetingTitle: proposal.title,
+      clientName: proposal.clientName,
+      clientEmail: proposal.clientEmail,
+      startsAt: slot.startsAt,
+      caseId: proposal.caseId,
+    });
+
     return { meeting, startsAt: slot.startsAt, endsAt: slot.endsAt };
   } catch (err) {
     // Roll back claim so the client can retry
@@ -639,4 +658,46 @@ export async function declineMeetingBooking(params: {
     },
     severity: "info",
   });
+
+  void notifyOrganiserOfBookingResponse({
+    userId: proposal.userId,
+    responseStatus: "declined",
+    meetingTitle: proposal.title,
+    clientName: proposal.clientName,
+    clientEmail: proposal.clientEmail,
+    clientMessage: note,
+    caseId: proposal.caseId,
+  });
+}
+
+async function notifyOrganiserOfBookingResponse(params: {
+  userId: string;
+  responseStatus: "booked" | "declined";
+  meetingTitle: string;
+  clientName?: string | null;
+  clientEmail: string;
+  startsAt?: Date | null;
+  clientMessage?: string | null;
+  caseId?: string | null;
+}): Promise<void> {
+  try {
+    const user = await storage.getUser(params.userId);
+    if (!user?.email) {
+      console.warn("[MEETING_BOOKING] No organiser email for booking response notification");
+      return;
+    }
+    await sendMeetingBookingResponseNotification({
+      to: user.email,
+      recipientFirstName: user.firstName,
+      responseStatus: params.responseStatus,
+      meetingTitle: params.meetingTitle,
+      clientName: params.clientName,
+      clientEmail: params.clientEmail,
+      startsAt: params.startsAt,
+      clientMessage: params.clientMessage,
+      caseId: params.caseId,
+    });
+  } catch (err) {
+    console.warn("[MEETING_BOOKING] Organiser notification email failed:", err);
+  }
 }

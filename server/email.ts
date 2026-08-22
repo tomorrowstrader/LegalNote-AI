@@ -84,14 +84,28 @@ async function sendEmail(
   }
 }
 
-/** Canonical outbound email brand mark — text only (no remote images). */
+/** Absolute URL for the LegalNote email icon (white mark; use on a dark header). */
+export function legalNoteEmailIconUrl(): string {
+  const base = (process.env.APP_URL || 'https://legalnote.ai').replace(/\/$/, '');
+  return `${base}/assets/email/legalnote-icon-white.png`;
+}
+
+/** Canonical outbound email brand mark — icon + wordmark text. */
 export function legalNoteTextLogoHtml(): string {
+  const iconUrl = legalNoteEmailIconUrl();
   return `
     <div style="margin:0 auto;text-align:center;line-height:1;">
-      <span style="font-family:Georgia,'Times New Roman',serif;font-size:28px;font-weight:700;letter-spacing:-0.03em;color:#3d3028;">
-        Legal<span style="color:#c97d4d;">Note</span>
+      <img
+        src="${iconUrl}"
+        alt="LegalNote"
+        width="48"
+        height="48"
+        style="display:block;margin:0 auto 10px;width:48px;height:48px;border:0;outline:none;"
+      />
+      <span style="font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:700;letter-spacing:-0.03em;color:#ffffff;">
+        Legal<span style="color:#b8e000;">Note</span>
       </span>
-      <span style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:10px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:#8a7d72;display:block;margin-top:6px;">
+      <span style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:10px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:#a3a3a3;display:block;margin-top:6px;">
         Meeting to Matter
       </span>
     </div>
@@ -101,7 +115,7 @@ export function legalNoteTextLogoHtml(): string {
 /** Full-width brand header for div-based email layouts. */
 export function legalNoteBrandHeaderHtml(): string {
   return `
-    <div style="text-align:center;padding:28px 24px 24px;background-color:#faf9f7;border-bottom:1px solid #e8e4df;">
+    <div style="text-align:center;padding:28px 24px 24px;background-color:#0a0a0a;border-bottom:1px solid #1f1f1f;">
       ${legalNoteTextLogoHtml()}
     </div>
   `;
@@ -111,7 +125,7 @@ export function legalNoteBrandHeaderHtml(): string {
 export function legalNoteBrandHeaderTableRow(): string {
   return `
     <tr>
-      <td align="center" style="background-color:#faf9f7;padding:28px 24px 24px;border-bottom:1px solid #e8e4df;">
+      <td align="center" style="background-color:#0a0a0a;padding:28px 24px 24px;border-bottom:1px solid #1f1f1f;">
         ${legalNoteTextLogoHtml()}
       </td>
     </tr>
@@ -684,6 +698,7 @@ export async function sendPreConsentEmail(params: SendPreConsentEmailParams): Pr
 /**
  * Propose-times booking email.
  * GDPR: date/time slots only — no matter titles or case references.
+ * Role-neutral: never assumes the recipient is already a client of a solicitor.
  */
 export async function sendMeetingBookingProposalEmail(params: {
   to: string;
@@ -691,11 +706,17 @@ export async function sendMeetingBookingProposalEmail(params: {
   bookingUrl: string;
   slots: Array<{ startsAt: Date; endsAt: Date }>;
   durationMinutes: number;
+  /** Firm or organiser display name when known — never a generic “solicitor” fallback. */
+  organiserName?: string | null;
 }): Promise<{ success: boolean; messageId?: string; error?: string }> {
-  const { to, recipientName, bookingUrl, slots, durationMinutes } = params;
+  const { to, recipientName, bookingUrl, slots, durationMinutes, organiserName } = params;
 
   const displayName = publicFacingDisplayName(recipientName);
   const greeting = displayName ? `Hello ${escapeHtmlPlain(displayName)},` : "Hello,";
+  const organiser = publicFacingDisplayName(organiserName || undefined);
+  const whoProposed = organiser
+    ? `<strong>${escapeHtmlPlain(organiser)}</strong> has offered`
+    : "You've been offered";
 
   const slotLines = slots
     .slice()
@@ -747,7 +768,7 @@ export async function sendMeetingBookingProposalEmail(params: {
                           ${greeting}
                         </p>
                         <p style="margin:0 0 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;line-height:1.55;color:#1a1a1a;">
-                          Your solicitor has proposed a few times for a ${escapeHtmlPlain(String(durationMinutes))}-minute meeting. Please pick the option that works best for you.
+                          ${whoProposed} a few times for a ${escapeHtmlPlain(String(durationMinutes))}-minute meeting. Please pick the option that works best for you.
                         </p>
                         <ul style="margin:0 0 24px;padding-left:20px;">
                           ${slotLines}
@@ -770,7 +791,7 @@ export async function sendMeetingBookingProposalEmail(params: {
                     </tr>
                   </table>
                   <p style="margin:28px 20px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:11px;line-height:1.5;color:#999999;text-align:center;">
-                    If none of these times work, open the link and let your solicitor know.
+                    If none of these times work, open the link and let them know.
                     <br><br>Sent via LegalNote — Meeting to Matter.
                   </p>
                 </td>
@@ -801,6 +822,131 @@ export async function sendMeetingBookingProposalEmail(params: {
   } catch (error: any) {
     console.error('[EMAIL] Exception sending meeting booking proposal:', error);
     return { success: false, error: error.message || 'Unknown error' };
+  }
+}
+
+/**
+ * Notify the LegalNote user when a booking proposal is accepted or declined.
+ * Sent to their LegalNote account email (not calendar sync).
+ */
+export async function sendMeetingBookingResponseNotification(params: {
+  to: string;
+  recipientFirstName?: string | null;
+  responseStatus: "booked" | "declined";
+  meetingTitle: string;
+  clientName?: string | null;
+  clientEmail: string;
+  startsAt?: Date | null;
+  clientMessage?: string | null;
+  caseId?: string | null;
+}): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const {
+    to,
+    recipientFirstName,
+    responseStatus,
+    meetingTitle,
+    clientName,
+    clientEmail,
+    startsAt,
+    clientMessage,
+    caseId,
+  } = params;
+
+  const baseUrl = process.env.APP_URL?.replace(/\/$/, "") || "https://legalnote.ai";
+  const greetName = publicFacingDisplayName(recipientFirstName) || "there";
+  const who =
+    publicFacingDisplayName(clientName) ||
+    (clientEmail.includes("@") ? clientEmail : "The recipient");
+
+  const whenStr =
+    startsAt && !isNaN(startsAt.getTime())
+      ? startsAt.toLocaleString("en-GB", {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          timeZone: "Europe/London",
+        })
+      : null;
+
+  const isBooked = responseStatus === "booked";
+  const statusColor = isBooked ? "#22c55e" : "#f59e0b";
+  const heading = isBooked ? "Meeting time booked" : "No proposed times worked";
+  const subject = isBooked
+    ? `Meeting booked: ${meetingTitle}`
+    : `Booking response: none of the times worked — ${meetingTitle}`;
+
+  const messageSection = clientMessage
+    ? `
+    <div style="background:#fef3c7;border-radius:6px;padding:16px;margin-top:16px;">
+      <strong>Their message:</strong>
+      <p style="margin:8px 0 0;">${escapeHtmlPlain(clientMessage)}</p>
+    </div>`
+    : "";
+
+  const caseLink = caseId
+    ? `<p style="margin-top:24px;"><a href="${escapeHtmlPlain(`${baseUrl}/case/${caseId}`)}" style="color:#000;text-decoration:underline;">Open matter in LegalNote</a></p>`
+    : `<p style="margin-top:24px;"><a href="${escapeHtmlPlain(baseUrl)}" style="color:#000;text-decoration:underline;">Open LegalNote</a></p>`;
+
+  const emailHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;line-height:1.6;color:#1a1a1a;max-width:600px;margin:0 auto;padding:20px;background-color:#f5f5f5;">
+      <div style="background:white;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+        ${legalNoteBrandHeaderHtml()}
+        <div style="padding:32px;">
+          <div style="border-bottom:2px solid ${statusColor};padding-bottom:16px;margin-bottom:24px;">
+            <h1 style="margin:0;font-size:22px;font-weight:600;">${escapeHtmlPlain(heading)}</h1>
+          </div>
+          <p>Hi ${escapeHtmlPlain(greetName)},</p>
+          <p>
+            <strong>${escapeHtmlPlain(who)}</strong>
+            (${escapeHtmlPlain(clientEmail)})
+            ${
+              isBooked
+                ? " chose a time from your proposed options."
+                : " could not make any of the proposed times."
+            }
+          </p>
+          <div style="background:#f8f9fa;border-radius:6px;padding:16px;margin:16px 0;">
+            <p style="margin:0;"><strong>Meeting:</strong> ${escapeHtmlPlain(meetingTitle)}</p>
+            ${whenStr ? `<p style="margin:8px 0 0;"><strong>Booked for:</strong> ${escapeHtmlPlain(whenStr)} (UK)</p>` : ""}
+          </div>
+          ${messageSection}
+          ${
+            isBooked
+              ? "<p>The meeting has been added to your calendar with a join link. You can manage it from Upcoming Meetings in LegalNote.</p>"
+              : "<p>Please propose new times or follow up directly when convenient.</p>"
+          }
+          ${caseLink}
+          <hr style="margin:24px 0;border:none;border-top:1px solid #e5e5e5;" />
+          <p style="font-size:12px;color:#666;">Automated notification from LegalNote. Please do not reply to this email.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  try {
+    const result = await sendEmail({
+      from: "LegalNote™ <support@legalnote.ai>",
+      to,
+      subject,
+      html: emailHtml,
+    });
+    if (!result.success) {
+      console.error("[EMAIL] Booking response notification failed:", result.error);
+    }
+    return result;
+  } catch (error: any) {
+    console.error("[EMAIL] Booking response notification exception:", error);
+    return { success: false, error: error.message || "Unknown error" };
   }
 }
 

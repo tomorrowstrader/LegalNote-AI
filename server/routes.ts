@@ -12351,6 +12351,28 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         ipAddress: req.ip || req.socket?.remoteAddress,
       });
 
+      try {
+        // Reload proposal owner for SSE — bookMeetingSlot already emailed them.
+        const { db } = await import("./db");
+        const { meetingBookingProposals } = await import("@shared/schema");
+        const { eq } = await import("drizzle-orm");
+        const [row] = await db
+          .select({ userId: meetingBookingProposals.userId })
+          .from(meetingBookingProposals)
+          .where(eq(meetingBookingProposals.token, req.params.token))
+          .limit(1);
+        if (row?.userId) {
+          const userClients = sseClients.get(row.userId);
+          userClients?.forEach((client) => {
+            client.write(
+              `data: ${JSON.stringify({ type: "meeting_booking_confirmed" })}\n\n`,
+            );
+          });
+        }
+      } catch (sseError) {
+        console.warn("[MEETING_BOOKING] SSE notify failed:", sseError);
+      }
+
       res.json({
         status: "booked",
         startsAt: result.startsAt,
@@ -12381,6 +12403,27 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         note: parsed.data.note || undefined,
         ipAddress: req.ip || req.socket?.remoteAddress,
       });
+
+      try {
+        const { db } = await import("./db");
+        const { meetingBookingProposals } = await import("@shared/schema");
+        const { eq } = await import("drizzle-orm");
+        const [row] = await db
+          .select({ userId: meetingBookingProposals.userId })
+          .from(meetingBookingProposals)
+          .where(eq(meetingBookingProposals.token, req.params.token))
+          .limit(1);
+        if (row?.userId) {
+          const userClients = sseClients.get(row.userId);
+          userClients?.forEach((client) => {
+            client.write(
+              `data: ${JSON.stringify({ type: "meeting_booking_declined" })}\n\n`,
+            );
+          });
+        }
+      } catch (sseError) {
+        console.warn("[MEETING_BOOKING] SSE notify failed:", sseError);
+      }
 
       res.json({ status: "declined" });
     } catch (error: any) {

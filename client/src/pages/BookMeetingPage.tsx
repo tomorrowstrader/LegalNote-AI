@@ -28,6 +28,8 @@ interface PublicBookingData {
   respondedAt: string | null;
   selectedStartsAt: string | null;
   slots: PublicBookingSlot[];
+  /** Firm name when configured — never a role label like “solicitor”. */
+  organiserName: string | null;
   firmProfile: { firmName: string; logoUrl: string | null } | null;
 }
 
@@ -120,7 +122,7 @@ export default function BookMeetingPage() {
             <h1 className="text-lg font-semibold">Link invalid or expired</h1>
             <p className="text-sm text-muted-foreground">
               {(loadError as Error)?.message ||
-                "This booking link is no longer valid. Please contact your solicitor if you need a new one."}
+                "This booking link is no longer valid. Please contact the person who sent it if you need a new one."}
             </p>
           </div>
         </div>
@@ -129,7 +131,8 @@ export default function BookMeetingPage() {
     );
   }
 
-  const firmName = data.firmProfile?.firmName || "Your solicitors";
+  const organiserName =
+    data.organiserName?.trim() || data.firmProfile?.firmName?.trim() || null;
   const alreadyBooked = data.status === "booked" || !!bookedStartsAt;
   const alreadyDeclined = data.status === "declined" || declined;
   const unavailable =
@@ -147,7 +150,14 @@ export default function BookMeetingPage() {
             <CheckCircle className="w-12 h-12 text-green-500 mx-auto" />
             <h1 className="text-xl font-semibold">Time confirmed</h1>
             <p className="text-sm text-muted-foreground">
-              Thank you. Your meeting with <strong>{firmName}</strong> is booked
+              Thank you. Your meeting
+              {organiserName ? (
+                <>
+                  {" "}
+                  with <strong>{organiserName}</strong>
+                </>
+              ) : null}{" "}
+              is booked
               {when ? (
                 <>
                   {" "}
@@ -178,8 +188,16 @@ export default function BookMeetingPage() {
             <CheckCircle className="w-12 h-12 text-muted-foreground mx-auto" />
             <h1 className="text-xl font-semibold">Response sent</h1>
             <p className="text-sm text-muted-foreground">
-              Thank you. <strong>{firmName}</strong> has been notified that none of the proposed
-              times work. They will be in touch with alternatives.
+              Thank you.
+              {organiserName ? (
+                <>
+                  {" "}
+                  <strong>{organiserName}</strong> has been notified
+                </>
+              ) : (
+                " They have been notified"
+              )}{" "}
+              that none of the proposed times work, and will be in touch with alternatives.
             </p>
           </div>
         </div>
@@ -198,7 +216,8 @@ export default function BookMeetingPage() {
             <h1 className="text-lg font-semibold">Link no longer available</h1>
             <p className="text-sm text-muted-foreground">
               This booking request has {data.status === "expired" ? "expired" : "been closed"}.
-              Please contact {firmName} if you still need to arrange a meeting.
+              Please contact {organiserName || "the person who sent this link"} if you still need to
+              arrange a meeting.
             </p>
           </div>
         </div>
@@ -218,8 +237,18 @@ export default function BookMeetingPage() {
             </div>
             <h1 className="text-xl font-semibold tracking-tight">Choose a meeting time</h1>
             <p className="text-sm text-muted-foreground">
-              <strong>{firmName}</strong> has proposed the following{" "}
-              {data.durationMinutes}-minute slots. Select the time that suits you best.
+              {organiserName ? (
+                <>
+                  <strong>{organiserName}</strong> has offered the following{" "}
+                  {data.durationMinutes}-minute options.
+                </>
+              ) : (
+                <>
+                  The following {data.durationMinutes}-minute options have been offered for your
+                  meeting.
+                </>
+              )}{" "}
+              Select the time that suits you best.
             </p>
           </div>
 
@@ -293,7 +322,7 @@ export default function BookMeetingPage() {
               </Button>
             ) : (
               <div className="space-y-3 rounded-md border bg-card p-4">
-                <Label htmlFor="decline-note">Tell your solicitor what works better (optional)</Label>
+                <Label htmlFor="decline-note">Share what works better (optional)</Label>
                 <Textarea
                   id="decline-note"
                   value={declineNote}
