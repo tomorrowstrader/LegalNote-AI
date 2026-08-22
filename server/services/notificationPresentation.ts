@@ -93,6 +93,12 @@ export function buildNotificationHref(event: AuditLike): string | undefined {
     if (event.eventType === "meeting_reminder" && typeof meta.meetingUrl === "string") {
       return meta.meetingUrl;
     }
+    if (
+      event.eventType === "meeting_booking_confirmed" ||
+      event.eventType === "meeting_booking_declined"
+    ) {
+      return "/";
+    }
     return undefined;
   }
 
@@ -114,6 +120,8 @@ export function buildNotificationHref(event: AuditLike): string | undefined {
     case "pre_consent_acknowledged":
     case "pre_consent_declined":
     case "pre_consent_reschedule_requested":
+    case "meeting_booking_confirmed":
+    case "meeting_booking_declined":
       return `${base}?tab=compliance`;
     case "meeting_reminder":
       return `${base}?section=briefing`;
@@ -178,6 +186,32 @@ export function buildNotificationCopy(
       return {
         title: "Reschedule requested",
         message: `${(meta.recipientName as string) || "Your client"} requested to reschedule “${matter}”${
+          meta.clientMessage ? `: “${meta.clientMessage}”` : "."
+        }`,
+      };
+    case "meeting_booking_confirmed": {
+      const when =
+        typeof meta.startsAt === "string"
+          ? new Date(meta.startsAt).toLocaleString("en-GB", {
+              weekday: "short",
+              day: "numeric",
+              month: "short",
+              hour: "2-digit",
+              minute: "2-digit",
+              timeZone: "Europe/London",
+            })
+          : null;
+      return {
+        title: "Meeting time booked",
+        message: `${(meta.clientName as string) || "Your client"} booked ${when ? when : "a proposed time"}${
+          caseRecord?.title ? ` · ${matter}` : ""
+        }.`,
+      };
+    }
+    case "meeting_booking_declined":
+      return {
+        title: "No proposed times worked",
+        message: `${(meta.clientName as string) || "Your client"} could not make any proposed times${
           meta.clientMessage ? `: “${meta.clientMessage}”` : "."
         }`,
       };

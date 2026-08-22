@@ -33,11 +33,13 @@ import {
   ExternalLink,
   FolderOpen,
   MoreHorizontal,
+  Copy,
+  Link2,
 } from "lucide-react";
 import { format, formatDistanceToNow, isToday, isTomorrow, isPast, addDays, startOfDay } from "date-fns";
 import { useState, useMemo, useEffect } from "react";
 import { useLocation } from "wouter";
-import type { ScheduledMeeting, Case } from "@shared/schema";
+import type { ScheduledMeeting, Case, MeetingBookingProposal, MeetingBookingSlot } from "@shared/schema";
 import ConfigurationErrorModal from "@/components/ConfigurationErrorModal";
 import ScheduleMeetingModal from "@/components/ScheduleMeetingModal";
 import {
@@ -1202,6 +1204,54 @@ export function ScheduledMeetingsViewer() {
     refetchInterval: 30000,
   });
 
+  type ProposalWithSlots = MeetingBookingProposal & {
+    slots: MeetingBookingSlot[];
+    bookingUrl?: string;
+  };
+
+  const { data: pendingProposals = [] } = useQuery<ProposalWithSlots[]>({
+    queryKey: ["/api/meeting-booking-proposals", { status: "pending" }],
+    queryFn: async () => {
+      const res = await fetch("/api/meeting-booking-proposals?status=pending", {
+        credentials: "include",
+      });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    refetchInterval: 30000,
+  });
+
+  const cancelProposalMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest("POST", `/api/meeting-booking-proposals/${id}/cancel`);
+    },
+    onSuccess: () => {
+      toast({ title: "Proposal cancelled" });
+      queryClient.invalidateQueries({ queryKey: ["/api/meeting-booking-proposals"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Could not cancel proposal",
+        description: getApiErrorMessage(error, "Please try again."),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const copyBookingLink = async (proposal: ProposalWithSlots) => {
+    const url = `${window.location.origin}/book/${proposal.token}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast({ title: "Booking link copied" });
+    } catch {
+      toast({
+        title: "Could not copy link",
+        description: url,
+        variant: "destructive",
+      });
+    }
+  };
+
   const { data: connections, isPending: isConnectionsPending } = useQuery<{
     google: { connected: boolean; email?: string };
     outlook?: { connected: boolean; email?: string };
@@ -1377,6 +1427,59 @@ export function ScheduledMeetingsViewer() {
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
+        {pendingProposals.length > 0 && (
+          <div className="space-y-2 rounded-md border border-dashed bg-muted/20 p-3" data-testid="pending-booking-proposals">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <Link2 className="w-4 h-4 text-muted-foreground" />
+              Awaiting client booking ({pendingProposals.length})
+            </div>
+            <div className="space-y-2">
+              {pendingProposals.map((proposal) => {
+                const available = (proposal.slots || []).filter((s) => s.status === "available");
+                return (
+                  <div
+                    key={proposal.id}
+                    className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-md border bg-background px-3 py-2"
+                    data-testid={`pending-proposal-${proposal.id}`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate">{proposal.title}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {proposal.clientEmail}
+                        {available.length > 0
+                          ? ` · ${available.length} option${available.length === 1 ? "" : "s"}`
+                          : ""}
+                        {" · expires "}
+                        {format(new Date(proposal.expiresAt), "d MMM")}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => copyBookingLink(proposal)}
+                        data-testid={`button-copy-booking-link-${proposal.id}`}
+                      >
+                        <Copy className="w-3.5 h-3.5 mr-1" />
+                        Copy link
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={cancelProposalMutation.isPending}
+                        onClick={() => cancelProposalMutation.mutate(proposal.id)}
+                        data-testid={`button-cancel-proposal-${proposal.id}`}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {isLoading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />

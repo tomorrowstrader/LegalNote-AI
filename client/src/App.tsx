@@ -37,6 +37,7 @@ import SecurityFeatures from "@/pages/SecurityFeatures";
 import Landing from "@/pages/Landing";
 import Pricing from "@/pages/Pricing";
 import ShareLinkView from "@/pages/ShareLinkView";
+import BookMeetingPage from "@/pages/BookMeetingPage";
 import OAuthCallback from "@/pages/OAuthCallback";
 import CalendarSyncConfirmation from "@/pages/CalendarSyncConfirmation";
 import WaitlistPage from "@/pages/WaitlistPage";
@@ -96,6 +97,7 @@ function Router() {
       <Route path="/demo-generator" component={DemoGenerator} />
       <Route path="/demo-generation" component={() => <RedirectTo to="/demo-generator" />} />
       <Route path="/share/:linkId" component={ShareLinkView} />
+      <Route path="/book/:token" component={BookMeetingPage} />
       <Route path="/acknowledge/:token" component={AcknowledgePage} />
       {publicComplianceBadgeVisible && <Route path="/badge/:slug" component={ComplianceBadge} />}
       <Route path="/invite/accept/:token" component={InviteAccept} />

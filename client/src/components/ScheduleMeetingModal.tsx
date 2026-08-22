@@ -10,6 +10,8 @@ import {
   ChevronUp,
   UserPlus,
   Shield,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import {
   Dialog,
@@ -91,6 +93,22 @@ function conferenceLabel(provider: "google" | "outlook"): string {
   return provider === "google" ? "Google Meet" : "Microsoft Teams";
 }
 
+type ScheduleMode = "fixed" | "propose";
+
+type ProposedSlotDraft = {
+  id: string;
+  date: string;
+  startTime: string;
+};
+
+function newSlotDraft(date = format(new Date(), "yyyy-MM-dd")): ProposedSlotDraft {
+  return {
+    id: `slot-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    date,
+    startTime: "",
+  };
+}
+
 export default function ScheduleMeetingModal({
   open,
   onOpenChange,
@@ -99,9 +117,14 @@ export default function ScheduleMeetingModal({
   onNeedsCalendarConnection,
 }: ScheduleMeetingModalProps) {
   const { toast } = useToast();
+  const [scheduleMode, setScheduleMode] = useState<ScheduleMode>("fixed");
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
   const [startTime, setStartTime] = useState("");
+  const [proposedSlots, setProposedSlots] = useState<ProposedSlotDraft[]>([
+    newSlotDraft(),
+    newSlotDraft(),
+  ]);
   const [durationMinutes, setDurationMinutes] = useState<number>(DEFAULT_DURATION_MINUTES);
   const [meetingUrl, setMeetingUrl] = useState("");
   const [showExistingLink, setShowExistingLink] = useState(false);
@@ -117,6 +140,7 @@ export default function ScheduleMeetingModal({
   const [matterKind, setMatterKind] = useState<MatterKind>("client");
   const clientSearchRef = useRef<HTMLDivElement>(null);
   const isClientMeeting = isClientMatterKind(matterKind);
+  const isProposeMode = scheduleMode === "propose";
 
   const { data: cases = [] } = useQuery<Case[]>({
     queryKey: ["/api/cases"],
@@ -139,9 +163,11 @@ export default function ScheduleMeetingModal({
 
   useEffect(() => {
     if (!open) return;
+    setScheduleMode("fixed");
     setTitle("");
     setDate(format(new Date(), "yyyy-MM-dd"));
     setStartTime("");
+    setProposedSlots([newSlotDraft(), newSlotDraft()]);
     setDurationMinutes(DEFAULT_DURATION_MINUTES);
     setMeetingUrl("");
     setShowExistingLink(false);
@@ -172,6 +198,9 @@ export default function ScheduleMeetingModal({
     setClientName(client.name);
     setShowClientDropdown(false);
     setClientSearchQuery("");
+    if (client.email?.trim() && !attendeesRaw.trim()) {
+      setAttendeesRaw(client.email.trim());
+    }
   };
 
   const handleClearClient = () => {
@@ -307,22 +336,124 @@ export default function ScheduleMeetingModal({
     },
   });
 
-  return (
+  const proposeMutation = useMutation({
+    mutationFn: async () => {
+      if (!title.trim()) {
+        throw new Error("Title is required");
+      }
+      if (isClientMeeting && !selectedClient) {
+        throw new Error("Select an existing client or create a new one");
+      }
+
+      const attendees = parseAttendeeEmails(attendeesRaw);
+      if (attendees.length === 0) {
+        throw new Error("Enter the client email so we can send the booking link");
+      }
+
+      const filled = proposedSlots.filter((s) => s.date && s.startTime);
+      if (filled.length < 2) {
+        throw new Error("Add at least two proposed times");
+      }
+      if (filled.length > 5) {
+        throw new Error("You can propose at most five times");
+      }
+
+      const now = new Date();
+      const slots = filled.map((s) => {
+        const start = new Date(`${s.date}T${s.startTime}`);
+        if (isNaN(start.getTime()) || start <= now) {
+          throw new Error("All proposed times must be in the future");
+        }
+        return {
+          startsAt: start.toISOString(),
+          endsAt: new Date(start.getTime() + durationMinutes * 60 * 1000).toISOString(),
+        };
+      });
+
+      return apiRequest("POST", "/api/meeting-booking-proposals", {
+        title: title.trim(),
+        description: description.trim() || undefined,
+        durationMinutes,
+        caseId: caseId || undefined,
+        provider: activeProvider,
+        clientEmail: attendees[0].email,
+        clientName: isClientMeeting
+          ? selectedClient!.name
+          : partyLabelForMatterKind(matterKind),
+        slots,
+      });
+    },
+    onSuccess: (proposal: { bookingUrl?: string; emailStatus?: string }) => {
+      toast({
+        title: "Times proposed",
+        description:
+          proposal.emailStatus === "sent"
+            ? "Booking link emailed to the client. You’ll be notified when they pick a time."
+            : "Proposal created, but the email may not have sent. Copy the link from Upcoming Meetings if needed.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/meeting-booking-proposals"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/scheduled-meetings"] });
+      onOpenChange(false);
+    },
+    onError: (error: Error & { needsCalendarConnection?: boolean }) => {
+      if (
+        error.message?.includes("not connected") ||
+        (error as { needsCalendarConnection?: boolean }).needsCalendarConnection
+      ) {
+        onOpenChange(false);
+        onNeedsCalendarConnection?.();
+        return;
+      }
+      toast({
+        title: "Could not propose times",
+        description: getApiErrorMessage(error, "Please try again."),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const isSubmitting = createMutation.isPending || proposeMutation.isPending;
+  const clientEmailReady = parseAttendeeEmails(attendeesRaw).length > 0;
+  const proposeSlotsReady =
+    proposedSlots.filter((s) => s.date && s.startTime).length >= 2;
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto" data-testid="dialog-schedule-meeting">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CalendarPlus className="w-4 h-4" />
-            Schedule Meeting
+            {isProposeMode ? "Propose meeting times" : "Schedule Meeting"}
           </DialogTitle>
           <DialogDescription>
-            Create the meeting here — we&apos;ll add it to your calendar, generate a{" "}
-            {autoConferenceName} link automatically, and email invitees a confirmation with the join
-            link.
+            {isProposeMode
+              ? "Send the client a few options. When they pick one, we’ll add it to your calendar with a join link."
+              : `Create the meeting here — we'll add it to your calendar, generate a ${autoConferenceName} link automatically, and email invitees a confirmation with the join link.`}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 pt-1">
+          <div className="space-y-2">
+            <Label>How do you want to book?</Label>
+            <RadioGroup
+              value={scheduleMode}
+              onValueChange={(v) => setScheduleMode(v as ScheduleMode)}
+              className="grid grid-cols-2 gap-2"
+            >
+              <div className="flex items-center gap-2 rounded-md border px-3 py-2">
+                <RadioGroupItem value="fixed" id="schedule-mode-fixed" data-testid="radio-schedule-mode-fixed" />
+                <Label htmlFor="schedule-mode-fixed" className="cursor-pointer font-normal text-sm">
+                  Fixed time
+                </Label>
+              </div>
+              <div className="flex items-center gap-2 rounded-md border px-3 py-2">
+                <RadioGroupItem value="propose" id="schedule-mode-propose" data-testid="radio-schedule-mode-propose" />
+                <Label htmlFor="schedule-mode-propose" className="cursor-pointer font-normal text-sm">
+                  Propose times
+                </Label>
+              </div>
+            </RadioGroup>
+          </div>
+
+          {!isProposeMode && (
           <div className="flex items-start gap-2 rounded-md border bg-muted/40 px-3 py-2.5 text-sm">
             <Video className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
             <p className="text-muted-foreground">
@@ -330,6 +461,17 @@ export default function ScheduleMeetingModal({
               link will be created with the calendar event. No need to set one up first.
             </p>
           </div>
+          )}
+
+          {isProposeMode && (
+          <div className="flex items-start gap-2 rounded-md border bg-muted/40 px-3 py-2.5 text-sm">
+            <Video className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+            <p className="text-muted-foreground">
+              The client picks one slot. We then create the calendar event and{" "}
+              <span className="font-medium text-foreground">{autoConferenceName}</span> link.
+            </p>
+          </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="schedule-title">Title</Label>
@@ -476,6 +618,7 @@ export default function ScheduleMeetingModal({
           )}
 
           <div className="grid grid-cols-2 gap-3">
+            {!isProposeMode && (
             <div className="space-y-2 col-span-2">
               <Label htmlFor="schedule-date">Date</Label>
               <Input
@@ -487,6 +630,8 @@ export default function ScheduleMeetingModal({
                 data-testid="input-schedule-date"
               />
             </div>
+            )}
+            {!isProposeMode && (
             <div className="space-y-2">
               <Label htmlFor="schedule-start">Start</Label>
               <Input
@@ -497,7 +642,8 @@ export default function ScheduleMeetingModal({
                 data-testid="input-schedule-start"
               />
             </div>
-            <div className="space-y-2">
+            )}
+            <div className={`space-y-2 ${isProposeMode ? "col-span-2" : ""}`}>
               <Label htmlFor="schedule-duration">Duration</Label>
               <Select
                 value={String(durationMinutes)}
@@ -515,7 +661,7 @@ export default function ScheduleMeetingModal({
                 </SelectContent>
               </Select>
             </div>
-            {startTime && computedEndTime && (
+            {!isProposeMode && startTime && computedEndTime && (
               <p className="col-span-2 text-xs text-muted-foreground" data-testid="text-schedule-end-preview">
                 Ends at {computedEndTime}
                 {(() => {
@@ -527,16 +673,107 @@ export default function ScheduleMeetingModal({
             )}
           </div>
 
+          {isProposeMode && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <Label>Proposed times (2–5)</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={proposedSlots.length >= 5}
+                  onClick={() =>
+                    setProposedSlots((prev) => [
+                      ...prev,
+                      newSlotDraft(prev[prev.length - 1]?.date || format(new Date(), "yyyy-MM-dd")),
+                    ])
+                  }
+                  data-testid="button-add-proposed-slot"
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1" />
+                  Add time
+                </Button>
+              </div>
+              {proposedSlots.map((slot, index) => (
+                <div
+                  key={slot.id}
+                  className="grid grid-cols-[1fr_auto_auto] gap-2 items-end"
+                  data-testid={`row-proposed-slot-${index}`}
+                >
+                  <div className="space-y-1.5 min-w-0">
+                    <Label className="text-xs text-muted-foreground">Date</Label>
+                    <Input
+                      type="date"
+                      value={slot.date}
+                      min={format(new Date(), "yyyy-MM-dd")}
+                      onChange={(e) =>
+                        setProposedSlots((prev) =>
+                          prev.map((s) =>
+                            s.id === slot.id ? { ...s, date: e.target.value } : s,
+                          ),
+                        )
+                      }
+                      data-testid={`input-proposed-date-${index}`}
+                    />
+                  </div>
+                  <div className="space-y-1.5 w-[7.5rem]">
+                    <Label className="text-xs text-muted-foreground">Start</Label>
+                    <Input
+                      type="time"
+                      value={slot.startTime}
+                      onChange={(e) =>
+                        setProposedSlots((prev) =>
+                          prev.map((s) =>
+                            s.id === slot.id ? { ...s, startTime: e.target.value } : s,
+                          ),
+                        )
+                      }
+                      data-testid={`input-proposed-start-${index}`}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="shrink-0"
+                    disabled={proposedSlots.length <= 2}
+                    onClick={() =>
+                      setProposedSlots((prev) => prev.filter((s) => s.id !== slot.id))
+                    }
+                    aria-label="Remove proposed time"
+                    data-testid={`button-remove-proposed-slot-${index}`}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="space-y-2">
-            <Label htmlFor="schedule-attendees">Attendees (optional)</Label>
+            <Label htmlFor="schedule-attendees">
+              {isProposeMode ? (
+                <>
+                  Client email <span className="text-accent">*</span>
+                </>
+              ) : (
+                "Attendees (optional)"
+              )}
+            </Label>
             <Input
               id="schedule-attendees"
               value={attendeesRaw}
               onChange={(e) => setAttendeesRaw(e.target.value)}
-              placeholder="client@example.com, counsel@firm.com"
+              placeholder={
+                isProposeMode ? "client@example.com" : "client@example.com, counsel@firm.com"
+              }
               data-testid="input-schedule-attendees"
             />
-            <p className="text-xs text-muted-foreground">Separate emails with commas</p>
+            <p className="text-xs text-muted-foreground">
+              {isProposeMode
+                ? "We’ll email them a link to pick one of the proposed times"
+                : "Separate emails with commas"}
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -639,6 +876,7 @@ export default function ScheduleMeetingModal({
             )}
           </div>
 
+          {!isProposeMode && (
           <div className="space-y-2 border-t pt-3">
             <button
               type="button"
@@ -670,6 +908,7 @@ export default function ScheduleMeetingModal({
               </div>
             )}
           </div>
+          )}
         </div>
 
         <DialogFooter className="gap-2">
@@ -681,22 +920,25 @@ export default function ScheduleMeetingModal({
             Cancel
           </Button>
           <Button
-            onClick={() => createMutation.mutate()}
-            disabled={
-              createMutation.isPending ||
-              !title.trim() ||
-              !date ||
-              !startTime ||
-              (isClientMeeting && !selectedClient)
+            onClick={() =>
+              isProposeMode ? proposeMutation.mutate() : createMutation.mutate()
             }
-            data-testid="button-confirm-schedule"
+            disabled={
+              isSubmitting ||
+              !title.trim() ||
+              (isClientMeeting && !selectedClient) ||
+              (isProposeMode
+                ? !clientEmailReady || !proposeSlotsReady
+                : !date || !startTime)
+            }
+            data-testid={isProposeMode ? "button-confirm-propose" : "button-confirm-schedule"}
           >
-            {createMutation.isPending ? (
+            {isSubmitting ? (
               <Loader2 className="w-4 h-4 mr-1 animate-spin" />
             ) : (
               <CalendarPlus className="w-4 h-4 mr-1" />
             )}
-            Schedule with {autoConferenceName}
+            {isProposeMode ? "Send booking link" : `Schedule with ${autoConferenceName}`}
           </Button>
         </DialogFooter>
       </DialogContent>

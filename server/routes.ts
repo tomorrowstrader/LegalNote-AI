@@ -12213,6 +12213,184 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       next(error);
     }
   });
+
+  // --- Meeting booking proposals (propose times → client picks) ---
+  app.post("/api/meeting-booking-proposals", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const createSchema = z.object({
+        title: z.string().trim().min(1).max(500),
+        description: z.string().trim().max(5000).optional().nullable(),
+        clientEmail: z.string().email().max(255),
+        clientName: z.string().trim().max(200).optional().nullable(),
+        caseId: z.string().min(1).optional().nullable(),
+        durationMinutes: z.number().int().min(15).max(240).default(30),
+        provider: z.enum(["google", "outlook"]).optional(),
+        slots: z
+          .array(
+            z.object({
+              startsAt: z.string().min(1),
+              endsAt: z.string().min(1).optional(),
+            }),
+          )
+          .min(2)
+          .max(5),
+        expiresAt: z.string().optional().nullable(),
+      });
+
+      const parsed = createSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          message: "Invalid booking proposal",
+          errors: parsed.error.flatten(),
+        });
+      }
+
+      const data = parsed.data;
+      const {
+        createMeetingBookingProposal,
+      } = await import("./services/meetingBookingService");
+
+      const proposal = await createMeetingBookingProposal({
+        userId,
+        title: data.title,
+        description: data.description || undefined,
+        clientEmail: data.clientEmail,
+        clientName: data.clientName || undefined,
+        caseId: data.caseId || undefined,
+        durationMinutes: data.durationMinutes,
+        calendarProvider: data.provider,
+        slots: data.slots.map((s) => {
+          const startsAt = new Date(s.startsAt);
+          const endsAt = s.endsAt
+            ? new Date(s.endsAt)
+            : new Date(startsAt.getTime() + data.durationMinutes * 60 * 1000);
+          return { startsAt, endsAt };
+        }),
+        expiresAt: data.expiresAt ? new Date(data.expiresAt) : undefined,
+        baseUrl: getCanonicalBaseUrl(req),
+      });
+
+      res.status(201).json(proposal);
+    } catch (error: any) {
+      if (error?.status) {
+        return res.status(error.status).json({
+          message: error.message,
+          needsCalendarConnection: error.needsCalendarConnection || undefined,
+        });
+      }
+      console.error("[MEETING_BOOKING] Error creating proposal:", error);
+      next(error);
+    }
+  });
+
+  app.get("/api/meeting-booking-proposals", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const status =
+        typeof req.query.status === "string" && req.query.status.length > 0
+          ? req.query.status
+          : undefined;
+      const { listMeetingBookingProposals } = await import("./services/meetingBookingService");
+      const proposals = await listMeetingBookingProposals(userId, { status });
+      res.json(proposals);
+    } catch (error) {
+      console.error("[MEETING_BOOKING] Error listing proposals:", error);
+      next(error);
+    }
+  });
+
+  app.post(
+    "/api/meeting-booking-proposals/:id/cancel",
+    isAuthenticated,
+    async (req: any, res, next) => {
+      try {
+        const userId = req.user.claims.sub;
+        const { cancelMeetingBookingProposal } = await import("./services/meetingBookingService");
+        const updated = await cancelMeetingBookingProposal(userId, req.params.id);
+        res.json(updated);
+      } catch (error: any) {
+        if (error?.status) {
+          return res.status(error.status).json({ message: error.message });
+        }
+        console.error("[MEETING_BOOKING] Error cancelling proposal:", error);
+        next(error);
+      }
+    },
+  );
+
+  app.get("/api/book/:token", generalApiLimiter, async (req, res, next) => {
+    try {
+      const { getPublicBookingProposal } = await import("./services/meetingBookingService");
+      const payload = await getPublicBookingProposal(req.params.token);
+      res.json(payload);
+    } catch (error: any) {
+      if (error?.status) {
+        return res.status(error.status).json({ message: error.message });
+      }
+      console.error("[MEETING_BOOKING] Error loading public proposal:", error);
+      next(error);
+    }
+  });
+
+  app.post("/api/book/:token", generalApiLimiter, async (req, res, next) => {
+    try {
+      const bodySchema = z.object({
+        slotId: z.string().min(1).max(64),
+      });
+      const parsed = bodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "slotId is required" });
+      }
+
+      const { bookMeetingSlot } = await import("./services/meetingBookingService");
+      const result = await bookMeetingSlot({
+        token: req.params.token,
+        slotId: parsed.data.slotId,
+        baseUrl: getCanonicalBaseUrl(req),
+        ipAddress: req.ip || req.socket?.remoteAddress,
+      });
+
+      res.json({
+        status: "booked",
+        startsAt: result.startsAt,
+        endsAt: result.endsAt,
+      });
+    } catch (error: any) {
+      if (error?.status) {
+        return res.status(error.status).json({ message: error.message });
+      }
+      console.error("[MEETING_BOOKING] Error booking slot:", error);
+      next(error);
+    }
+  });
+
+  app.post("/api/book/:token/decline", generalApiLimiter, async (req, res, next) => {
+    try {
+      const bodySchema = z.object({
+        note: z.string().trim().max(2000).optional().nullable(),
+      });
+      const parsed = bodySchema.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid decline request" });
+      }
+
+      const { declineMeetingBooking } = await import("./services/meetingBookingService");
+      await declineMeetingBooking({
+        token: req.params.token,
+        note: parsed.data.note || undefined,
+        ipAddress: req.ip || req.socket?.remoteAddress,
+      });
+
+      res.json({ status: "declined" });
+    } catch (error: any) {
+      if (error?.status) {
+        return res.status(error.status).json({ message: error.message });
+      }
+      console.error("[MEETING_BOOKING] Error declining booking:", error);
+      next(error);
+    }
+  });
   
   // Update scheduled meeting (enable/disable auto-record, set client info, link case)
   app.patch("/api/scheduled-meetings/:id", isAuthenticated, async (req, res, next) => {
@@ -13634,6 +13812,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         'pre_consent_acknowledged', 'pre_consent_declined', 'pre_consent_reschedule_requested',
         'meeting_reminder',
         'share_feedback_submitted',
+        'meeting_booking_confirmed', 'meeting_booking_declined',
       ];
       
       const events = await dbConn

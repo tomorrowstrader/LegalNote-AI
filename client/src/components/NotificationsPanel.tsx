@@ -45,6 +45,8 @@ const notificationIcon = (type: string) => {
     case "pre_consent_declined":
       return Shield;
     case "pre_consent_reschedule_requested":
+    case "meeting_booking_confirmed":
+    case "meeting_booking_declined":
     case "meeting_reminder":
     case "deadline_approaching":
       return Calendar;
@@ -67,10 +69,12 @@ const notificationColor = (type: string) => {
     case "deadline_approaching":
     case "meeting_reminder":
     case "pre_consent_reschedule_requested":
+    case "meeting_booking_declined":
       return "text-amber-500";
     case "consent_given":
     case "consent_confirmed":
     case "pre_consent_acknowledged":
+    case "meeting_booking_confirmed":
       return "text-emerald-500";
     case "transcription_complete":
     case "transcription_completed":

@@ -796,6 +796,44 @@ export const preConsentEmails = pgTable("pre_consent_emails", {
   expiresAt: timestamp("expires_at"), // Consent expires after a period
 });
 
+/**
+ * Solicitor proposes multiple meeting slots; client picks one via public /book/:token.
+ * On accept → scheduled_meetings + calendar event (same downstream path as fixed schedule).
+ */
+export const meetingBookingProposals = pgTable("meeting_booking_proposals", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  caseId: varchar("case_id").references(() => cases.id),
+  token: text("token").notNull().unique(),
+  title: text("title").notNull(),
+  description: text("description"),
+  clientEmail: text("client_email").notNull(),
+  clientName: text("client_name"),
+  durationMinutes: integer("duration_minutes").notNull().default(30),
+  calendarProvider: text("calendar_provider").notNull().default("google"), // google, outlook
+  status: text("status").notNull().default("pending"), // pending, booked, declined, expired, cancelled
+  selectedSlotId: varchar("selected_slot_id"),
+  scheduledMeetingId: varchar("scheduled_meeting_id").references(() => scheduledMeetings.id),
+  declineNote: text("decline_note"),
+  emailSentAt: timestamp("email_sent_at"),
+  emailStatus: text("email_status").notNull().default("pending"), // pending, sent, failed
+  respondedAt: timestamp("responded_at"),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const meetingBookingSlots = pgTable("meeting_booking_slots", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  proposalId: varchar("proposal_id")
+    .notNull()
+    .references(() => meetingBookingProposals.id, { onDelete: "cascade" }),
+  startsAt: timestamp("starts_at").notNull(),
+  endsAt: timestamp("ends_at").notNull(),
+  status: text("status").notNull().default("available"), // available, selected, withdrawn
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // SharePoint/OneDrive connections (per-user, Replit-managed)
 export const sharePointConnections = pgTable("share_point_connections", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -1420,6 +1458,9 @@ export type PreConsentEmail = typeof preConsentEmails.$inferSelect;
 
 export type InsertScheduledMeeting = z.infer<typeof insertScheduledMeetingSchema>;
 export type ScheduledMeeting = typeof scheduledMeetings.$inferSelect;
+
+export type MeetingBookingProposal = typeof meetingBookingProposals.$inferSelect;
+export type MeetingBookingSlot = typeof meetingBookingSlots.$inferSelect;
 
 export type InsertClioConnection = z.infer<typeof insertClioConnectionSchema>;
 export type ClioConnection = typeof clioConnections.$inferSelect;

@@ -16,6 +16,7 @@ import { clearScheduledMeetingGuessedRecipients } from "./clearScheduledMeetingR
 import { ensureTranscriptImportsTable } from "./transcriptImportsMigration";
 import { ensureEvaluationOnboardingSetupsTable } from "./evaluationOnboardingMigration";
 import { ensureMeetingImportsConsentColumns } from "./meetingImportsConsentMigration";
+import { ensureMeetingBookingTables } from "./meetingBookingMigration";
 import { ensureMatterKindColumn } from "./matterKindMigration";
 import { getStripeSync } from "./stripeClient";
 import { WebhookHandlers } from "./webhookHandlers";
@@ -268,6 +269,9 @@ app.use((req, res, next) => {
 
   // Ensure live Recall meeting imports have consent-tracking columns (idempotent)
   await ensureMeetingImportsConsentColumns();
+
+  // Ensure propose-times booking tables exist (idempotent)
+  await ensureMeetingBookingTables();
 
   // Ensure cases.matter_kind for internal / firm meetings (idempotent)
   await ensureMatterKindColumn();

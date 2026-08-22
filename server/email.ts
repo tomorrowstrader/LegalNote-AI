@@ -681,6 +681,129 @@ export async function sendPreConsentEmail(params: SendPreConsentEmailParams): Pr
   }
 }
 
+/**
+ * Propose-times booking email.
+ * GDPR: date/time slots only — no matter titles or case references.
+ */
+export async function sendMeetingBookingProposalEmail(params: {
+  to: string;
+  recipientName?: string;
+  bookingUrl: string;
+  slots: Array<{ startsAt: Date; endsAt: Date }>;
+  durationMinutes: number;
+}): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const { to, recipientName, bookingUrl, slots, durationMinutes } = params;
+
+  const displayName = publicFacingDisplayName(recipientName);
+  const greeting = displayName ? `Hello ${escapeHtmlPlain(displayName)},` : "Hello,";
+
+  const slotLines = slots
+    .slice()
+    .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())
+    .map((s) => {
+      const date = s.startsAt.toLocaleDateString("en-GB", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+        timeZone: "Europe/London",
+      });
+      const time = s.startsAt.toLocaleTimeString("en-GB", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "Europe/London",
+      });
+      return `<li style="margin:0 0 8px;font-size:14px;line-height:1.45;color:#1a1a1a;">${escapeHtmlPlain(date)} at ${escapeHtmlPlain(time)} (UK)</li>`;
+    })
+    .join("");
+
+  const emailHtml = `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Choose a meeting time</title>
+    </head>
+    <body style="margin:0;padding:0;background-color:#f3f3f3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f3f3f3;">
+        <tr>
+          <td align="center" style="padding:0;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;margin:0 auto;">
+              ${legalNoteBrandHeaderTableRow()}
+              <tr>
+                <td align="center" style="background-color:#f3f3f3;padding:36px 24px 48px;">
+                  <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:400;line-height:1.3;color:#1a1a1a;">
+                    Choose a meeting time
+                  </p>
+                </td>
+              </tr>
+              <tr>
+                <td align="center" style="background-color:#000000;padding:0 20px 48px;">
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:480px;margin:-36px auto 0;background-color:#ffffff;border-radius:16px;">
+                    <tr>
+                      <td style="padding:40px 32px 36px;text-align:left;">
+                        <p style="margin:0 0 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;line-height:1.55;color:#1a1a1a;">
+                          ${greeting}
+                        </p>
+                        <p style="margin:0 0 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;line-height:1.55;color:#1a1a1a;">
+                          Your solicitor has proposed a few times for a ${escapeHtmlPlain(String(durationMinutes))}-minute meeting. Please pick the option that works best for you.
+                        </p>
+                        <ul style="margin:0 0 24px;padding-left:20px;">
+                          ${slotLines}
+                        </ul>
+                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;">
+                          <tr>
+                            <td align="center" style="background-color:#000000;border-radius:8px;">
+                              <a href="${escapeHtmlPlain(bookingUrl)}" style="display:block;padding:16px 24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:13px;font-weight:700;letter-spacing:0.06em;text-decoration:none;color:#ffffff;text-transform:uppercase;">
+                                Select a time
+                                <span style="display:inline-block;margin-left:12px;padding-left:12px;border-left:2px solid #b8e000;line-height:1;">→</span>
+                              </a>
+                            </td>
+                          </tr>
+                        </table>
+                        <p style="margin:24px 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:11px;line-height:1.5;color:#888888;">
+                          If the button does not work, copy this link into your browser:<br>
+                          <a href="${escapeHtmlPlain(bookingUrl)}" style="color:#555555;word-break:break-all;">${escapeHtmlPlain(bookingUrl)}</a>
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+                  <p style="margin:28px 20px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:11px;line-height:1.5;color:#999999;text-align:center;">
+                    If none of these times work, open the link and let your solicitor know.
+                    <br><br>Sent via LegalNote — Meeting to Matter.
+                  </p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+  `;
+
+  try {
+    const result = await sendEmail({
+      from: 'LegalNote™ <support@legalnote.ai>',
+      to,
+      subject: 'Choose a meeting time',
+      html: emailHtml,
+    });
+
+    if (!result.success) {
+      console.error('[EMAIL] Error sending meeting booking proposal:', result.error);
+    } else {
+      console.log('[EMAIL] Meeting booking proposal sent:', result.messageId);
+    }
+
+    return result;
+  } catch (error: any) {
+    console.error('[EMAIL] Exception sending meeting booking proposal:', error);
+    return { success: false, error: error.message || 'Unknown error' };
+  }
+}
+
 function escapeHtmlPlain(value: string): string {
   return value
     .replace(/&/g, '&amp;')
