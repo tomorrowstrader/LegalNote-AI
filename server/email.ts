@@ -1,5 +1,8 @@
 import { Resend } from 'resend';
 import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
+import fs from 'fs';
+import path from 'path';
+import { MATTER_KIND_PARTY_LABELS } from '@shared/matterKinds';
 import type { FirmRiskDigest } from './storage';
 
 type EmailProvider = 'resend' | 'ses';
@@ -25,6 +28,7 @@ interface SendEmailParams {
   html: string;
   replyTo?: string;
   headers?: Record<string, string>;
+  attachments?: Array<{ filename: string; content: string; content_id?: string }>;
 }
 
 async function sendEmail(
@@ -32,6 +36,10 @@ async function sendEmail(
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   const to = Array.isArray(params.to) ? params.to : [params.to];
   const { from, subject, html, replyTo, headers } = params;
+  const attachments = [...(params.attachments || [])];
+  if (html.includes(`cid:${LEGALNOTE_EMAIL_ICON_CID}`)) {
+    attachments.push(...legalNoteEmailAttachments());
+  }
 
   try {
     if (EMAIL_PROVIDER === 'ses') {
@@ -70,6 +78,7 @@ async function sendEmail(
       to,
       subject,
       html,
+      ...(attachments.length > 0 ? { attachments } : {}),
       ...(replyTo ? { reply_to: replyTo } : {}),
       ...(headers ? { headers } : {}),
     });
@@ -84,6 +93,40 @@ async function sendEmail(
   }
 }
 
+/** Content-ID for the inline LegalNote icon in outbound HTML email. */
+export const LEGALNOTE_EMAIL_ICON_CID = 'legalnote-icon';
+
+let cachedLegalNoteEmailIconBase64: string | null | undefined;
+
+function getLegalNoteEmailIconBase64(): string | null {
+  if (cachedLegalNoteEmailIconBase64 !== undefined) {
+    return cachedLegalNoteEmailIconBase64;
+  }
+  const candidates = [
+    path.resolve(import.meta.dirname, 'public', 'assets', 'email', 'legalnote-icon-white.png'),
+    path.resolve(import.meta.dirname, '..', 'client', 'public', 'assets', 'email', 'legalnote-icon-white.png'),
+  ];
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      cachedLegalNoteEmailIconBase64 = fs.readFileSync(candidate).toString('base64');
+      return cachedLegalNoteEmailIconBase64;
+    }
+  }
+  cachedLegalNoteEmailIconBase64 = null;
+  return null;
+}
+
+/** Inline attachment for the LegalNote email brand icon (CID embedding). */
+export function legalNoteEmailAttachments(): Array<{ filename: string; content: string; content_id: string }> {
+  const content = getLegalNoteEmailIconBase64();
+  if (!content) return [];
+  return [{
+    filename: 'legalnote-icon-white.png',
+    content,
+    content_id: LEGALNOTE_EMAIL_ICON_CID,
+  }];
+}
+
 /** Absolute URL for the LegalNote email icon (white mark; use on a dark header). */
 export function legalNoteEmailIconUrl(): string {
   const base = (process.env.APP_URL || 'https://legalnote.ai').replace(/\/$/, '');
@@ -92,11 +135,13 @@ export function legalNoteEmailIconUrl(): string {
 
 /** Canonical outbound email brand mark — icon + wordmark text. */
 export function legalNoteTextLogoHtml(): string {
-  const iconUrl = legalNoteEmailIconUrl();
+  const iconSrc = getLegalNoteEmailIconBase64()
+    ? `cid:${LEGALNOTE_EMAIL_ICON_CID}`
+    : legalNoteEmailIconUrl();
   return `
     <div style="margin:0 auto;text-align:center;line-height:1;">
       <img
-        src="${iconUrl}"
+        src="${iconSrc}"
         alt="LegalNote"
         width="48"
         height="48"
@@ -578,8 +623,15 @@ interface SendPreConsentEmailParams {
 function publicFacingDisplayName(name?: string | null): string | null {
   const trimmed = name?.trim();
   if (!trimmed || trimmed.includes("@")) return null;
+  const internalLabels = new Set(
+    Object.values(MATTER_KIND_PARTY_LABELS).filter((label): label is string => Boolean(label)),
+  );
+  if (internalLabels.has(trimmed)) return null;
   return trimmed;
 }
+
+/** Exported for meeting scheduler consent emails. */
+export { publicFacingDisplayName };
 
 /**
  * Pre-meeting recording consent request.
@@ -590,7 +642,7 @@ export async function sendPreConsentEmail(params: SendPreConsentEmailParams): Pr
   const { to, recipientName, consentUrl, scheduledMeetingTime } = params;
 
   const displayName = publicFacingDisplayName(recipientName);
-  const greeting = displayName ? `Hello ${escapeHtmlPlain(displayName)},` : "Hello,";
+  const greeting = displayName ? `Hi ${escapeHtmlPlain(displayName)},` : "Hi,";
 
   const whenLine = scheduledMeetingTime && !isNaN(scheduledMeetingTime.getTime())
     ? (() => {
@@ -712,7 +764,7 @@ export async function sendMeetingBookingProposalEmail(params: {
   const { to, recipientName, bookingUrl, slots, durationMinutes, organiserName } = params;
 
   const displayName = publicFacingDisplayName(recipientName);
-  const greeting = displayName ? `Hello ${escapeHtmlPlain(displayName)},` : "Hello,";
+  const greeting = displayName ? `Hi ${escapeHtmlPlain(displayName)},` : "Hi,";
   const organiser = publicFacingDisplayName(organiserName || undefined);
   const whoProposed = organiser
     ? `<strong>${escapeHtmlPlain(organiser)}</strong> has offered`
@@ -2003,7 +2055,7 @@ export async function sendMeetingInviteConfirmationEmail(
     return { success: false, error: 'Invalid meeting join URL' };
   }
 
-  const safeName = escapeHtml(recipientName || 'there');
+  const safeName = escapeHtml(publicFacingDisplayName(recipientName) || 'there');
   const safeTitle = escapeHtml(meetingTitle);
   const platformLabel = formatMeetingPlatformLabel(meetingPlatform);
   const safePlatform = platformLabel ? escapeHtml(platformLabel) : null;
@@ -2112,7 +2164,7 @@ export async function sendMeetingReminderEmail(
   } = params;
 
   const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://legalnote.ai';
-  const safeName = escapeHtml(recipientName || 'there');
+  const safeName = escapeHtml(publicFacingDisplayName(recipientName) || 'there');
   const safeTitle = escapeHtml(meetingTitle);
   const safeCase = caseTitle ? escapeHtml(caseTitle) : null;
   const safePlatform = meetingPlatform ? escapeHtml(meetingPlatform) : null;

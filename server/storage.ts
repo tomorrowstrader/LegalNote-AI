@@ -6183,10 +6183,15 @@ export class DbStorage implements IStorage {
   }
   
   async getMeetingsReadyForBot(userId: string): Promise<ScheduledMeeting[]> {
+    const {
+      BOT_DEPLOY_LEAD_MINUTES,
+      BOT_DEPLOY_GRACE_AFTER_START_MINUTES,
+    } = await import("@shared/liveBotLifecycle");
+
     const now = new Date();
-    const tenMinutesAhead = new Date();
-    tenMinutesAhead.setMinutes(tenMinutesAhead.getMinutes() + 10);
-    
+    const windowStart = new Date(now.getTime() - BOT_DEPLOY_GRACE_AFTER_START_MINUTES * 60 * 1000);
+    const windowEnd = new Date(now.getTime() + BOT_DEPLOY_LEAD_MINUTES * 60 * 1000);
+
     return await db
       .select()
       .from(scheduledMeetings)
@@ -6196,9 +6201,15 @@ export class DbStorage implements IStorage {
           eq(scheduledMeetings.autoRecordEnabled, true),
           eq(scheduledMeetings.consentStatus, 'approved'),
           eq(scheduledMeetings.status, 'scheduled'),
-          isNull(scheduledMeetings.recallBotId),
-          gte(scheduledMeetings.startTime, now),
-          lte(scheduledMeetings.startTime, tenMinutesAhead)
+          gte(scheduledMeetings.startTime, windowStart),
+          lte(scheduledMeetings.startTime, windowEnd),
+          or(
+            isNull(scheduledMeetings.recallBotId),
+            and(
+              eq(scheduledMeetings.botStatus, 'failed'),
+              isNull(scheduledMeetings.meetingImportId),
+            ),
+          ),
         )
       )
       .orderBy(scheduledMeetings.startTime);

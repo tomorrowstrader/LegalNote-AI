@@ -3,11 +3,30 @@
  * Keep client wait UI and Recall createBot automatic_leave in sync.
  */
 
+/**
+ * Cron deploys auto-record bots up to BOT_DEPLOY_LEAD_MINUTES before start.
+ * Waiting-room timeout must exceed lead + grace so a bot is not ejected while
+ * the host is still expected to admit it.
+ */
+export const BOT_DEPLOY_LEAD_MINUTES = 5;
+
+/** If the cron tick missed start, still deploy up to this many minutes after. */
+export const BOT_DEPLOY_GRACE_AFTER_START_MINUTES = 10;
+
 /** Seconds LegalNote waits in a waiting room before auto-leaving (Recall). */
-export const WAITING_ROOM_TIMEOUT_SEC = 600;
+export const WAITING_ROOM_TIMEOUT_SEC = 900;
 
 /** Seconds LegalNote waits alone in-call before auto-leaving (Recall). */
 export const NOONE_JOINED_TIMEOUT_SEC = 300;
+
+/** Scheduled auto-record: eligible to (re)deploy bot within this window. */
+export function isWithinBotDeployWindow(startTime: Date, now: Date = new Date()): boolean {
+  const startMs = startTime.getTime();
+  const nowMs = now.getTime();
+  const leadMs = BOT_DEPLOY_LEAD_MINUTES * 60 * 1000;
+  const graceMs = BOT_DEPLOY_GRACE_AFTER_START_MINUTES * 60 * 1000;
+  return nowMs >= startMs - leadMs && nowMs <= startMs + graceMs;
+}
 
 /** Recall sub_codes that mean the meeting never produced a usable recording. */
 export const ABANDONED_MEETING_SUB_CODES = [

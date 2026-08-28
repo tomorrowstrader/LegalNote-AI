@@ -104,7 +104,7 @@ export async function createMeetingBookingProposal(
   }
 
   let provider: "google" | "outlook" =
-    input.calendarProvider || (googleConnected ? "google" : "outlook");
+    input.calendarProvider || (outlookConnected ? "outlook" : "google");
   if (provider === "google" && !googleConnected) provider = "outlook";
   if (provider === "outlook" && !outlookConnected) provider = "google";
 

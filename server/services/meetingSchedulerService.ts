@@ -3,9 +3,14 @@ import { Client } from '@microsoft/microsoft-graph-client';
 import { storage } from '../storage';
 import type { ScheduledMeeting, InsertScheduledMeeting, CalendarIntegration } from '@shared/schema';
 import { recallService } from './recallService';
-import { sendPreConsentEmail, sendMeetingReminderEmail } from '../email';
+import { sendPreConsentEmail, sendMeetingReminderEmail, publicFacingDisplayName } from '../email';
 import { ensureFreshOutlookToken } from '../oauth';
 import { randomBytes } from 'crypto';
+import {
+  isAbandonedMeetingSubCode,
+  isWithinBotDeployWindow,
+  messageForAbandonedSubCode,
+} from '@shared/liveBotLifecycle';
 
 const APP_BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || 'https://legalnote.ai';
 
@@ -454,7 +459,7 @@ export class MeetingSchedulerService {
     }
 
     const recipientName =
-      meeting.clientName?.trim() ||
+      publicFacingDisplayName(meeting.clientName) ||
       (Array.isArray(meeting.attendees)
         ? (meeting.attendees as Array<{ email?: string; name?: string }>)
             .find(
@@ -463,8 +468,8 @@ export class MeetingSchedulerService {
                 a.email.trim().toLowerCase() === meeting.clientEmail!.trim().toLowerCase(),
             )
             ?.name?.trim()
-        : undefined) ||
-      meeting.clientEmail.trim();
+        : undefined);
+    const resolvedRecipientName = publicFacingDisplayName(recipientName) || undefined;
 
     const consentToken = randomBytes(32).toString('hex');
     const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://legalnote.ai';
@@ -481,7 +486,7 @@ export class MeetingSchedulerService {
     const preConsentEmail = await storage.createPreConsentEmail({
       userId: meeting.userId,
       recipientEmail: meeting.clientEmail,
-      recipientName,
+      recipientName: resolvedRecipientName,
       meetingPlatform: (['zoom', 'teams', 'meet', 'webex'] as const).includes(
         meeting.meetingPlatform as 'zoom' | 'teams' | 'meet' | 'webex'
       ) ? (meeting.meetingPlatform as 'zoom' | 'teams' | 'meet' | 'webex') : undefined,
@@ -497,7 +502,7 @@ export class MeetingSchedulerService {
     try {
       await sendPreConsentEmail({
         to: meeting.clientEmail,
-        recipientName,
+        recipientName: resolvedRecipientName,
         consentUrl,
         scheduledMeetingTime: meeting.startTime,
       });
@@ -525,12 +530,21 @@ export class MeetingSchedulerService {
       return false;
     }
 
+    if (!isWithinBotDeployWindow(new Date(meeting.startTime))) {
+      console.log(
+        `[MEETING_SCHEDULER] Skipping bot deploy for meeting ${meeting.id} — outside deploy window`,
+      );
+      return false;
+    }
+
     if (!recallService.isConfigured()) {
       console.error(`[MEETING_SCHEDULER] Recall.ai not configured`);
       await storage.updateScheduledMeeting(meeting.id, { botStatus: 'failed' });
       await this.notifyRecordingFailure(meeting, 'Recording service is not configured');
       return false;
     }
+
+    const isRetry = !!meeting.recallBotId && meeting.botStatus === 'failed';
 
     try {
       await storage.updateScheduledMeeting(meeting.id, { botStatus: 'waiting' });
@@ -542,7 +556,9 @@ export class MeetingSchedulerService {
         botStatus: 'joining',
       });
 
-      console.log(`[MEETING_SCHEDULER] Deployed bot ${bot.id} for meeting ${meeting.id}`);
+      console.log(
+        `[MEETING_SCHEDULER] Deployed bot ${bot.id} for meeting ${meeting.id}${isRetry ? ' (retry)' : ''}`,
+      );
       return true;
     } catch (error) {
       console.error(`[MEETING_SCHEDULER] Failed to deploy bot:`, error);
@@ -553,6 +569,28 @@ export class MeetingSchedulerService {
       );
       return false;
     }
+  }
+
+  /**
+   * If a bot never recorded (e.g. waiting-room timeout) and the meeting is still
+   * within the deploy window, clear the bot id so cron can redeploy on the next tick.
+   */
+  private async maybeResetForBotRetry(
+    meeting: ScheduledMeeting,
+    reason: string,
+  ): Promise<boolean> {
+    if (!meeting.autoRecordEnabled) return false;
+    if (meeting.meetingImportId) return false;
+    if (!isWithinBotDeployWindow(new Date(meeting.startTime))) return false;
+
+    await storage.updateScheduledMeeting(meeting.id, {
+      recallBotId: null,
+      botStatus: null,
+    });
+    console.log(
+      `[MEETING_SCHEDULER] Cleared bot for retry on meeting ${meeting.id}: ${reason}`,
+    );
+    return true;
   }
 
   private async notifyRecordingFailure(
@@ -584,20 +622,30 @@ export class MeetingSchedulerService {
 
     try {
       const bot = await recallService.getBot(meeting.recallBotId);
-      const status = bot.status?.code || 'unknown';
+      const statusCode = recallService.getBotStatusCode(bot) || 'unknown';
+      const subCode = recallService.getBotSubCode(bot);
+      const neverRecorded = recallService.botNeverRecorded(bot);
 
       let botStatus: string;
-      switch (status) {
+      switch (statusCode) {
         case 'ready':
         case 'joining':
+        case 'joining_call':
           botStatus = 'joining';
           break;
         case 'in_call_recording':
+          botStatus = 'in_call';
+          break;
         case 'in_waiting_room':
+        case 'in_call_not_recording':
           botStatus = 'in_call';
           break;
         case 'done':
-          botStatus = 'done';
+        case 'recording_done':
+          botStatus = neverRecorded ? 'failed' : 'done';
+          break;
+        case 'call_ended':
+          botStatus = neverRecorded ? 'failed' : 'done';
           break;
         case 'fatal':
         case 'analysis_failed':
@@ -613,16 +661,25 @@ export class MeetingSchedulerService {
       }
       await storage.updateScheduledMeeting(meeting.id, updates);
 
+      const freshMeeting = { ...meeting, ...updates };
+
       if (botStatus === 'failed' && meeting.botStatus !== 'failed') {
-        await this.notifyRecordingFailure(
-          meeting,
-          `Bot reported status: ${status}`,
-        );
+        const abandonReason = isAbandonedMeetingSubCode(subCode)
+          ? messageForAbandonedSubCode(subCode)
+          : neverRecorded
+            ? `Bot ended without recording (${statusCode}${subCode ? ` / ${subCode}` : ''})`
+            : `Bot reported status: ${statusCode}`;
+
+        await this.notifyRecordingFailure(freshMeeting, abandonReason);
+
+        if (neverRecorded || isAbandonedMeetingSubCode(subCode)) {
+          await this.maybeResetForBotRetry(freshMeeting, abandonReason);
+        }
       }
 
       if (botStatus === 'done' && meeting.botStatus !== 'done' && meeting.caseId) {
         try {
-          await this.autoFileRecordingToCase(meeting);
+          await this.autoFileRecordingToCase(freshMeeting);
         } catch (err) {
           console.error(`[MEETING_SCHEDULER] Failed to auto-file recording to case:`, err);
         }
@@ -795,16 +852,17 @@ export class MeetingSchedulerService {
     // Consent emails are human-initiated only (POST /api/scheduled-meetings/:id/send-consent).
     // Cron must not originate correspondence to calendar attendees.
 
+    const upcomingMeetings = await storage.getUpcomingScheduledMeetings(userId, 1);
+
+    for (const meeting of upcomingMeetings) {
+      if (!meeting.recallBotId || meeting.botStatus === 'done') continue;
+      if (meeting.botStatus === 'failed' && meeting.meetingImportId) continue;
+      await this.checkBotStatus(meeting);
+    }
+
     const meetingsReadyForBot = await storage.getMeetingsReadyForBot(userId);
     for (const meeting of meetingsReadyForBot) {
       await this.deployBotForMeeting(meeting);
-    }
-
-    const upcomingMeetings = await storage.getUpcomingScheduledMeetings(userId, 1);
-    for (const meeting of upcomingMeetings) {
-      if (meeting.recallBotId && meeting.botStatus !== 'done' && meeting.botStatus !== 'failed') {
-        await this.checkBotStatus(meeting);
-      }
     }
   }
 }

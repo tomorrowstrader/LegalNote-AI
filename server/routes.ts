@@ -12009,7 +12009,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
 
       let provider: "google" | "outlook" =
         data.provider ||
-        (googleConnected ? "google" : "outlook");
+        (outlookConnected ? "outlook" : "google");
 
       if (provider === "google" && !googleConnected) {
         if (!outlookConnected) {

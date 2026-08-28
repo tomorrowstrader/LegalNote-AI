@@ -40,7 +40,7 @@ import { getSafeHttpsMeetingUrl } from "@/lib/meetingUrl";
 import { format } from "date-fns";
 import type { Case, Client, MatterKind, ScheduledMeeting } from "@shared/schema";
 import { MATTER_KIND_LABELS } from "@shared/schema";
-import { isClientMatterKind, partyLabelForMatterKind } from "@shared/matterKinds";
+import { isClientMatterKind } from "@shared/matterKinds";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 interface ScheduleMeetingModalProps {
@@ -129,6 +129,7 @@ export default function ScheduleMeetingModal({
   const [meetingUrl, setMeetingUrl] = useState("");
   const [showExistingLink, setShowExistingLink] = useState(false);
   const [attendeesRaw, setAttendeesRaw] = useState("");
+  const [attendeeName, setAttendeeName] = useState("");
   const [description, setDescription] = useState("");
   const [caseId, setCaseId] = useState<string | null>(null);
   const [caseSearch, setCaseSearch] = useState("");
@@ -153,7 +154,7 @@ export default function ScheduleMeetingModal({
   });
 
   const bothConnected = googleConnected && outlookConnected;
-  const defaultProvider: "google" | "outlook" = googleConnected ? "google" : "outlook";
+  const defaultProvider: "google" | "outlook" = outlookConnected ? "outlook" : "google";
   const activeProvider = bothConnected ? provider : defaultProvider;
   const autoConferenceName = conferenceLabel(activeProvider);
   const computedEndTime = useMemo(
@@ -172,6 +173,7 @@ export default function ScheduleMeetingModal({
     setMeetingUrl("");
     setShowExistingLink(false);
     setAttendeesRaw("");
+    setAttendeeName("");
     setDescription("");
     setCaseId(null);
     setCaseSearch("");
@@ -261,6 +263,9 @@ export default function ScheduleMeetingModal({
       if (isClientMeeting && !selectedClient) {
         throw new Error("Select an existing client or create a new one");
       }
+      if (!isClientMeeting && !attendeeName.trim()) {
+        throw new Error("Enter the attendee's name");
+      }
 
       const start = new Date(`${date}T${startTime}`);
       if (isNaN(start.getTime()) || start <= new Date()) {
@@ -279,7 +284,10 @@ export default function ScheduleMeetingModal({
         safeUrl = normalized;
       }
 
-      const attendees = parseAttendeeEmails(attendeesRaw);
+      const attendees = parseAttendeeEmails(attendeesRaw).map((a) => ({
+        ...a,
+        name: isClientMeeting ? selectedClient!.name : attendeeName.trim(),
+      }));
       if (attendeesRaw.trim() && attendees.length === 0) {
         throw new Error("Enter valid attendee email addresses");
       }
@@ -295,9 +303,7 @@ export default function ScheduleMeetingModal({
         provider: activeProvider,
         attendees,
         clientEmail: attendees[0]?.email,
-        clientName: isClientMeeting
-          ? selectedClient!.name
-          : partyLabelForMatterKind(matterKind),
+        clientName: isClientMeeting ? selectedClient!.name : attendeeName.trim(),
       });
     },
     onSuccess: (meeting) => {
@@ -344,8 +350,14 @@ export default function ScheduleMeetingModal({
       if (isClientMeeting && !selectedClient) {
         throw new Error("Select an existing client or create a new one");
       }
+      if (!isClientMeeting && !attendeeName.trim()) {
+        throw new Error("Enter the attendee's name");
+      }
 
-      const attendees = parseAttendeeEmails(attendeesRaw);
+      const attendees = parseAttendeeEmails(attendeesRaw).map((a) => ({
+        ...a,
+        name: isClientMeeting ? selectedClient!.name : attendeeName.trim(),
+      }));
       if (attendees.length === 0) {
         throw new Error("Enter the client email so we can send the booking link");
       }
@@ -377,9 +389,7 @@ export default function ScheduleMeetingModal({
         caseId: caseId || undefined,
         provider: activeProvider,
         clientEmail: attendees[0].email,
-        clientName: isClientMeeting
-          ? selectedClient!.name
-          : partyLabelForMatterKind(matterKind),
+        clientName: isClientMeeting ? selectedClient!.name : attendeeName.trim(),
         slots,
       });
     },
@@ -752,11 +762,30 @@ export default function ScheduleMeetingModal({
             </div>
           )}
 
+          {!isClientMeeting && (
+          <div className="space-y-2">
+            <Label htmlFor="schedule-attendee-name">
+              Attendee name <span className="text-accent">*</span>
+            </Label>
+            <Input
+              id="schedule-attendee-name"
+              value={attendeeName}
+              onChange={(e) => setAttendeeName(e.target.value)}
+              placeholder="e.g. Shake Smith"
+              data-testid="input-schedule-attendee-name"
+            />
+            <p className="text-xs text-muted-foreground">
+              Used in the booking email greeting — e.g. &quot;Hi Shake,&quot;
+            </p>
+          </div>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="schedule-attendees">
               {isProposeMode ? (
                 <>
-                  Client email <span className="text-accent">*</span>
+                  {isClientMeeting ? "Client email" : "Attendee email"}{" "}
+                  <span className="text-accent">*</span>
                 </>
               ) : (
                 "Attendees (optional)"
@@ -929,6 +958,7 @@ export default function ScheduleMeetingModal({
               isSubmitting ||
               !title.trim() ||
               (isClientMeeting && !selectedClient) ||
+              (!isClientMeeting && !attendeeName.trim()) ||
               (isProposeMode
                 ? !clientEmailReady || !proposeSlotsReady
                 : !date || !startTime)

@@ -54,7 +54,9 @@ export function configureSecurityHeaders(app: Express) {
     maxAge: 86400, // 24 hours
   };
 
-  app.use(cors(corsOptions));
+  // CORS only on API routes — global CORS rejected unknown Origins with 500, which broke
+  // email clients loading public assets (e.g. /assets/email/* brand icons).
+  app.use("/api", cors(corsOptions));
 
   // Build CSP directives based on environment
   const cspDirectives: any = {
@@ -134,6 +136,9 @@ export function configureSecurityHeaders(app: Express) {
       referrerPolicy: {
         policy: "strict-origin-when-cross-origin",
       },
+
+      // Public brand assets (email icons) must load in third-party mail clients.
+      crossOriginResourcePolicy: { policy: "cross-origin" },
 
       // Permissions Policy (formerly Feature Policy)
       permittedCrossDomainPolicies: {
