@@ -4,6 +4,8 @@
  * Advice given wording in the same numbered section — not headings or Client instructions.
  */
 
+import { stripGapEvidenceComments } from "@shared/reasoningGapEvidence";
+
 const MARKER_OR_TOKEN_RE =
   /<!--\s*REASONING_GAP:\s*.+?\s*-->|&lt;!--\s*REASONING_GAP:\s*.+?\s*--&gt;|\{\{RGAP:(?:\\.|[^}])+\}\}/g;
 
@@ -29,6 +31,12 @@ export function withReasoningGapAnchors(content: string | null | undefined): str
   if (!content) return "";
   let index = 0;
   return content.replace(MARKER_OR_TOKEN_RE, () => gapAnchorToken(index++));
+}
+
+/** Strip hidden transcript pointers, then convert gap markers for display. */
+export function prepareReasoningGapDisplayContent(content: string | null | undefined): string {
+  if (!content) return "";
+  return withReasoningGapAnchors(stripGapEvidenceComments(content));
 }
 
 /**

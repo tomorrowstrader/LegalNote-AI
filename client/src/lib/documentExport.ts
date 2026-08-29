@@ -4,6 +4,7 @@ import { saveAs } from 'file-saver';
 import type { FirmProfile } from '@shared/schema';
 import { extractLetterhead, resolveBrandingMode, formatLetterheadAddress, formatLetterheadFooterLine } from '@shared/letterhead';
 import { findAttendanceMattersBodyIndex, normalizeAttendanceSectionLabels } from '@shared/attendanceNoteFormat';
+import { stripGapEvidenceComments } from '@shared/reasoningGapEvidence';
 
 interface DocumentContent {
   summary?: string;
@@ -386,11 +387,12 @@ function parseAttendanceNoteHeader(
   markdown: string,
   fallbacks?: { clientName?: string; matterReference?: string; caseTitle?: string },
 ): ParsedAttendanceNoteHeader {
-  const bodyIdx = findAttendanceMattersBodyIndex(markdown);
-  const headerPart = bodyIdx >= 0 ? markdown.slice(0, bodyIdx) : markdown;
+  const sanitized = stripGapEvidenceComments(markdown);
+  const bodyIdx = findAttendanceMattersBodyIndex(sanitized);
+  const headerPart = bodyIdx >= 0 ? sanitized.slice(0, bodyIdx) : sanitized;
   const bodyMarkdown = bodyIdx >= 0
-    ? normalizeAttendanceSectionLabels(markdown.slice(bodyIdx))
-    : normalizeAttendanceSectionLabels(markdown);
+    ? normalizeAttendanceSectionLabels(sanitized.slice(bodyIdx))
+    : normalizeAttendanceSectionLabels(sanitized);
 
   const fields: AttendanceNoteField[] = [];
   const seenLabels = new Set<string>();

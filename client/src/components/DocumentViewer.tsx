@@ -50,7 +50,7 @@ import { RichTextEditor, type TrackedChange, type TrackChangeAuditRecord } from 
 import { PageView } from "@/components/PageView";
 import DiarizedTranscriptViewer, { type SpeakerUtterance, type Redaction } from "@/components/DiarizedTranscriptViewer";
 import {
-  withReasoningGapAnchors,
+  prepareReasoningGapDisplayContent,
   findReasoningGapAnchor,
   stripReasoningPrefix,
   isWeakGapCitation,
@@ -108,6 +108,7 @@ import {
   evidenceForGap,
   parseGapsWithEvidence,
   replaceGapMarkerAndEvidence,
+  stripGapEvidenceComments,
   type GapTranscriptEvidence,
   type GapTranscriptUtterance,
 } from "@shared/reasoningGapEvidence";
@@ -630,7 +631,7 @@ function normalizeReasoningGapMarkers(content: string): string {
 
 /** Convert stored HTML comments to TipTap-safe tokens for editing. */
 function toEditorContent(content: string): string {
-  return normalizeReasoningGapMarkers(content).replace(
+  return normalizeReasoningGapMarkers(stripGapEvidenceComments(content)).replace(
     /<!--\s*REASONING_GAP:\s*(.+?)\s*-->/g,
     (_m, label: string) => `{{RGAP:${encodeGapLabel(String(label).trim())}}}`,
   );
@@ -1585,13 +1586,13 @@ function EditableDocumentContent({
           and each marker chip shows the specific advice point that still needs reasoning. */}
       {pageViewMode && !isEditing ? (
         <PageView
-          content={withReasoningGapAnchors(sourceContent)}
+          content={prepareReasoningGapDisplayContent(sourceContent)}
           gapAnchorLabels={parseReasoningGaps(document.content)}
           legalContext={legalContext}
         />
       ) : (
         <RichTextEditor
-          content={isEditing ? sourceContent : withReasoningGapAnchors(sourceContent)}
+          content={isEditing ? sourceContent : prepareReasoningGapDisplayContent(sourceContent)}
           onChange={onEditContentChange}
           disabled={!isEditing}
           hydrateGapAnchors={!isEditing}
