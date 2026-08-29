@@ -365,6 +365,13 @@ export default function CaseDetailDrawer({ caseItem, open, onOpenChange }: CaseD
         caseId={caseItem.id}
         caseTitle={caseItem.title}
         userRole="Partner"
+        recipientName={caseItem.clientName}
+        litigationHold={!!caseItem.litigationHold}
+        documents={(documents ?? []).map((d: any) => ({
+          type: d.type,
+          status: d.status,
+          isActive: d.isActive,
+        }))}
         availableDocuments={{
           hasAttendanceNote: !!documents?.find((d: any) => d.isActive && (d.type === 'attendance_note' || d.type === 'meeting_notes')),
           hasSummary: !!documents?.find((d: any) => d.isActive && (d.type === 'summary' || d.type === 'client_letter')) || !!caseData?.textNotes,

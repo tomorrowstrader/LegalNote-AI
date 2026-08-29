@@ -2681,6 +2681,12 @@ export default function CaseDetail() {
         userRole="Partner"
         recipientName={caseData.clientName}
         requireClientConsent={isClientMatter}
+        litigationHold={!!caseData.litigationHold}
+        documents={documents.map((d) => ({
+          type: d.type,
+          status: d.status,
+          isActive: d.isActive,
+        }))}
         availableDocuments={{
           hasAttendanceNote: documents.some(
             (d) =>

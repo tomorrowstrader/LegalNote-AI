@@ -24,6 +24,11 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { queryClient } from "@/lib/queryClient";
+import {
+  getUnadoptedSharedDocumentTypes,
+  shareDocumentTypeLabel,
+  type ShareableDocument,
+} from "@shared/shareDocumentTypes";
 
 interface ShareLinkModalProps {
   open: boolean;
@@ -35,6 +40,10 @@ interface ShareLinkModalProps {
   recipientName?: string;
   /** When false (internal meetings), skip the client-consent external-share gate. */
   requireClientConsent?: boolean;
+  /** Blocks share when the matter is under litigation hold. */
+  litigationHold?: boolean;
+  /** Active matter documents — used to block share until adoption is complete. */
+  documents?: ShareableDocument[];
   availableDocuments?: {
     hasAttendanceNote: boolean;
     hasSummary: boolean;
@@ -70,6 +79,8 @@ export default function ShareLinkModal({
   userRole,
   recipientName: defaultRecipientName,
   requireClientConsent = true,
+  litigationHold = false,
+  documents = [],
   availableDocuments = {
     hasAttendanceNote: true,
     hasSummary: true,
@@ -99,6 +110,10 @@ export default function ShareLinkModal({
   const { user } = useAuth();
 
   const canShareExternal = userRole === "Partner" || userRole === "Senior Associate";
+  const unadoptedSelectedTypes = getUnadoptedSharedDocumentTypes(sharedDocuments, documents);
+  const shareBlockedByHold = litigationHold;
+  const shareBlockedByAdoption = unadoptedSelectedTypes.length > 0;
+  const shareBlocked = shareBlockedByHold || shareBlockedByAdoption;
 
   // Prefill first name and default docs whenever the modal opens
   useEffect(() => {
@@ -151,6 +166,10 @@ export default function ShareLinkModal({
           if (parsed?.message && typeof parsed.message === "string") {
             message = parsed.message;
           }
+          if (Array.isArray(parsed?.unadoptedDocumentTypes) && parsed.unadoptedDocumentTypes.length > 0) {
+            const labels = parsed.unadoptedDocumentTypes.map((type: string) => shareDocumentTypeLabel(type));
+            message = `${message} Adopt first: ${labels.join(", ")}.`;
+          }
         } catch {
           // keep raw text
         }
@@ -180,6 +199,27 @@ export default function ShareLinkModal({
 
 
   const handleShare = () => {
+    if (shareBlockedByHold) {
+      toast({
+        title: "Sharing blocked",
+        description: "This matter is under litigation hold. Release the hold before creating a secure share link.",
+        variant: "destructive",
+        duration: 8000,
+      });
+      return;
+    }
+
+    if (shareBlockedByAdoption) {
+      const labels = unadoptedSelectedTypes.map(shareDocumentTypeLabel);
+      toast({
+        title: "Adoption required",
+        description: `Review and adopt before sharing: ${labels.join(", ")}.`,
+        variant: "destructive",
+        duration: 8000,
+      });
+      return;
+    }
+
     if (!recipientEmail || !recipientName) {
       toast({
         title: "Missing Information",
@@ -368,6 +408,23 @@ export default function ShareLinkModal({
         </DialogHeader>
 
         <div className="space-y-4 py-4 overflow-y-auto flex-1" data-testid="secure-share-modal-fields">
+          {shareBlockedByHold && (
+            <Alert className="border-destructive bg-destructive/5" data-testid="alert-share-litigation-hold">
+              <AlertTriangle className="h-4 w-4 text-destructive" />
+              <AlertDescription>
+                This matter is under <strong>litigation hold</strong>. Secure share is disabled until the hold is released.
+              </AlertDescription>
+            </Alert>
+          )}
+          {shareBlockedByAdoption && (
+            <Alert className="border-amber-500 bg-amber-50 dark:bg-amber-950" data-testid="alert-share-adoption-required">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-amber-900 dark:text-amber-100">
+                Adopt these documents before sharing:{" "}
+                {unadoptedSelectedTypes.map(shareDocumentTypeLabel).join(", ")}.
+              </AlertDescription>
+            </Alert>
+          )}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="recipient-email">
@@ -678,7 +735,13 @@ export default function ShareLinkModal({
           <Button 
             onClick={handleShare} 
             className="bg-accent hover:bg-accent"
-            disabled={!recipientEmail || !recipientName || (isExternal && requireClientConsent && !clientConsent) || (smsProtection && !smsPhoneNumber)}
+            disabled={
+              shareBlocked ||
+              !recipientEmail ||
+              !recipientName ||
+              (isExternal && requireClientConsent && !clientConsent) ||
+              (smsProtection && !smsPhoneNumber)
+            }
             data-testid="button-send-link"
           >
             <Share2 className="w-4 h-4 mr-2" />

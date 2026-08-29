@@ -4299,6 +4299,12 @@ export default function DocumentViewer({
         userRole={shareUserRole}
         recipientName={clientName}
         requireClientConsent={isClientMatter}
+        litigationHold={!!litigationHold}
+        documents={documents.map((d) => ({
+          type: d.type,
+          status: d.status,
+          isActive: d.isActive,
+        }))}
         availableDocuments={{
           hasAttendanceNote: !!attendanceNote,
           hasSummary: !!summary || !!textNotes,

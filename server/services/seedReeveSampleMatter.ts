@@ -21,6 +21,7 @@ import {
 } from "../../shared/schema";
 import { normalizeAttendanceSectionLabels } from "../../shared/attendanceNoteFormat";
 import { enrichContentWithGapEvidence } from "../../shared/reasoningGapEvidence";
+import { approveCaseDocumentsForSharing } from "./approveShareDocuments";
 import { eq, sql } from "drizzle-orm";
 
 const MATTER_REFERENCE = "REE/FAM26-01188";
@@ -852,6 +853,8 @@ export async function seedReeveSampleMatter(opts: {
         transcriptId: (evt as { transcriptId?: string }).transcriptId || null,
       });
     }
+
+    await approveCaseDocumentsForSharing(newCase.id, userId!);
 
     return {
       success: true,

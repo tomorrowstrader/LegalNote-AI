@@ -203,29 +203,7 @@ function requireFeatureVisible(key: FeatureKey) {
 export async function registerRoutes(app: Express): Promise<Server> {
   // Pipeline stores the client-facing letter as `client_letter`; older rows and share
   // payloads may still use `summary`. Attendance notes may be `meeting_notes`.
-  const CLIENT_LETTER_SHARE_TYPES = new Set(["summary", "client_letter"]);
-  const ATTENDANCE_NOTE_SHARE_TYPES = new Set(["attendance_note", "meeting_notes"]);
-
-  const documentMatchesSharedType = (docType: string, sharedType: string): boolean => {
-    if (docType === sharedType) return true;
-    if (CLIENT_LETTER_SHARE_TYPES.has(docType) && CLIENT_LETTER_SHARE_TYPES.has(sharedType)) return true;
-    if (ATTENDANCE_NOTE_SHARE_TYPES.has(docType) && ATTENDANCE_NOTE_SHARE_TYPES.has(sharedType)) return true;
-    return false;
-  };
-
-  const getUnadoptedSharedDocumentTypes = async (
-    caseId: string,
-    userId: string,
-    selectedTypes: readonly string[],
-  ): Promise<string[]> => {
-    const documents = await storage.getActiveDocumentsByCase(caseId, userId);
-    return selectedTypes.filter((type) => {
-      const selectedDocument = documents.find((document) =>
-        documentMatchesSharedType(document.type, type),
-      );
-      return !selectedDocument || selectedDocument.status !== "approved";
-    });
-  };
+import { documentMatchesSharedType, getUnadoptedSharedDocumentTypes } from "@shared/shareDocumentTypes";
 
   const sseClients = new Map<string, Set<Response>>();
 
@@ -1501,11 +1479,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       // Get documents and filter based on sharedDocuments selection
       const allDocuments = await storage.getActiveDocumentsByCase(shareLink.caseId, shareLink.createdBy);
       const sharedDocs = shareLink.sharedDocuments || ["attendance_note"]; // Fallback for old links
-      const unadoptedTypes = await getUnadoptedSharedDocumentTypes(
-        shareLink.caseId,
-        shareLink.createdBy,
-        sharedDocs,
-      );
+      const unadoptedTypes = getUnadoptedSharedDocumentTypes(sharedDocs, allDocuments);
       if (unadoptedTypes.length > 0) {
         return res.status(403).json({
           message: "This link is unavailable because one or more documents have not been adopted by a fee earner.",
@@ -4220,11 +4194,8 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       }
 
       const sharedDocuments = ["client_letter"] as const;
-      const unadoptedTypes = await getUnadoptedSharedDocumentTypes(
-        req.params.id,
-        userId,
-        sharedDocuments,
-      );
+      const caseDocuments = await storage.getActiveDocumentsByCase(req.params.id, userId);
+      const unadoptedTypes = getUnadoptedSharedDocumentTypes(sharedDocuments, caseDocuments);
       if (unadoptedTypes.length > 0) {
         return res.status(403).json({
           message: "The selected document must be reviewed and adopted before it can be shared.",
@@ -4369,11 +4340,8 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         });
       }
 
-      const unadoptedTypes = await getUnadoptedSharedDocumentTypes(
-        req.params.id,
-        userId,
-        sharedDocuments,
-      );
+      const caseDocuments = await storage.getActiveDocumentsByCase(req.params.id, userId);
+      const unadoptedTypes = getUnadoptedSharedDocumentTypes(sharedDocuments, caseDocuments);
       if (unadoptedTypes.length > 0) {
         await logAuditEvent(userId, "case_updated", {
           caseId: req.params.id,
@@ -4498,8 +4466,9 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       });
       
       if (!result.success) {
+        await storage.deleteShareLink(shareLink.id, userId);
         return res.status(500).json({ 
-          message: "Failed to send secure link",
+          message: "Failed to send secure link email. The link was not created — please try again.",
           error: result.error 
         });
       }

@@ -1,6 +1,7 @@
 import { db } from "../db";
 import { cases, meetingSessions, audioRecordings, consentLogs, transcripts, documents, auditTrail, actionItems, preMeetingBriefings, timeEntries, undertakings, quickNotes, securityIncidents, calendarEvents, shareLinks, meetingImports, scheduledMeetings, preConsentEmails, clioMatterLinks, recordingSessions, amlMonitoringNotes, amlDecisionRecords, externalDocumentRefs, conflictChecks, supervisionSignoffs, clientVersionTracking, documentComments } from "../../shared/schema";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
+import { approveCaseDocumentsForSharing } from "./approveShareDocuments";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -2518,6 +2519,19 @@ export async function seedDemoData(userId: string): Promise<{ success: boolean; 
     await seedMatter8Callahan(userId);
     await seedMatter9AlRashidi(userId);
     await seedMatter10Northgate(userId);
+    const demoCases = await db
+      .select({ id: cases.id })
+      .from(cases)
+      .where(
+        and(
+          eq(cases.createdBy, userId),
+          eq(cases.archived, false),
+          sql`${cases.matterReference} LIKE 'HART_%'`,
+        ),
+      );
+    for (const { id } of demoCases) {
+      await approveCaseDocumentsForSharing(id, userId);
+    }
     const archiveNote =
       archivedCount > 0
         ? ` Archived ${archivedCount} prior active matter(s); sealed audit/consent history retained.`
