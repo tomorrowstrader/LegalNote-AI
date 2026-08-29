@@ -278,6 +278,17 @@ export function getMicrosoftAuthUrl(baseUrl: string, state: string): string {
   );
 }
 
+/** URL for a customer's M365 admin to grant tenant-wide consent for calendar scopes. */
+export function getMicrosoftAdminConsentUrl(baseUrl: string): string {
+  const { clientId } = getMicrosoftCalendarCredentials();
+  const redirectUri = encodeURIComponent(getMicrosoftRedirectUri(baseUrl));
+  return (
+    `https://login.microsoftonline.com/organizations/adminconsent` +
+    `?client_id=${clientId}` +
+    `&redirect_uri=${redirectUri}`
+  );
+}
+
 export async function exchangeMicrosoftCode(
   code: string,
   baseUrl: string

@@ -159,6 +159,7 @@ import {
   createGoogleOAuthClient,
   getGoogleAuthUrl,
   getMicrosoftAuthUrl,
+  getMicrosoftAdminConsentUrl,
   exchangeGoogleCode,
   exchangeMicrosoftCode,
   isMicrosoftCalendarConfigured,
@@ -9697,6 +9698,14 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
     try {
       const baseUrl = getCanonicalBaseUrl(req);
       const microsoftDiagnostics = diagnoseMicrosoftCredentials();
+      let outlookAdminConsentUrl: string | null = null;
+      if (microsoftDiagnostics.configured && !microsoftDiagnostics.issue) {
+        try {
+          outlookAdminConsentUrl = getMicrosoftAdminConsentUrl(baseUrl);
+        } catch {
+          outlookAdminConsentUrl = null;
+        }
+      }
 
       const config = {
         baseUrl,
@@ -9720,8 +9729,11 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
             step4: "Open Authentication → Redirect URIs",
             step5: `Add this redirect URI: ${baseUrl}/api/calendar/callback/outlook`,
             step6: "Under API permissions, grant Calendars.ReadWrite, User.Read, and offline_access (with admin consent if required)",
+            step7:
+              "If users see 'Approval required', your firm's Microsoft 365 administrator must grant admin consent using the admin consent URL below (or approve the user's access request in Entra ID).",
           },
         },
+        outlookAdminConsentUrl,
         status: {
           googleConfigured: !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
           outlookConfigured: microsoftDiagnostics.configured && !microsoftDiagnostics.issue,

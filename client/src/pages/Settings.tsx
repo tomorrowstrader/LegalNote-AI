@@ -716,9 +716,10 @@ function CalendarConnections() {
   const { data: oauthConfig } = useQuery<{
     baseUrl: string;
     redirectUris: { google: string; outlook?: string };
+    outlookAdminConsentUrl?: string | null;
     instructions: {
       google: { step1: string; step2: string; step3: string; step4: string; step5?: string };
-      outlook?: { step1: string; step2: string; step3: string; step4: string };
+      outlook?: { step1: string; step2: string; step3: string; step4: string; step5?: string; step6?: string; step7?: string };
     };
     status: { googleConfigured: boolean; outlookConfigured?: boolean; outlookIssue?: string | null; outlookIssueDetail?: string | null };
   }>({
@@ -1016,7 +1017,43 @@ function CalendarConnections() {
                             {'step6' in oauthConfig.instructions.outlook && (
                               <li>{oauthConfig.instructions.outlook.step6}</li>
                             )}
+                            {'step7' in oauthConfig.instructions.outlook && oauthConfig.instructions.outlook.step7 && (
+                              <li>{oauthConfig.instructions.outlook.step7}</li>
+                            )}
                           </ol>
+                        </div>
+                      )}
+                      {oauthConfig.outlookAdminConsentUrl && (
+                        <div className="space-y-2 pt-2">
+                          <Label className="text-sm font-medium">Outlook admin consent URL (for IT)</Label>
+                          <p className="text-xs text-muted-foreground">
+                            Send this link to your firm&apos;s Microsoft 365 administrator if users see
+                            &quot;Approval required&quot; when connecting Outlook. They must sign in as a
+                            Global Administrator or Cloud Application Administrator.
+                          </p>
+                          <div className="flex gap-2">
+                            <Input
+                              value={oauthConfig.outlookAdminConsentUrl}
+                              readOnly
+                              className="font-mono text-xs"
+                            />
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                copyToClipboard(
+                                  oauthConfig.outlookAdminConsentUrl!,
+                                  "Outlook admin consent URL",
+                                )
+                              }
+                            >
+                              {copiedUri === "Outlook admin consent URL" ? (
+                                <Check className="w-4 h-4" />
+                              ) : (
+                                <Copy className="w-4 h-4" />
+                              )}
+                            </Button>
+                          </div>
                         </div>
                       )}
                     </div>
