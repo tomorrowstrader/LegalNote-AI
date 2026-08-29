@@ -12346,6 +12346,69 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
     },
   );
 
+  app.patch(
+    "/api/meeting-booking-proposals/:id/slots",
+    isAuthenticated,
+    async (req: any, res, next) => {
+      try {
+        const userId = req.user.claims.sub;
+        const patchSchema = z.object({
+          removeSlotIds: z.array(z.string().min(1)).max(5).optional(),
+          addSlots: z
+            .array(
+              z.object({
+                startsAt: z.string().min(1),
+                endsAt: z.string().min(1).optional(),
+              }),
+            )
+            .max(5)
+            .optional(),
+          notifyClient: z.boolean().optional().default(true),
+        });
+
+        const parsed = patchSchema.safeParse(req.body);
+        if (!parsed.success) {
+          return res.status(400).json({
+            message: "Invalid slot update",
+            errors: parsed.error.flatten(),
+          });
+        }
+
+        const data = parsed.data;
+        if (
+          (!data.removeSlotIds || data.removeSlotIds.length === 0) &&
+          (!data.addSlots || data.addSlots.length === 0)
+        ) {
+          return res.status(400).json({ message: "No slot changes provided" });
+        }
+
+        const { updateMeetingBookingProposalSlots } = await import(
+          "./services/meetingBookingService"
+        );
+
+        const proposal = await updateMeetingBookingProposalSlots({
+          userId,
+          proposalId: req.params.id,
+          removeSlotIds: data.removeSlotIds,
+          addSlots: (data.addSlots ?? []).map((s) => ({
+            startsAt: new Date(s.startsAt),
+            endsAt: s.endsAt ? new Date(s.endsAt) : undefined,
+          })),
+          notifyClient: data.notifyClient,
+          baseUrl: getCanonicalBaseUrl(req),
+        });
+
+        res.json(proposal);
+      } catch (error: any) {
+        if (error?.status) {
+          return res.status(error.status).json({ message: error.message });
+        }
+        console.error("[MEETING_BOOKING] Error updating proposal slots:", error);
+        next(error);
+      }
+    },
+  );
+
   app.get("/api/book/:token", generalApiLimiter, async (req, res, next) => {
     try {
       const { getPublicBookingProposal } = await import("./services/meetingBookingService");

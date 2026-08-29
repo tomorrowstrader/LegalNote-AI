@@ -16,7 +16,12 @@ import {
   deleteOutlookCalendarEvent,
   getConnectedProviders,
 } from "../calendar";
-import { sendMeetingBookingProposalEmail, sendMeetingInviteConfirmationEmail, sendMeetingBookingResponseNotification } from "../email";
+import {
+  sendMeetingBookingProposalEmail,
+  sendMeetingBookingProposalUpdatedEmail,
+  sendMeetingInviteConfirmationEmail,
+  sendMeetingBookingResponseNotification,
+} from "../email";
 
 const MIN_SLOTS = 2;
 const MAX_SLOTS = 5;
@@ -49,6 +54,20 @@ function generateToken(): string {
   return crypto.randomBytes(32).toString("hex");
 }
 
+function validateSlotTimes(slots: BookingSlotInput[], now = new Date()): void {
+  for (const slot of slots) {
+    if (isNaN(slot.startsAt.getTime()) || isNaN(slot.endsAt.getTime())) {
+      throw Object.assign(new Error("Invalid slot date/time"), { status: 400 });
+    }
+    if (slot.startsAt <= now) {
+      throw Object.assign(new Error("All proposed times must be in the future"), { status: 400 });
+    }
+    if (slot.endsAt <= slot.startsAt) {
+      throw Object.assign(new Error("Each slot end time must be after its start"), { status: 400 });
+    }
+  }
+}
+
 function detectPlatform(
   meetingUrl: string | undefined,
 ): "zoom" | "teams" | "meet" | "webex" | undefined {
@@ -74,17 +93,7 @@ export async function createMeetingBookingProposal(
   }
 
   const now = new Date();
-  for (const slot of input.slots) {
-    if (isNaN(slot.startsAt.getTime()) || isNaN(slot.endsAt.getTime())) {
-      throw Object.assign(new Error("Invalid slot date/time"), { status: 400 });
-    }
-    if (slot.startsAt <= now) {
-      throw Object.assign(new Error("All proposed times must be in the future"), { status: 400 });
-    }
-    if (slot.endsAt <= slot.startsAt) {
-      throw Object.assign(new Error("Each slot end time must be after its start"), { status: 400 });
-    }
-  }
+  validateSlotTimes(input.slots, now);
 
   if (input.caseId) {
     const caseData = await storage.getCase(input.caseId, input.userId);
@@ -167,7 +176,6 @@ export async function createMeetingBookingProposal(
       .set({
         emailSentAt: emailResult.success ? new Date() : null,
         emailStatus: emailResult.success ? "sent" : "failed",
-        updatedAt: new Date(),
       })
       .where(eq(meetingBookingProposals.id, proposal.id));
 
@@ -177,7 +185,7 @@ export async function createMeetingBookingProposal(
     console.warn("[MEETING_BOOKING] Proposal email failed:", err);
     await db
       .update(meetingBookingProposals)
-      .set({ emailStatus: "failed", updatedAt: new Date() })
+      .set({ emailStatus: "failed" })
       .where(eq(meetingBookingProposals.id, proposal.id));
     proposal.emailStatus = "failed";
   }
@@ -288,6 +296,171 @@ export async function cancelMeetingBookingProposal(
   return updated;
 }
 
+export type UpdateBookingProposalSlotsInput = {
+  userId: string;
+  proposalId: string;
+  removeSlotIds?: string[];
+  addSlots?: Array<{ startsAt: Date; endsAt?: Date }>;
+  notifyClient?: boolean;
+  baseUrl: string;
+};
+
+export async function updateMeetingBookingProposalSlots(
+  input: UpdateBookingProposalSlotsInput,
+): Promise<ProposalWithSlots> {
+  const [proposal] = await db
+    .select()
+    .from(meetingBookingProposals)
+    .where(
+      and(
+        eq(meetingBookingProposals.id, input.proposalId),
+        eq(meetingBookingProposals.userId, input.userId),
+      ),
+    )
+    .limit(1);
+
+  if (!proposal) {
+    throw Object.assign(new Error("Booking proposal not found"), { status: 404 });
+  }
+
+  if (proposal.status === "pending" && proposal.expiresAt <= new Date()) {
+    await markProposalExpired(proposal);
+    throw Object.assign(new Error("This booking proposal has expired"), { status: 410 });
+  }
+
+  if (proposal.status !== "pending") {
+    throw Object.assign(new Error("Only pending proposals can be edited"), { status: 400 });
+  }
+
+  const slots = await db
+    .select()
+    .from(meetingBookingSlots)
+    .where(eq(meetingBookingSlots.proposalId, proposal.id))
+    .orderBy(meetingBookingSlots.startsAt);
+
+  const available = slots.filter((s) => s.status === "available");
+  const removeSlotIds = [...new Set(input.removeSlotIds ?? [])];
+  const addSlots = input.addSlots ?? [];
+
+  if (removeSlotIds.length === 0 && addSlots.length === 0) {
+    throw Object.assign(new Error("No slot changes provided"), { status: 400 });
+  }
+
+  const availableIds = new Set(available.map((s) => s.id));
+  for (const id of removeSlotIds) {
+    if (!availableIds.has(id)) {
+      throw Object.assign(new Error("One or more times could not be removed"), { status: 400 });
+    }
+  }
+
+  validateSlotTimes(
+    addSlots.map((s) => ({
+      startsAt: s.startsAt,
+      endsAt: s.endsAt ?? new Date(s.startsAt.getTime() + proposal.durationMinutes * 60 * 1000),
+    })),
+  );
+
+  const remainingCount = available.length - removeSlotIds.length + addSlots.length;
+  if (remainingCount < MIN_SLOTS) {
+    throw Object.assign(
+      new Error(`At least ${MIN_SLOTS} time options must remain — cancel the proposal instead`),
+      { status: 400 },
+    );
+  }
+  if (remainingCount > MAX_SLOTS) {
+    throw Object.assign(
+      new Error(`No more than ${MAX_SLOTS} time options are allowed`),
+      { status: 400 },
+    );
+  }
+
+  if (removeSlotIds.length > 0) {
+    await db
+      .update(meetingBookingSlots)
+      .set({ status: "withdrawn" })
+      .where(
+        and(
+          eq(meetingBookingSlots.proposalId, proposal.id),
+          inArray(meetingBookingSlots.id, removeSlotIds),
+          eq(meetingBookingSlots.status, "available"),
+        ),
+      );
+  }
+
+  if (addSlots.length > 0) {
+    await db.insert(meetingBookingSlots).values(
+      addSlots.map((s) => {
+        const endsAt =
+          s.endsAt ??
+          new Date(s.startsAt.getTime() + proposal.durationMinutes * 60 * 1000);
+        return {
+          proposalId: proposal.id,
+          startsAt: s.startsAt,
+          endsAt,
+          status: "available" as const,
+        };
+      }),
+    );
+  }
+
+  const now = new Date();
+  const [updatedProposal] = await db
+    .update(meetingBookingProposals)
+    .set({ updatedAt: now })
+    .where(eq(meetingBookingProposals.id, proposal.id))
+    .returning();
+
+  const updatedSlots = await db
+    .select()
+    .from(meetingBookingSlots)
+    .where(eq(meetingBookingSlots.proposalId, proposal.id))
+    .orderBy(meetingBookingSlots.startsAt);
+
+  const bookingUrl = `${input.baseUrl.replace(/\/$/, "")}/book/${proposal.token}`;
+  const availableForClient = updatedSlots.filter((s) => s.status === "available");
+
+  let notifyEmailStatus: "sent" | "failed" | "skipped" = "skipped";
+  if (input.notifyClient) {
+    const organiserUser = await storage.getUser(input.userId);
+    const organiserFirm = organiserUser?.firmId
+      ? await storage.getFirmProfile(organiserUser.firmId)
+      : await storage.getFirmProfile();
+    const organiserName = organiserFirm?.firmName?.trim() || null;
+
+    try {
+      const emailResult = await sendMeetingBookingProposalUpdatedEmail({
+        to: proposal.clientEmail,
+        recipientName: proposal.clientName || undefined,
+        bookingUrl,
+        slots: availableForClient.map((s) => ({ startsAt: s.startsAt, endsAt: s.endsAt })),
+        durationMinutes: proposal.durationMinutes,
+        organiserName,
+      });
+      notifyEmailStatus = emailResult.success ? "sent" : "failed";
+    } catch (err) {
+      console.warn("[MEETING_BOOKING] Proposal update email failed:", err);
+      notifyEmailStatus = "failed";
+    }
+  }
+
+  await storage.createAuditLog({
+    eventType: "meeting_booking_slots_updated",
+    userId: input.userId,
+    caseId: proposal.caseId || undefined,
+    metadata: {
+      proposalId: proposal.id,
+      removedCount: removeSlotIds.length,
+      addedCount: addSlots.length,
+      availableCount: availableForClient.length,
+      notifyClient: !!input.notifyClient,
+      notifyEmailStatus,
+    },
+    severity: "info",
+  });
+
+  return { ...updatedProposal, slots: updatedSlots, bookingUrl };
+}
+
 async function markProposalExpired(proposal: MeetingBookingProposal): Promise<void> {
   const result = await db.execute(sql`
     UPDATE meeting_booking_proposals
@@ -390,11 +563,17 @@ export async function getPublicBookingProposal(token: string) {
     ? await storage.getFirmProfile(firmUser.firmId)
     : await storage.getFirmProfile();
 
+  const slotsUpdated =
+    !!proposal.emailSentAt && proposal.updatedAt.getTime() > proposal.emailSentAt.getTime();
+
   return {
     status: proposal.status,
     durationMinutes: proposal.durationMinutes,
     expiresAt: proposal.expiresAt,
     respondedAt: proposal.respondedAt,
+    updatedAt: proposal.updatedAt,
+    emailSentAt: proposal.emailSentAt,
+    slotsUpdated,
     selectedStartsAt:
       proposal.selectedSlotId != null
         ? slots.find((s) => s.id === proposal.selectedSlotId)?.startsAt ?? null

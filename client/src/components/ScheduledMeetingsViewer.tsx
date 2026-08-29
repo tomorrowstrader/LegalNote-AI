@@ -42,6 +42,7 @@ import { useLocation } from "wouter";
 import type { ScheduledMeeting, Case, MeetingBookingProposal, MeetingBookingSlot } from "@shared/schema";
 import ConfigurationErrorModal from "@/components/ConfigurationErrorModal";
 import ScheduleMeetingModal from "@/components/ScheduleMeetingModal";
+import EditBookingProposalDialog from "@/components/EditBookingProposalDialog";
 import {
   Dialog,
   DialogContent,
@@ -1182,10 +1183,16 @@ function MeetingCompactRow({ meeting }: { meeting: ScheduledMeeting; onUpdate?: 
   );
 }
 
+type ProposalWithSlots = MeetingBookingProposal & {
+  slots: MeetingBookingSlot[];
+  bookingUrl?: string;
+};
+
 export function ScheduledMeetingsViewer() {
   const { toast } = useToast();
   const [showCalendarModal, setShowCalendarModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [editingProposal, setEditingProposal] = useState<ProposalWithSlots | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<MeetingTimeTab>("today");
   const [showMore, setShowMore] = useState(false);
@@ -1203,11 +1210,6 @@ export function ScheduledMeetingsViewer() {
     },
     refetchInterval: 30000,
   });
-
-  type ProposalWithSlots = MeetingBookingProposal & {
-    slots: MeetingBookingSlot[];
-    bookingUrl?: string;
-  };
 
   const { data: pendingProposals = [] } = useQuery<ProposalWithSlots[]>({
     queryKey: ["/api/meeting-booking-proposals", { status: "pending" }],
@@ -1457,6 +1459,15 @@ export function ScheduledMeetingsViewer() {
                       <Button
                         size="sm"
                         variant="outline"
+                        onClick={() => setEditingProposal(proposal)}
+                        data-testid={`button-edit-proposal-${proposal.id}`}
+                      >
+                        <Pencil className="w-3.5 h-3.5 mr-1" />
+                        Edit
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
                         onClick={() => copyBookingLink(proposal)}
                         data-testid={`button-copy-booking-link-${proposal.id}`}
                       >
@@ -1600,6 +1611,14 @@ export function ScheduledMeetingsViewer() {
         googleConnected={!!connections?.google?.connected}
         outlookConnected={!!connections?.outlook?.connected}
         onNeedsCalendarConnection={() => setShowCalendarModal(true)}
+      />
+
+      <EditBookingProposalDialog
+        proposal={editingProposal}
+        open={!!editingProposal}
+        onOpenChange={(open) => {
+          if (!open) setEditingProposal(null);
+        }}
       />
     </Card>
   );

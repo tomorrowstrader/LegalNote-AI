@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -26,6 +26,9 @@ interface PublicBookingData {
   durationMinutes: number;
   expiresAt: string;
   respondedAt: string | null;
+  updatedAt?: string | null;
+  emailSentAt?: string | null;
+  slotsUpdated?: boolean;
   selectedStartsAt: string | null;
   slots: PublicBookingSlot[];
   /** Firm name when configured — never a role label like “solicitor”. */
@@ -50,6 +53,7 @@ export default function BookMeetingPage() {
   const [bookedStartsAt, setBookedStartsAt] = useState<string | null>(null);
   const [declined, setDeclined] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [slotUnavailableNotice, setSlotUnavailableNotice] = useState<string | null>(null);
 
   const { data, isLoading, isError, error: loadError, refetch } = useQuery<PublicBookingData>({
     queryKey: [`/api/book/${token}`],
@@ -79,6 +83,11 @@ export default function BookMeetingPage() {
     },
     onError: (err: Error) => {
       setError(err.message || "Could not book that time. Please try again.");
+      if (err.message?.toLowerCase().includes("no longer available")) {
+        setSelectedSlotId(null);
+        setSlotUnavailableNotice("That time is no longer available. Please choose from the updated options below.");
+        refetch();
+      }
     },
   });
 
@@ -97,6 +106,17 @@ export default function BookMeetingPage() {
       setError(err.message || "Could not send your response. Please try again.");
     },
   });
+
+  useEffect(() => {
+    if (!data?.slots || !selectedSlotId) return;
+    const stillAvailable = data.slots.some((slot) => slot.id === selectedSlotId);
+    if (!stillAvailable) {
+      setSelectedSlotId(null);
+      setSlotUnavailableNotice(
+        "That time is no longer available. Please choose from the updated options below.",
+      );
+    }
+  }, [data?.slots, selectedSlotId]);
 
   if (isLoading) {
     return (
@@ -250,6 +270,11 @@ export default function BookMeetingPage() {
               )}{" "}
               Select the time that suits you best.
             </p>
+            {data.slotsUpdated && (
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                Some times may have changed since the original email. The options below are current.
+              </p>
+            )}
           </div>
 
           <div className="space-y-2" role="listbox" aria-label="Proposed meeting times">
@@ -266,6 +291,7 @@ export default function BookMeetingPage() {
                     setSelectedSlotId(slot.id);
                     setShowDecline(false);
                     setError(null);
+                    setSlotUnavailableNotice(null);
                   }}
                   className={`w-full text-left rounded-md border px-4 py-3 transition-colors ${
                     selected
@@ -283,6 +309,12 @@ export default function BookMeetingPage() {
               );
             })}
           </div>
+
+          {slotUnavailableNotice && (
+            <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2" role="status">
+              {slotUnavailableNotice}
+            </p>
+          )}
 
           {error && (
             <p className="text-sm text-destructive" role="alert">
