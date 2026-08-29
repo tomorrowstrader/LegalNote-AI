@@ -143,7 +143,7 @@ import { askMatterQuestion, compareMatterNote } from "./services/matterAskServic
 import { synthesizeVoiceReply, VOICE_TTS_MAX_CHARS } from "./services/voiceTtsService";
 import { privilegedComplete } from "./services/llm/privilegedComplete";
 import { AssemblyAIService } from "./services/assemblyAIService";
-import { sendCaseEmail, sendRecordingConfirmationEmail, sendConsentResponseNotification, sendAcknowledgementRequestEmail, sendInvitationEmail, sendDpaConfirmationEmail, sendLegalAgreementAcceptedEmail, sendEvaluationSetupEmail, sendEvaluationSetupSubmittedAdminEmail, sendGovernedEvaluationLoginInviteEmail, legalNoteBrandHeaderHtml } from "./email";
+import { sendCaseEmail, sendRecordingConfirmationEmail, sendConsentResponseNotification, sendAcknowledgementRequestEmail, sendInvitationEmail, sendDpaConfirmationEmail, sendLegalAgreementAcceptedEmail, sendEvaluationSetupEmail, sendEvaluationSetupSubmittedAdminEmail, sendGovernedEvaluationLoginInviteEmail, sendShareVerificationCodeEmail, legalNoteBrandHeaderHtml } from "./email";
 import {
   renderConsentAlreadyRespondedPage,
   renderConsentDecisionPage,
@@ -1665,15 +1665,31 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       const firmProfile = await storage.getFirmProfile();
       const firmName = firmProfile?.firmName || "LegalNote";
 
-      // Send SMS
-      const result = await sendVerificationCode(formattedPhone, verificationCode, firmName);
+      // Send SMS (primary) and email backup to the share recipient
+      const smsResult = await sendVerificationCode(formattedPhone, verificationCode, firmName);
+      const emailResult = await sendShareVerificationCodeEmail({
+        to: shareLink.recipientEmail,
+        verificationCode,
+        expiresMinutes: 15,
+      });
 
-      if (!result.success) {
-        return res.status(500).json({ message: result.error || "Failed to send SMS" });
+      if (!smsResult.success && !emailResult.success) {
+        return res.status(500).json({
+          message:
+            smsResult.error ||
+            emailResult.error ||
+            "Failed to send verification code by SMS or email",
+        });
       }
 
       // Store code in database
       await storage.updateShareLinkSmsCode(linkId, verificationCode, expiresAt);
+
+      const deliveryChannel = smsResult.success
+        ? emailResult.success
+          ? "sms_and_email"
+          : "sms"
+        : "email";
 
       // Log SMS sent event
       await storage.createAuditLog({
@@ -1686,15 +1702,25 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           shareLinkId: linkId,
           phoneNumber: formattedPhone.replace(/\d(?=\d{4})/g, '*'), // Mask phone number in logs
           expiresAt: expiresAt.toISOString(),
+          twilioMessageSid: smsResult.messageSid || null,
+          emailBackupSent: emailResult.success,
+          deliveryChannel,
+          smsDelivered: smsResult.success,
         },
         severity: "info",
       });
 
       res.json({ 
         success: true, 
-        message: "Verification code sent successfully",
+        message: deliveryChannel === "email"
+          ? "Verification code sent to your email"
+          : deliveryChannel === "sms_and_email"
+            ? "Verification code sent to your mobile and email"
+            : "Verification code sent successfully",
         expiresIn: 15, // minutes
         phoneLastFour: phoneLastFour(formattedPhone),
+        emailBackupSent: emailResult.success,
+        deliveryChannel,
       });
     } catch (error: any) {
       console.error('Error sending SMS:', error);

@@ -4,6 +4,7 @@ import {
   isValidAlphaSenderId,
   isValidUKPhoneNumber,
   phoneLastFour,
+  resolveOtpFromAddress,
   resolveSmsFromAddress,
 } from "./sms";
 
@@ -75,6 +76,17 @@ describe("resolveSmsFromAddress", () => {
     vi.stubEnv("TWILIO_USE_ALPHA_SENDER", "true");
 
     expect(resolveSmsFromAddress()).toEqual({
+      from: "+447700900000",
+      usedAlpha: false,
+    });
+  });
+
+  it("never uses alpha sender for OTP messages", () => {
+    vi.stubEnv("TWILIO_PHONE_NUMBER", "+447700900000");
+    vi.stubEnv("TWILIO_SENDER_NAME", "LegalNote");
+    vi.stubEnv("TWILIO_USE_ALPHA_SENDER", "true");
+
+    expect(resolveOtpFromAddress()).toEqual({
       from: "+447700900000",
       usedAlpha: false,
     });

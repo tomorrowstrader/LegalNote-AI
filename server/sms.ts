@@ -22,7 +22,11 @@ function shouldUseAlphaSender(): boolean {
 }
 
 // Validate that all required credentials are present at boot
-if (!getTwilioAccountSid() || !getTwilioAuthToken() || !getTwilioPhoneNumber()) {
+if (
+  !getTwilioAccountSid() ||
+  !getTwilioAuthToken() ||
+  (!getTwilioPhoneNumber() && !process.env.TWILIO_MESSAGING_SERVICE_SID?.trim())
+) {
   console.warn('Twilio credentials not configured. SMS functionality will be disabled.');
 }
 
@@ -52,6 +56,15 @@ export function resolveSmsFromAddress(): { from: string; usedAlpha: boolean } {
   ) {
     return { from: senderName, usedAlpha: true };
   }
+  if (!phone) {
+    throw new Error('TWILIO_PHONE_NUMBER is not configured');
+  }
+  return { from: phone, usedAlpha: false };
+}
+
+/** OTP / transactional SMS — never use alphanumeric sender IDs. */
+export function resolveOtpFromAddress(): { from: string; usedAlpha: false } {
+  const phone = getTwilioPhoneNumber();
   if (!phone) {
     throw new Error('TWILIO_PHONE_NUMBER is not configured');
   }
@@ -94,14 +107,6 @@ function mapTwilioSendError(error: unknown): string {
   return 'Failed to send SMS. Please try again later.';
 }
 
-function sanitizeFirmName(firmName: string): string {
-  const cleaned = firmName
-    .replace(/[^\w\s&.'-]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 40);
-  return cleaned || 'LegalNote';
-}
 
 /**
  * Generates a random 6-digit verification code
@@ -116,11 +121,12 @@ export function generateVerificationCode(): string {
 export async function sendSmsMessage(
   phoneNumber: string,
   body: string,
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; messageSid?: string; error?: string }> {
   const twilioClient = getTwilioClient();
   const twilioPhoneNumber = getTwilioPhoneNumber();
+  const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID?.trim();
 
-  if (!twilioClient || !twilioPhoneNumber) {
+  if (!twilioClient || (!twilioPhoneNumber && !messagingServiceSid)) {
     console.error('Twilio not configured - cannot send SMS');
     return {
       success: false,
@@ -135,26 +141,34 @@ export async function sendSmsMessage(
     };
   }
 
-  const { from, usedAlpha } = resolveSmsFromAddress();
+  const { from, usedAlpha } = resolveOtpFromAddress();
 
   try {
-    const message = await twilioClient.messages.create({
-      body,
-      from,
-      to: phoneNumber,
-    });
+    const message = await twilioClient.messages.create(
+      messagingServiceSid
+        ? {
+            body,
+            messagingServiceSid,
+            to: phoneNumber,
+          }
+        : {
+            body,
+            from,
+            to: phoneNumber,
+          },
+    );
     console.log(`SMS sent successfully. Message SID: ${message.sid}`);
-    return { success: true };
+    return { success: true, messageSid: message.sid };
   } catch (error: unknown) {
     const code = twilioErrorCode(error);
     console.error('Failed to send SMS:', {
       code,
       message: error instanceof Error ? error.message : String(error),
-      fromKind: usedAlpha ? 'alpha' : 'phone',
+      fromKind: messagingServiceSid ? 'messaging_service' : usedAlpha ? 'alpha' : 'phone',
     });
 
     // Unregistered / invalid alpha From → retry once from the phone number
-    if (usedAlpha && isSenderRelatedError(code)) {
+    if (!messagingServiceSid && usedAlpha && isSenderRelatedError(code) && twilioPhoneNumber) {
       try {
         console.warn('Retrying SMS with TWILIO_PHONE_NUMBER after alpha sender failure');
         const retry = await twilioClient.messages.create({
@@ -163,7 +177,7 @@ export async function sendSmsMessage(
           to: phoneNumber,
         });
         console.log(`SMS sent successfully on retry. Message SID: ${retry.sid}`);
-        return { success: true };
+        return { success: true, messageSid: retry.sid };
       } catch (retryError: unknown) {
         console.error('SMS retry with phone number also failed:', {
           code: twilioErrorCode(retryError),
@@ -186,10 +200,9 @@ export async function sendSmsMessage(
 export async function sendVerificationCode(
   phoneNumber: string,
   verificationCode: string,
-  firmName: string = 'LegalNote'
-): Promise<{ success: boolean; error?: string }> {
-  const safeFirm = sanitizeFirmName(firmName);
-  const body = `Your verification code for ${safeFirm} is: ${verificationCode}\n\nThis code expires in 15 minutes.\n\nPowered by LegalNote`;
+  _firmName: string = 'LegalNote'
+): Promise<{ success: boolean; messageSid?: string; error?: string }> {
+  const body = `LegalNote access code: ${verificationCode}. Valid for 15 minutes.`;
   return sendSmsMessage(phoneNumber, body);
 }
 
