@@ -108,6 +108,7 @@ import { CONSENT_DISCLAIMER_TEXT, CONSENT_DISCLAIMER_VERSION } from "@shared/con
 import { defaultRecordingTypeForMatterKind, validateRecordingType } from "@shared/recordingTypes";
 import { getAmlRiskDefault } from "./services/practiceAreaConfig";
 import { isFeatureVisible, type FeatureKey } from "@shared/featureVisibility";
+import { documentMatchesSharedType, getUnadoptedSharedDocumentTypes } from "@shared/shareDocumentTypes";
 import { z } from "zod";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { chunkedUploadService } from "./services/chunkedUploadService";
@@ -203,7 +204,6 @@ function requireFeatureVisible(key: FeatureKey) {
 export async function registerRoutes(app: Express): Promise<Server> {
   // Pipeline stores the client-facing letter as `client_letter`; older rows and share
   // payloads may still use `summary`. Attendance notes may be `meeting_notes`.
-import { documentMatchesSharedType, getUnadoptedSharedDocumentTypes } from "@shared/shareDocumentTypes";
 
   const sseClients = new Map<string, Set<Response>>();
 

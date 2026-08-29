@@ -8,7 +8,7 @@
 export const LEGAL_SYNONYMS: Record<string, string[]> = {
   // Property/Conveyancing
   'completion': ['settlement', 'closing', 'exchange'],
-  'settlement': ['completion', 'closing', 'exchange'],
+  'settlement': ['completion', 'closing', 'exchange', 'agreement', 'resolution', 'compromise'],
   'conveyancing': ['property transfer', 'real estate', 'house purchase', 'house sale'],
   'mortgage': ['loan', 'charge', 'secured lending', 'home loan'],
   'freehold': ['fee simple', 'absolute ownership'],
@@ -65,7 +65,6 @@ export const LEGAL_SYNONYMS: Record<string, string[]> = {
   'fee': ['cost', 'charge', 'price', 'payment'],
   'costs': ['fees', 'expenses', 'charges'],
   'damages': ['compensation', 'award', 'payout'],
-  'settlement': ['agreement', 'resolution', 'compromise'],
   
   // Actions
   'instruct': ['engage', 'appoint', 'retain', 'hire'],
