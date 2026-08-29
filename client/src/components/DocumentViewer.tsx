@@ -59,7 +59,11 @@ import {
   findBestAdviceMatchInSection,
   enrichGapCitationChips,
 } from "@/lib/reasoningGapAnchors";
-import { findAttendanceMattersBodyIndex, normalizeAttendanceSectionLabels } from "@shared/attendanceNoteFormat";
+import {
+  findAttendanceMattersBodyIndex,
+  findLegacyAttendanceBodyStart,
+  normalizeAttendanceSectionLabels,
+} from "@shared/attendanceNoteFormat";
 
 function markdownToPlainText(md: string): string {
   if (!md) return '';
@@ -364,7 +368,7 @@ function parseAttendanceHeaderFields(header: string): Record<string, string> {
   const fields: Record<string, string> = {};
   for (const line of header.split('\n')) {
     const match = line.match(
-      /^\s*(?:\*\*)?(File Ref|Advisor|Client Name|CLIENT|Client|Date|Time Spent \(Units\)|Duration|Time|MATTER|Matter):(?:\*\*)?\s*(.+?)\s*(?: {2})?$/i,
+      /^\s*(?:\*\*)?(File Ref|Reference|Advisor|Fee Earner|Client Name|CLIENT|Client|Date|Time Spent \(Units\)|Duration|Time|MATTER|Matter):(?:\*\*)?\s*(.+?)\s*(?: {2})?$/i,
     );
     if (!match) continue;
     const rawLabel = match[1];
@@ -376,6 +380,10 @@ function parseAttendanceHeaderFields(header: string): Record<string, string> {
       label = 'Client Name';
     } else if (/^matter$/i.test(rawLabel) || rawLabel === 'MATTER') {
       label = 'Matter';
+    } else if (/^reference$/i.test(rawLabel)) {
+      label = 'File Ref';
+    } else if (/^fee\s+earner$/i.test(rawLabel)) {
+      label = 'Advisor';
     }
 
     // Keep the first non-empty value for each normalized label
@@ -427,11 +435,17 @@ function formatAttendanceNoteMarkdown(content: string, type: Document['type']): 
         units ? `**Time Spent (Units):** ${units}` : null,
         duration ? `**Duration:** ${duration}` : null,
       ].filter(Boolean).join('  \n');
-      // Keep non-header remainder (body) attached after rebuilt metadata
-      const firstLabel = content.search(
-        /^\s*(?:\*\*)?(?:What was discussed:|Advice given:|Key points advised:|\d+\.\s+[A-Z])/im,
+      const derivationBodyStart = content.search(
+        /^\s*(?:\*\*)?(?:What was discussed:|Advice given:|Key points advised:)/im,
       );
-      const remainder = firstLabel >= 0 ? content.slice(firstLabel) : '';
+      const bodyStart =
+        derivationBodyStart >= 0
+          ? derivationBodyStart
+          : findLegacyAttendanceBodyStart(content);
+      if (bodyStart < 0) {
+        return normalizeAttendanceSectionLabels(content);
+      }
+      const remainder = content.slice(bodyStart);
       return `**ATTENDANCE NOTE**\n\n${[group1, group2, group3].filter(Boolean).join('\n\n')}\n\n${remainder}`;
     })();
     return normalizeAttendanceSectionLabels(fieldsPass);

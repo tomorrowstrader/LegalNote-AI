@@ -26,6 +26,16 @@ export function findAttendanceMattersBodyIndex(content: string): number {
   return match?.index ?? -1;
 }
 
+/** Body start for legacy/demo notes that use `---` or `##` instead of MATTERS DISCUSSED. */
+export function findLegacyAttendanceBodyStart(content: string): number {
+  if (!content) return -1;
+  const hr = content.search(/^\s*---\s*$/m);
+  if (hr >= 0) return hr;
+  const h2 = content.search(/^\s*##\s+/m);
+  if (h2 >= 0) return h2;
+  return -1;
+}
+
 /**
  * Normalize section labels so they render as:
  *   **What was discussed:**

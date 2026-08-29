@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeAttendanceSectionLabels } from './attendanceNoteFormat';
+import {
+  findLegacyAttendanceBodyStart,
+  normalizeAttendanceSectionLabels,
+} from './attendanceNoteFormat';
 
 describe('normalizeAttendanceSectionLabels', () => {
   it('puts glued subheadings on their own lines and bolds only the label', () => {
@@ -95,5 +98,33 @@ Facts.`;
     const result = normalizeAttendanceSectionLabels(input);
     expect(result).toContain('**MATTERS DISCUSSED**');
     expect(result).toContain('**What was discussed:**\n\nThe client confirmed residence.');
+  });
+});
+
+describe('findLegacyAttendanceBodyStart', () => {
+  it('finds horizontal rule before legacy section headings', () => {
+    const input = `# ATTENDANCE NOTE
+
+**Client:** Marcus Webb
+**Date:** 22 August 2026
+
+---
+
+## NATURE OF ATTENDANCE
+
+Client attended in person.`;
+    const start = findLegacyAttendanceBodyStart(input);
+    expect(start).toBeGreaterThanOrEqual(0);
+    expect(input.slice(start)).toContain('## NATURE OF ATTENDANCE');
+  });
+
+  it('finds markdown h2 when no horizontal rule is present', () => {
+    const input = `**ATTENDANCE NOTE**
+
+**Client Name:** Example
+## KEY ISSUES
+
+Details here.`;
+    expect(findLegacyAttendanceBodyStart(input)).toBe(input.indexOf('## KEY ISSUES'));
   });
 });
