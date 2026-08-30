@@ -6,9 +6,17 @@ import type {
 } from "@/components/ui/toast"
 
 const TOAST_LIMIT = 1
-/** Auto-dismiss delay for all toasts (ms). Callers may override per-toast. */
-const TOAST_DURATION = 7000
+/** Default and maximum auto-dismiss delay for all toasts (ms). */
+export const MAX_TOAST_DURATION = 6000
+const TOAST_DURATION = MAX_TOAST_DURATION
 const TOAST_REMOVE_DELAY = 1000
+
+function normalizeToastDuration(duration?: number): number {
+  if (duration === undefined) return TOAST_DURATION
+  // Radix treats 0 as persistent — always auto-dismiss within the cap
+  if (duration <= 0) return MAX_TOAST_DURATION
+  return Math.min(duration, MAX_TOAST_DURATION)
+}
 
 type ToasterToast = ToastProps & {
   id: string
@@ -155,7 +163,7 @@ function toast({ ...props }: Toast) {
     type: "ADD_TOAST",
     toast: {
       ...props,
-      duration: props.duration ?? TOAST_DURATION,
+      duration: normalizeToastDuration(props.duration),
       id,
       open: true,
       onOpenChange: (open) => {
