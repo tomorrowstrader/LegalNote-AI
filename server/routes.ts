@@ -155,6 +155,7 @@ import { compileSraReportPdf } from "./services/sraReportPdf";
 import { logPersonnelMatterAccess } from "./personnelAccessAudit";
 import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, getConnectedProviders, createMeetingCalendarEvent, createOutlookMeetingCalendarEvent, deleteOutlookCalendarEvent } from "./calendar";
 import { sendVerificationCode, generateVerificationCode, formatUKPhoneNumber, isValidUKPhoneNumber, phoneLastFour } from "./sms";
+import { validateNewTranscriptRedaction } from "./transcriptRedaction";
 import {
   createGoogleOAuthClient,
   getGoogleAuthUrl,
@@ -5991,31 +5992,16 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       
       // Get current redactions or initialize empty array
       const currentRedactions = (transcript.redactions || []) as any[];
-      
-      // Check if this exact redaction already exists
       const isPartialRedaction = typeof textStart === 'number' && typeof textEnd === 'number';
-      const alreadyRedacted = currentRedactions.some((r: any) => {
-        if (isPartialRedaction) {
-          // For partial redactions, check all fields match
-          return r.start === start && r.end === end && r.textStart === textStart && r.textEnd === textEnd;
-        } else {
-          // For full redactions, check only start/end and that it's not a partial redaction
-          return r.start === start && r.end === end && r.textStart === undefined && r.textEnd === undefined;
-        }
-      });
-      
-      if (alreadyRedacted) {
-        return res.status(400).json({ message: "This text is already redacted" });
-      }
 
-      const overlaps = currentRedactions.some((r: any) => {
-        return r.start < end && r.end > start;
+      const validation = validateNewTranscriptRedaction(currentRedactions, {
+        start,
+        end,
+        ...(isPartialRedaction ? { textStart, textEnd } : {}),
       });
 
-      if (overlaps) {
-        return res.status(400).json({ 
-          message: "This selection overlaps with an existing redaction. Please adjust your selection." 
-        });
+      if (!validation.ok) {
+        return res.status(400).json({ message: validation.message });
       }
 
       const pendingUntil = new Date(Date.now() + 4 * 60 * 60 * 1000); // 4 hours from now
@@ -6039,7 +6025,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         newRedaction.textEnd = textEnd;
       }
       
-      const updatedRedactions = [...currentRedactions, newRedaction];
+      const updatedRedactions = [...validation.baseRedactions, newRedaction];
       
       const updatedTranscript = await storage.updateTranscript(
         transcript.id,
@@ -6059,6 +6045,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           reasonType,
           reasonNotes: reasonNotes?.trim() || null,
           isPartial: isPartialRedaction,
+          supersededPartialIds: validation.supersededPartialIds,
           pendingUntil: pendingUntil.toISOString(),
           // Do not log selectedText in audit trail — it contains the sensitive content
         },
@@ -6138,7 +6125,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
 
       if (targetRedaction.pendingUntil && new Date(targetRedaction.pendingUntil) < new Date()) {
         return res.status(403).json({ 
-          message: "The 30-minute undo window for this redaction has expired. Contact your supervisor if an amendment note is required." 
+          message: "The 4-hour undo window for this redaction has expired. Contact your supervisor if an amendment note is required." 
         });
       }
 

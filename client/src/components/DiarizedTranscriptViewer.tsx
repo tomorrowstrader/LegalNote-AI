@@ -564,7 +564,7 @@ export default function DiarizedTranscriptViewer({
             <div className="flex items-start gap-2">
               <Shield className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
               <p className="text-xs text-amber-700 dark:text-amber-300">
-                <strong>Select text</strong> to redact specific words, or <strong>click a segment</strong> to redact entirely. Click redacted text to undo.
+                <strong>Select text</strong> to redact specific words, or <strong>click a segment</strong> to redact the entire utterance (this replaces any partial redactions on that segment). Click amber redacted text to undo.
               </p>
             </div>
           </div>
