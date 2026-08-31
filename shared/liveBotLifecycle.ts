@@ -62,6 +62,27 @@ export const USER_CANCELLED_LIVE_BOT_MESSAGE =
 export const CONSENT_DECLINED_LIVE_BOT_MESSAGE =
   "Client declined consent — bot removed from call";
 
+/** Import error messages that mean processing will never complete. */
+export function isTerminalImportFailureMessage(message: string | null | undefined): boolean {
+  if (!message) return false;
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("cancelled") ||
+    lower.includes("declined consent") ||
+    /waiting room|nobody else joined|never started|not admitted|no recording was captured/i.test(
+      lower,
+    )
+  );
+}
+
+export function isUserCancelledImportMessage(message: string | null | undefined): boolean {
+  return !!message && message.toLowerCase().includes("cancelled");
+}
+
+export function isConsentDeclinedImportMessage(message: string | null | undefined): boolean {
+  return !!message && message.includes("declined consent");
+}
+
 /** Bot statuses where the solicitor can still cancel before a real recording starts (discards). */
 export const CANCELLABLE_BOT_STATUSES = [
   "joining_call",

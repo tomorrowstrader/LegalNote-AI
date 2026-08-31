@@ -10403,6 +10403,23 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         return res.status(400).json({ message: "No bot ID on this import" });
       }
 
+      const {
+        isUserCancelledImportMessage,
+        isConsentDeclinedImportMessage,
+      } = await import("@shared/liveBotLifecycle");
+      if (
+        isUserCancelledImportMessage(importRecord.errorMessage) ||
+        isConsentDeclinedImportMessage(importRecord.errorMessage) ||
+        importRecord.botStatus === 'left_user_cancelled' ||
+        importRecord.botStatus === 'left_consent_declined'
+      ) {
+        const { reconcileTerminalMeetingImport } = await import("./services/recallProcessing");
+        await reconcileTerminalMeetingImport(importRecord);
+        return res.status(400).json({
+          message: importRecord.errorMessage || "This meeting was not captured and cannot be processed.",
+        });
+      }
+
       const botNotDone = importRecord.botStatus && !['done', 'recording_done', 'call_ended', 'fatal'].includes(importRecord.botStatus);
       if (importRecord.status === 'live' && botNotDone) {
         return res.status(400).json({ message: "The bot is still in the meeting. Processing will start automatically when it finishes." });
@@ -11161,6 +11178,10 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
   app.get("/api/recall/bot/:botId", isAuthenticated, async (req: any, res, next) => {
     try {
       const { recallService } = await import("./services/recallService");
+      const {
+        isConsentDeclinedImportMessage,
+        isUserCancelledImportMessage,
+      } = await import("@shared/liveBotLifecycle");
       const userId = req.user.claims.sub;
       const { botId } = req.params;
 
@@ -11173,16 +11194,21 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       const botStatusCode = recallService.getBotStatusCode(bot);
       const subCode = recallService.getBotSubCode(bot);
 
-      // Only write to DB when we have a status to record
-      if (botStatusCode) {
+      const alreadyDeclined =
+        importRecord.botStatus === 'left_consent_declined' ||
+        isConsentDeclinedImportMessage(importRecord.errorMessage);
+      const alreadyCancelled =
+        importRecord.botStatus === 'left_user_cancelled' ||
+        isUserCancelledImportMessage(importRecord.errorMessage);
+
+      // Only write bot status when it would not clobber a user cancel / consent decline
+      if (botStatusCode && !alreadyDeclined && !alreadyCancelled) {
         await storage.updateMeetingImport(importRecord.id, {
           botStatus: botStatusCode,
         });
         importRecord = (await storage.getMeetingImport(importRecord.id)) || importRecord;
       }
 
-      // Fail fast on never-started / waiting-room timeouts so the client never
-      // enters Meeting-to-Matter for an empty recording.
       const terminal =
         botStatusCode === 'done' ||
         botStatusCode === 'recording_done' ||
@@ -11190,9 +11216,10 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         botStatusCode === 'fatal';
       if (
         terminal &&
-        importRecord.status === 'live'
+        (importRecord.status === 'live' || importRecord.status === 'pending')
       ) {
-        const { markAbandonedIfNeverRecorded } = await import("./services/recallProcessing");
+        const { markAbandonedIfNeverRecorded, reconcileTerminalMeetingImport } =
+          await import("./services/recallProcessing");
         const abandon = await markAbandonedIfNeverRecorded(importRecord, {
           subCode,
           botStatus: botStatusCode,
@@ -11200,6 +11227,10 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         if (abandon.abandoned) {
           importRecord = (await storage.getMeetingImport(importRecord.id)) || importRecord;
         }
+        importRecord = await reconcileTerminalMeetingImport(importRecord);
+      } else {
+        const { reconcileTerminalMeetingImport } = await import("./services/recallProcessing");
+        importRecord = await reconcileTerminalMeetingImport(importRecord);
       }
 
       res.json({

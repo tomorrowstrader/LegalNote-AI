@@ -12,6 +12,7 @@ import { apiRequest, getApiErrorMessage, queryClient } from "@/lib/queryClient";
 import {
   autoLeaveDeadlineSeconds,
   formatWaitRemaining,
+  isTerminalImportFailureMessage,
 } from "@shared/liveBotLifecycle";
 
 const STORAGE_KEY = "ln-live-bot-session";
@@ -78,8 +79,18 @@ interface LiveBotSessionContextType {
 
 const LiveBotSessionContext = createContext<LiveBotSessionContextType | undefined>(undefined);
 
-function phaseFromStatuses(botStatus: string | null, importStatus: string | null): LiveBotPhase {
+function phaseFromStatuses(
+  botStatus: string | null,
+  importStatus: string | null,
+  errorMessage?: string | null,
+): LiveBotPhase {
   if (importStatus === "failed") return "error";
+  if (
+    isTerminalImportFailureMessage(errorMessage) &&
+    (importStatus === "pending" || importStatus === "live" || importStatus === "transcribing")
+  ) {
+    return "error";
+  }
   if (importStatus === "completed") return "complete";
   if (importStatus === "awaiting_assignment") return "awaiting_assignment";
   if (importStatus === "transcribing" || importStatus === "pending") return "processing";
@@ -132,8 +143,8 @@ export function LiveBotSessionProvider({ children }: { children: ReactNode }) {
   liveBotModalOpenRef.current = liveBotModalOpen;
 
   const phase = useMemo(
-    () => phaseFromStatuses(botStatus, importStatus),
-    [botStatus, importStatus],
+    () => phaseFromStatuses(botStatus, importStatus, errorMessage),
+    [botStatus, importStatus, errorMessage],
   );
 
   const waitRemainingSeconds = useMemo(() => {
@@ -273,7 +284,7 @@ export function LiveBotSessionProvider({ children }: { children: ReactNode }) {
         if (data.errorMessage) setErrorMessage(data.errorMessage);
         if (data.consentConfirmed) setConsentConfirmed(true);
 
-        const nextPhase = phaseFromStatuses(data.botStatus, data.importStatus);
+        const nextPhase = phaseFromStatuses(data.botStatus, data.importStatus, data.errorMessage);
 
         if (
           !notifiedEndRef.current &&

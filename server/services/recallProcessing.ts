@@ -10,23 +10,71 @@ import { recallService } from './recallService';
 import {
   isAbandonedMeetingSubCode,
   messageForAbandonedSubCode,
+  USER_CANCELLED_LIVE_BOT_MESSAGE,
+  CONSENT_DECLINED_LIVE_BOT_MESSAGE,
+  isTerminalImportFailureMessage,
+  isUserCancelledImportMessage,
+  isConsentDeclinedImportMessage,
 } from '@shared/liveBotLifecycle';
 import type { MeetingImport } from '@shared/schema';
 
 function isConsentDeclinedImport(imp: MeetingImport): boolean {
   return (
     imp.botStatus === 'left_consent_declined' ||
-    (typeof imp.errorMessage === 'string' &&
-      imp.errorMessage.includes('declined consent'))
+    isConsentDeclinedImportMessage(imp.errorMessage)
   );
 }
 
 function isUserCancelledImport(imp: MeetingImport): boolean {
   return (
     imp.botStatus === 'left_user_cancelled' ||
-    (typeof imp.errorMessage === 'string' &&
-      imp.errorMessage.toLowerCase().includes('cancelled'))
+    isUserCancelledImportMessage(imp.errorMessage)
   );
+}
+
+/**
+ * Ensure cancelled / declined / abandoned imports are not left in pending/live
+ * (which makes the client show "producing documents" indefinitely).
+ */
+export async function reconcileTerminalMeetingImport(
+  importRecord: MeetingImport,
+): Promise<MeetingImport> {
+  const declined = isConsentDeclinedImport(importRecord);
+  const cancelled = isUserCancelledImport(importRecord);
+  const terminalFailure =
+    importRecord.status === 'failed' &&
+    isTerminalImportFailureMessage(importRecord.errorMessage);
+
+  if (!declined && !cancelled && !terminalFailure) {
+    return importRecord;
+  }
+
+  if (importRecord.status === 'discarded' || importRecord.status === 'completed') {
+    return importRecord;
+  }
+
+  if (importRecord.status === 'failed' && importRecord.errorMessage) {
+    return importRecord;
+  }
+
+  const errorMessage =
+    importRecord.errorMessage ||
+    (cancelled
+      ? USER_CANCELLED_LIVE_BOT_MESSAGE
+      : declined
+        ? CONSENT_DECLINED_LIVE_BOT_MESSAGE
+        : 'The meeting was not captured.');
+
+  await storage.updateMeetingImport(importRecord.id, {
+    status: 'failed',
+    errorMessage,
+    ...(declined ? { botStatus: 'left_consent_declined' } : {}),
+    ...(cancelled && importRecord.botStatus !== 'left_user_cancelled'
+      ? { botStatus: importRecord.botStatus || 'left_user_cancelled' }
+      : {}),
+  });
+
+  return (await storage.getMeetingImport(importRecord.id)) || importRecord;
 }
 
 /**
@@ -178,6 +226,7 @@ export async function processBotRecording(importRecord: MeetingImport): Promise<
 
   if (isConsentDeclinedImport(importRecord) || isUserCancelledImport(importRecord)) {
     console.log(`[RecallProcessing] Import ${importId} declined/cancelled — skipping processing`);
+    await reconcileTerminalMeetingImport(importRecord);
     return;
   }
 
@@ -267,6 +316,7 @@ export async function processBotRecording(importRecord: MeetingImport): Promise<
   }
   if (isConsentDeclinedImport(fresh) || isUserCancelledImport(fresh)) {
     console.log(`[RecallProcessing] Import ${importId} declined/cancelled — skipping processing`);
+    await reconcileTerminalMeetingImport(fresh);
     return;
   }
 
@@ -495,13 +545,19 @@ export async function checkLiveImports(): Promise<void> {
 
       if (statusCode === 'done' || statusCode === 'recording_done' || statusCode === 'call_ended') {
         await storage.updateMeetingImport(imp.id, { botStatus: statusCode });
+        const refreshed = (await storage.getMeetingImport(imp.id)) || imp;
         const abandon = await markAbandonedIfNeverRecorded(
-          { ...imp, botStatus: statusCode },
+          { ...refreshed, botStatus: statusCode },
           { subCode, botStatus: statusCode },
         );
-        if (abandon.abandoned) continue;
+        if (abandon.abandoned) {
+          await reconcileTerminalMeetingImport(
+            (await storage.getMeetingImport(imp.id)) || refreshed,
+          );
+          continue;
+        }
         if (statusCode === 'done' || statusCode === 'recording_done') {
-          await processBotRecording({ ...imp, botStatus: statusCode });
+          await processBotRecording({ ...refreshed, botStatus: statusCode });
         }
       } else if (statusCode === 'fatal') {
         const abandon = await markAbandonedIfNeverRecorded(
