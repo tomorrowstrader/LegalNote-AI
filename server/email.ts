@@ -2680,7 +2680,20 @@ export async function sendGovernedEvaluationLoginInviteEmail(params: {
   seatLimit?: number | null;
   evaluationEndsAt?: Date | null;
   invitedByName?: string | null;
+  /** When true, sends a dates-update email instead of a first-login invite. */
+  alreadyClaimed?: boolean;
+  configurationStartsAt?: Date | null;
 }): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  if (params.alreadyClaimed) {
+    return sendGovernedEvaluationDatesUpdatedEmail({
+      to: params.to,
+      firmName: params.firmName,
+      evaluationEndsAt: params.evaluationEndsAt,
+      configurationStartsAt: params.configurationStartsAt,
+      invitedByName: params.invitedByName,
+    });
+  }
+
   const baseUrl = getLegalNoteEmailBaseUrl();
   const loginUrl = `${baseUrl}/login`;
   const safeTo = escapeHtmlEmail(params.to);
@@ -2757,6 +2770,84 @@ export async function sendGovernedEvaluationLoginInviteEmail(params: {
     return result;
   } catch (error: any) {
     console.error('[EMAIL] Exception sending governed evaluation login invite:', error);
+    return { success: false, error: error.message || 'Unknown error' };
+  }
+}
+
+/**
+ * Notify an active evaluation lead that schedule dates were corrected.
+ * Does not imply re-onboarding — existing firm setup and data are unchanged.
+ */
+export async function sendGovernedEvaluationDatesUpdatedEmail(params: {
+  to: string;
+  firmName: string;
+  evaluationEndsAt?: Date | null;
+  configurationStartsAt?: Date | null;
+  invitedByName?: string | null;
+}): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const baseUrl = getLegalNoteEmailBaseUrl();
+  const loginUrl = `${baseUrl}/login`;
+  const safeTo = escapeHtmlEmail(params.to);
+  const safeFirm = escapeHtmlEmail(params.firmName);
+  const invitedBy = params.invitedByName
+    ? escapeHtmlEmail(params.invitedByName)
+    : null;
+
+  const formatDate = (d: Date) =>
+    d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+
+  const detailLines: string[] = [
+    `<p style="margin:0 0 8px"><strong>Firm:</strong> ${safeFirm}</p>`,
+  ];
+  if (params.configurationStartsAt) {
+    detailLines.push(
+      `<p style="margin:0 0 8px"><strong>Configuration date:</strong> ${escapeHtmlEmail(formatDate(params.configurationStartsAt))}</p>`,
+    );
+  }
+  if (params.evaluationEndsAt) {
+    detailLines.push(
+      `<p style="margin:0"><strong>Evaluation ends:</strong> ${escapeHtmlEmail(formatDate(params.evaluationEndsAt))}</p>`,
+    );
+  }
+
+  const emailHtml = wrapLegalNoteBrandedEmail({
+    eyebrow: 'Evaluation schedule update',
+    footerNote: `This email was sent to ${safeTo}. Contact jazz.dennis@legalnote.ai if you have questions.`,
+    bodyHtml: `
+      <h2>Your evaluation schedule has been updated</h2>
+      ${
+        invitedBy
+          ? `<p>${invitedBy} has confirmed the governed evaluation schedule for <strong>${safeFirm}</strong>.</p>`
+          : `<p>The governed evaluation schedule for <strong>${safeFirm}</strong> has been updated.</p>`
+      }
+      <p>Your existing LegalNote account, firm details, and any matters you have already set up are <strong>unchanged</strong>. No further onboarding is required — continue using the same sign-in email as before.</p>
+      <div class="meta">
+        ${detailLines.join('\n        ')}
+      </div>
+      <p style="text-align:center;margin:28px 0;">
+        <a href="${loginUrl}" class="cta-btn">Open LegalNote</a>
+      </p>
+      <p class="url-fallback">If the button does not work, copy and paste this link into your browser:<br>${loginUrl}</p>
+      <p style="margin-top:28px;">Kind regards,<br><strong>LegalNote</strong></p>
+    `,
+  });
+
+  try {
+    const result = await sendEmail({
+      from: 'LegalNote\u2122 <noreply@legalnote.ai>',
+      to: params.to,
+      replyTo: 'jazz.dennis@legalnote.ai',
+      subject: 'LegalNote evaluation — schedule update',
+      html: emailHtml,
+    });
+    if (!result.success) {
+      console.error('[EMAIL] Error sending evaluation dates update:', result.error);
+    } else {
+      console.log('[EMAIL] Evaluation dates update sent:', result.messageId);
+    }
+    return result;
+  } catch (error: any) {
+    console.error('[EMAIL] Exception sending evaluation dates update:', error);
     return { success: false, error: error.message || 'Unknown error' };
   }
 }

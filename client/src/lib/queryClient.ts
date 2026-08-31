@@ -29,6 +29,9 @@ export function getApiErrorMessage(
     // Not JSON — use stripped status text as-is
   }
 
+  if (code === "EVALUATION_EXPIRED") {
+    return message || "Your governed evaluation period has ended. Contact jazz.dennis@legalnote.ai to extend or subscribe.";
+  }
   if (code === "NOT_ALLOWLISTED") {
     return "Your account does not have access to this action. Please contact support if you need access.";
   }

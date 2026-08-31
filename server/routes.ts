@@ -113,6 +113,9 @@ import { z } from "zod";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { chunkedUploadService } from "./services/chunkedUploadService";
 import { setupAuth, isAuthenticated, resolveUserAccessAllowed, getAdminUserId } from "./replitAuth";
+import { evaluationAccessGate } from "./services/evaluationAccessGate";
+import { parseAdminEvaluationEndsAt } from "./services/evaluationAdmin";
+import { enrichFirmEvaluationStatus } from "@shared/evaluationAccess";
 import { MAX_AUDIO_SIZE_BYTES } from "./uploadSecurity";
 import {
   generalApiLimiter,
@@ -329,6 +332,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     generalApiLimiter(req, res, next);
   });
+
+  // Block mutating API calls when a governed evaluation period has ended.
+  app.use("/api/", evaluationAccessGate);
 
   // PUBLIC ROUTES (no authentication required)
 
@@ -8386,13 +8392,11 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
 
       let evaluationEndsAt: Date | null = null;
       if (parsed.data.evaluationEndsAt) {
-        const raw = parsed.data.evaluationEndsAt.trim();
-        evaluationEndsAt = /^\d{4}-\d{2}-\d{2}$/.test(raw)
-          ? new Date(`${raw}T23:59:59.000Z`)
-          : new Date(raw);
-        if (Number.isNaN(evaluationEndsAt.getTime())) {
-          return res.status(400).json({ message: "Invalid evaluation end date" });
+        const parsedEnds = parseAdminEvaluationEndsAt(parsed.data.evaluationEndsAt);
+        if (!parsedEnds.ok) {
+          return res.status(400).json({ message: parsedEnds.message });
         }
+        evaluationEndsAt = parsedEnds.value;
       }
 
       const prior = await storage.getFirmByProvisionedLeadEmail(parsed.data.leadEmail);
@@ -8438,6 +8442,73 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
     }
   });
 
+  // Update evaluation end date without re-provisioning or overwriting firm details.
+  app.patch("/api/admin/evaluation-firms/:firmId", isAuthenticated, isAdmin, async (req: any, res, next) => {
+    try {
+      const schema = z.object({
+        evaluationEndsAt: z.string().min(1).max(40).optional().nullable(),
+        notifyLead: z.boolean().optional(),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          message: "Invalid update request",
+          errors: parsed.error.flatten().fieldErrors,
+        });
+      }
+
+      const firm = await storage.getFirm(req.params.firmId);
+      if (!firm || !firm.isEvaluation) {
+        return res.status(404).json({ message: "Evaluation firm not found." });
+      }
+
+      if (parsed.data.evaluationEndsAt !== undefined) {
+        const parsedEnds = parseAdminEvaluationEndsAt(parsed.data.evaluationEndsAt ?? "");
+        if (!parsedEnds.ok) {
+          return res.status(400).json({ message: parsedEnds.message });
+        }
+        const updated = await storage.updateFirm(firm.id, { evaluationEndsAt: parsedEnds.value });
+        if (!updated) {
+          return res.status(500).json({ message: "Failed to update evaluation firm." });
+        }
+
+        if (parsed.data.notifyLead && updated.provisionedLeadEmail) {
+          const adminUser = await storage.getUser(req.user.claims.sub);
+          const invitedByName = adminUser
+            ? [adminUser.firstName, adminUser.lastName].filter(Boolean).join(" ") || adminUser.email
+            : null;
+          const alreadyClaimed = Boolean(updated.provisionedLeadUserId);
+          await sendGovernedEvaluationLoginInviteEmail({
+            to: updated.provisionedLeadEmail,
+            firmName: updated.name,
+            evaluationEndsAt: updated.evaluationEndsAt,
+            invitedByName,
+            alreadyClaimed,
+          });
+        }
+
+        await storage.createAuditLog({
+          eventType: "evaluation_firm_end_date_updated",
+          userId: req.user.claims.sub,
+          severity: "info",
+          metadata: {
+            firmId: updated.id,
+            firmName: updated.name,
+            leadEmail: updated.provisionedLeadEmail,
+            evaluationEndsAt: updated.evaluationEndsAt,
+            notifyLead: Boolean(parsed.data.notifyLead),
+          },
+        }).catch(() => {});
+
+        return res.json(updated);
+      }
+
+      res.json(firm);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Email a provisioned governed-evaluation lead their first-login invite
   app.post("/api/admin/evaluation-firms/send-login-invite", isAuthenticated, isAdmin, async (req: any, res, next) => {
     try {
@@ -8475,17 +8546,11 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       }
 
       if (parsed.data.evaluationEndsAt !== undefined) {
-        let evaluationEndsAt: Date | null = null;
-        if (parsed.data.evaluationEndsAt) {
-          const raw = parsed.data.evaluationEndsAt.trim();
-          evaluationEndsAt = /^\d{4}-\d{2}-\d{2}$/.test(raw)
-            ? new Date(`${raw}T23:59:59.000Z`)
-            : new Date(raw);
-          if (Number.isNaN(evaluationEndsAt.getTime())) {
-            return res.status(400).json({ message: "Invalid evaluation end date" });
-          }
+        const parsedEnds = parseAdminEvaluationEndsAt(parsed.data.evaluationEndsAt ?? "");
+        if (!parsedEnds.ok) {
+          return res.status(400).json({ message: parsedEnds.message });
         }
-        const updated = await storage.updateFirm(firm.id, { evaluationEndsAt });
+        const updated = await storage.updateFirm(firm.id, { evaluationEndsAt: parsedEnds.value });
         if (updated) firm = updated;
       }
 
@@ -8494,12 +8559,14 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         ? [adminUser.firstName, adminUser.lastName].filter(Boolean).join(" ") || adminUser.email
         : null;
 
+      const alreadyClaimed = Boolean(firm.provisionedLeadUserId);
       const emailResult = await sendGovernedEvaluationLoginInviteEmail({
         to: firm.provisionedLeadEmail,
         firmName: firm.name,
         seatLimit: firm.seatLimit,
         evaluationEndsAt: firm.evaluationEndsAt,
         invitedByName,
+        alreadyClaimed,
       });
 
       if (!emailResult.success) {
@@ -8511,25 +8578,29 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       }
 
       await storage.createAuditLog({
-        eventType: "evaluation_login_invite_sent",
+        eventType: alreadyClaimed
+          ? "evaluation_schedule_update_sent"
+          : "evaluation_login_invite_sent",
         userId: req.user.claims.sub,
         severity: "info",
         metadata: {
           firmId: firm.id,
           firmName: firm.name,
           leadEmail: firm.provisionedLeadEmail,
-          alreadyClaimed: Boolean(firm.provisionedLeadUserId),
+          alreadyClaimed,
           messageId: emailResult.messageId,
         },
       }).catch(() => {});
 
       res.json({
         success: true,
-        message: `Login invite sent to ${firm.provisionedLeadEmail}`,
+        message: alreadyClaimed
+          ? `Schedule update sent to ${firm.provisionedLeadEmail}`
+          : `Login invite sent to ${firm.provisionedLeadEmail}`,
         firmId: firm.id,
         firmName: firm.name,
         email: firm.provisionedLeadEmail,
-        alreadyClaimed: Boolean(firm.provisionedLeadUserId),
+        alreadyClaimed,
         messageId: emailResult.messageId,
       });
     } catch (error) {
@@ -14485,7 +14556,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
     try {
       const userId = req.user.claims.sub;
       const firm = await storage.ensureUserHasFirm(userId);
-      res.json(firm);
+      res.json(enrichFirmEvaluationStatus(firm));
     } catch (error: any) {
       console.error("[Firm] Error getting firm:", error);
       res.status(500).json({ message: "Failed to get firm" });

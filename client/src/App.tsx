@@ -15,6 +15,7 @@ import { useQuickRecordShortcut } from "@/hooks/useQuickRecordShortcut";
 import TopNavigation from "@/components/TopNavigation";
 import MobileBottomNav from "@/components/MobileBottomNav";
 import FirmSetupPrompt from "@/components/FirmSetupPrompt";
+import EvaluationPeriodBanner, { useEvaluationBannerOffset } from "@/components/EvaluationPeriodBanner";
 import DisplayNameOnboarding from "@/components/DisplayNameOnboarding";
 import IntegrationsOnboarding from "@/components/IntegrationsOnboarding";
 import OnboardingTour from "@/components/OnboardingTour";
@@ -185,6 +186,7 @@ function AuthenticatedAppContent() {
   const { showVideoBotRecovery, setShowVideoBotRecovery } = useVideoBotRecovery(
     !isLoading && hasAppAccess && !showRecoveryModal,
   );
+  const hasEvaluationBanner = useEvaluationBannerOffset();
 
   useCaptureShortcut();
   useQuickRecordShortcut();
@@ -251,11 +253,14 @@ function AuthenticatedAppContent() {
     <div
       className={`min-h-screen bg-background ${
         !isLoading && hasAppAccess && !hideAppChrome
-          ? "pt-[env(safe-area-inset-top,0px)] pb-[calc(4rem+env(safe-area-inset-bottom,0px))] lg:pt-[calc(4rem+env(safe-area-inset-top,0px))] lg:pb-0"
+          ? hasEvaluationBanner
+            ? "pt-[calc(7rem+env(safe-area-inset-top,0px))] pb-[calc(4rem+env(safe-area-inset-bottom,0px))] lg:pt-[calc(7rem+env(safe-area-inset-top,0px))] lg:pb-0"
+            : "pt-[env(safe-area-inset-top,0px)] pb-[calc(4rem+env(safe-area-inset-bottom,0px))] lg:pt-[calc(4rem+env(safe-area-inset-top,0px))] lg:pb-0"
           : ""
       }`}
     >
       {!isLoading && hasAppAccess && !hideAppChrome && <TopNavigation onRestartTour={handleRestartTour} />}
+      {!isLoading && hasAppAccess && !hideAppChrome && <EvaluationPeriodBanner />}
       {!isLoading && hasAppAccess && !hideAppChrome && (
         <MobileBottomNav onRestartTour={handleRestartTour} />
       )}

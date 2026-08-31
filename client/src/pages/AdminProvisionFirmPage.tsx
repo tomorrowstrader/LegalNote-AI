@@ -2,12 +2,13 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Building2, Loader2, Mail } from "lucide-react";
+import { Building2, Loader2, Mail, Save } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -66,6 +67,9 @@ export default function AdminProvisionFirmPage() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteEndsAt, setInviteEndsAt] = useState("");
   const [sendingFirmId, setSendingFirmId] = useState<string | null>(null);
+  const [savingFirmId, setSavingFirmId] = useState<string | null>(null);
+  const [endDateEdits, setEndDateEdits] = useState<Record<string, string>>({});
+  const [notifyOnSave, setNotifyOnSave] = useState<Record<string, boolean>>({});
 
   const { isLoading: accessLoading, error: accessError, data: firms = [] } = useQuery<EvaluationFirm[]>({
     queryKey: ["/api/admin/evaluation-firms"],
@@ -117,7 +121,7 @@ export default function AdminProvisionFirmPage() {
     onSuccess: (result) => {
       setSendingFirmId(null);
       toast({
-        title: "Login invite sent",
+        title: result.alreadyClaimed ? "Schedule update sent" : "Login invite sent",
         description: result.message,
       });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/evaluation-firms"] });
@@ -132,12 +136,60 @@ export default function AdminProvisionFirmPage() {
     },
   });
 
+  const updateEndDateMutation = useMutation({
+    mutationFn: async (payload: {
+      firmId: string;
+      evaluationEndsAt: string | null;
+      notifyLead: boolean;
+    }) => {
+      return apiRequest<EvaluationFirm>(
+        "PATCH",
+        `/api/admin/evaluation-firms/${payload.firmId}`,
+        {
+          evaluationEndsAt: payload.evaluationEndsAt,
+          notifyLead: payload.notifyLead,
+        },
+      );
+    },
+    onSuccess: (_firm, variables) => {
+      setSavingFirmId(null);
+      toast({
+        title: "Evaluation end date saved",
+        description: variables.notifyLead
+          ? "The lead was emailed about the updated schedule."
+          : "End date updated. Existing firm setup and account data were not changed.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/evaluation-firms"] });
+    },
+    onError: (error) => {
+      setSavingFirmId(null);
+      toast({
+        title: "Update failed",
+        description: getApiErrorMessage(error, "Could not update evaluation end date."),
+        variant: "destructive",
+      });
+    },
+  });
+
   const sendInvite = (
     payload: { firmId?: string; email?: string; evaluationEndsAt?: string | null },
     firmIdForSpinner?: string,
   ) => {
     if (firmIdForSpinner) setSendingFirmId(firmIdForSpinner);
     inviteMutation.mutate(payload);
+  };
+
+  const endDateForFirm = (firm: EvaluationFirm) =>
+    endDateEdits[firm.id] ?? toDateInputValue(firm.evaluationEndsAt);
+
+  const saveEndDate = (firm: EvaluationFirm) => {
+    setSavingFirmId(firm.id);
+    const value = endDateForFirm(firm);
+    updateEndDateMutation.mutate({
+      firmId: firm.id,
+      evaluationEndsAt: value || null,
+      notifyLead: notifyOnSave[firm.id] ?? false,
+    });
   };
 
   if (accessLoading) {
@@ -272,9 +324,9 @@ export default function AdminProvisionFirmPage() {
               Send first-login invite
             </CardTitle>
             <CardDescription>
-              Email a provisioned governed-evaluation lead a branded invite to sign in for the first time.
-              They must use the exact reserved email with Google or Microsoft. You can correct the evaluation
-              end date here before sending — it updates the firm and appears in the email.
+              For firms awaiting first login, this sends a sign-in invite. For active firms it sends a
+              schedule-update email instead — their account, firm details, and matters are never reset.
+              Correct the evaluation end date before sending.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -366,7 +418,9 @@ export default function AdminProvisionFirmPage() {
         <Card>
           <CardHeader>
             <CardTitle>Evaluation firms</CardTitle>
-            <CardDescription>Awaiting login vs active after the lead has signed in.</CardDescription>
+            <CardDescription>
+              Update end dates inline without affecting firm setup. Active firms keep all existing data.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {firms.length === 0 ? (
@@ -381,7 +435,7 @@ export default function AdminProvisionFirmPage() {
                     <TableHead>Ends</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Provisioned</TableHead>
-                    <TableHead className="text-right">Invite</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -390,10 +444,45 @@ export default function AdminProvisionFirmPage() {
                       <TableCell className="font-medium">{firm.name}</TableCell>
                       <TableCell>{firm.provisionedLeadEmail ?? "—"}</TableCell>
                       <TableCell>{firm.seatLimit ?? "Unlimited"}</TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {firm.evaluationEndsAt
-                          ? format(new Date(firm.evaluationEndsAt), "dd MMM yyyy")
-                          : "—"}
+                      <TableCell>
+                        <div className="flex flex-col gap-2 min-w-[10rem]">
+                          <Input
+                            type="date"
+                            value={endDateForFirm(firm)}
+                            onChange={(e) =>
+                              setEndDateEdits((prev) => ({ ...prev, [firm.id]: e.target.value }))
+                            }
+                            data-testid={`input-eval-ends-${firm.id}`}
+                          />
+                          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Checkbox
+                              checked={notifyOnSave[firm.id] ?? false}
+                              onCheckedChange={(checked) =>
+                                setNotifyOnSave((prev) => ({
+                                  ...prev,
+                                  [firm.id]: checked === true,
+                                }))
+                              }
+                            />
+                            Email lead
+                          </label>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            disabled={updateEndDateMutation.isPending}
+                            onClick={() => saveEndDate(firm)}
+                            data-testid={`button-save-ends-${firm.id}`}
+                          >
+                            {savingFirmId === firm.id && updateEndDateMutation.isPending ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <>
+                                <Save className="w-3 h-3 mr-1" />
+                                Save date
+                              </>
+                            )}
+                          </Button>
+                        </div>
                       </TableCell>
                       <TableCell>
                         {firm.provisionedLeadUserId ? (
@@ -417,6 +506,8 @@ export default function AdminProvisionFirmPage() {
                         >
                           {sendingFirmId === firm.id && inviteMutation.isPending ? (
                             <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : firm.provisionedLeadUserId ? (
+                            "Email update"
                           ) : (
                             "Send invite"
                           )}
