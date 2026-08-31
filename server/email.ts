@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { MATTER_KIND_PARTY_LABELS } from '@shared/matterKinds';
 import type { FirmRiskDigest } from './storage';
+import type { SupportTicket } from '@shared/schema';
 
 type EmailProvider = 'resend' | 'ses';
 
@@ -2960,6 +2961,134 @@ export async function sendEvaluationSetupSubmittedAdminEmail(params: {
     return result;
   } catch (error: any) {
     console.error('[EMAIL] Exception sending setup admin notify:', error);
+    return { success: false, error: error.message || 'Unknown error' };
+  }
+}
+
+export async function sendSupportTicketAdminNotification(params: {
+  ticket: SupportTicket;
+  userEmail: string | null;
+  userName: string | null;
+  firmName: string | null;
+}): Promise<{ success: boolean; error?: string }> {
+  const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://legalnote.ai';
+  const adminUrl = `${baseUrl}/admin/support-tickets?ticket=${params.ticket.id}`;
+  const severityLabel =
+    params.ticket.severity === 'blocked'
+      ? 'Blocked'
+      : params.ticket.severity === 'annoying'
+        ? 'Issue'
+        : 'Question';
+
+  const emailHtml = wrapLegalNoteBrandedEmail({
+    eyebrow: 'Support ticket',
+    footerNote: 'LegalNote support queue.',
+    bodyHtml: `
+      <h2>${escapeHtmlEmail(params.ticket.ticketRef)} — ${escapeHtmlEmail(severityLabel)}</h2>
+      <p><strong>${escapeHtmlEmail(params.ticket.title)}</strong></p>
+      <div class="meta">
+        <p style="margin:0 0 8px"><strong>From:</strong> ${escapeHtmlEmail(params.userName || 'User')} &lt;${escapeHtmlEmail(params.userEmail || 'unknown')}&gt;</p>
+        ${params.firmName ? `<p style="margin:0 0 8px"><strong>Firm:</strong> ${escapeHtmlEmail(params.firmName)}</p>` : ''}
+        <p style="margin:0 0 8px"><strong>Category:</strong> ${escapeHtmlEmail(params.ticket.category)}</p>
+        <p style="margin:0 0 8px"><strong>Severity:</strong> ${escapeHtmlEmail(params.ticket.severity)}</p>
+      </div>
+      ${params.ticket.aiSummary ? `<p><strong>AI summary:</strong> ${escapeHtmlEmail(params.ticket.aiSummary)}</p>` : ''}
+      <p style="white-space:pre-wrap">${escapeHtmlEmail(params.ticket.description)}</p>
+      <p><a href="${adminUrl}">Open in admin queue</a></p>
+    `,
+  });
+
+  try {
+    return await sendEmail({
+      from: 'LegalNote\u2122 <noreply@legalnote.ai>',
+      to: 'support@legalnote.ai',
+      replyTo: params.userEmail || undefined,
+      subject: `[${params.ticket.ticketRef}] ${severityLabel}: ${params.ticket.title}`.slice(0, 180),
+      html: emailHtml,
+    });
+  } catch (error: any) {
+    console.error('[EMAIL] Exception sending support ticket admin notify:', error);
+    return { success: false, error: error.message || 'Unknown error' };
+  }
+}
+
+export async function sendSupportTicketReceivedEmail(params: {
+  ticket: SupportTicket;
+  userEmail: string;
+  userName: string | null;
+}): Promise<{ success: boolean; error?: string }> {
+  const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://legalnote.ai';
+  const emailHtml = wrapLegalNoteBrandedEmail({
+    eyebrow: 'We received your request',
+    footerNote: 'You can reply to this email if you need to add more detail.',
+    bodyHtml: `
+      <p>Hi ${escapeHtmlEmail(params.userName || 'there')},</p>
+      <p>Thanks for contacting LegalNote support. Your reference is <strong>${escapeHtmlEmail(params.ticket.ticketRef)}</strong>.</p>
+      <p><strong>${escapeHtmlEmail(params.ticket.title)}</strong></p>
+      <p>We typically respond within one business day. For urgent blockers during evaluation, mention your firm name and reference in any follow-up.</p>
+      <p><a href="${baseUrl}/support">View your tickets</a></p>
+    `,
+  });
+
+  try {
+    return await sendEmail({
+      from: 'LegalNote\u2122 <noreply@legalnote.ai>',
+      to: params.userEmail,
+      subject: `Support request received — ${params.ticket.ticketRef}`,
+      html: emailHtml,
+    });
+  } catch (error: any) {
+    console.error('[EMAIL] Exception sending support ticket received email:', error);
+    return { success: false, error: error.message || 'Unknown error' };
+  }
+}
+
+export async function sendSupportTicketStatusEmail(params: {
+  ticket: SupportTicket;
+  userEmail: string;
+  userName: string | null;
+  previousStatus: string;
+}): Promise<{ success: boolean; error?: string }> {
+  const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://legalnote.ai';
+  const status = params.ticket.status;
+  let headline = 'Your support request was updated';
+  let detail = 'The status of your request has changed.';
+
+  if (status === 'in_progress') {
+    headline = "We're looking into your request";
+    detail = 'A member of the LegalNote team is now working on your ticket.';
+  } else if (status === 'resolved' || status === 'closed') {
+    headline = 'Your support request has been resolved';
+    detail = 'If anything is still not right, reply to this email or open a new ticket in the app.';
+  }
+
+  const notesBlock = params.ticket.adminNotes
+    ? `<p><strong>Note from support:</strong></p><p style="white-space:pre-wrap">${escapeHtmlEmail(params.ticket.adminNotes)}</p>`
+    : '';
+
+  const emailHtml = wrapLegalNoteBrandedEmail({
+    eyebrow: params.ticket.ticketRef,
+    footerNote: 'LegalNote support.',
+    bodyHtml: `
+      <p>Hi ${escapeHtmlEmail(params.userName || 'there')},</p>
+      <h2>${escapeHtmlEmail(headline)}</h2>
+      <p>${escapeHtmlEmail(detail)}</p>
+      <p><strong>${escapeHtmlEmail(params.ticket.title)}</strong></p>
+      <p>Status: <strong>${escapeHtmlEmail(status.replace('_', ' '))}</strong></p>
+      ${notesBlock}
+      <p><a href="${baseUrl}/support">View in LegalNote</a></p>
+    `,
+  });
+
+  try {
+    return await sendEmail({
+      from: 'LegalNote\u2122 <noreply@legalnote.ai>',
+      to: params.userEmail,
+      subject: `${params.ticket.ticketRef} — ${headline}`,
+      html: emailHtml,
+    });
+  } catch (error: any) {
+    console.error('[EMAIL] Exception sending support ticket status email:', error);
     return { success: false, error: error.message || 'Unknown error' };
   }
 }

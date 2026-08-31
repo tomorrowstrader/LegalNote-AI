@@ -2385,3 +2385,68 @@ export const shareFeedbackBodySchema = z.object({
   category: z.enum(["correction", "clarification", "other"]).default("correction"),
 });
 export type ShareFeedbackBody = z.infer<typeof shareFeedbackBodySchema>;
+
+/** In-app support tickets (firm users → LegalNote support). */
+export const supportTickets = pgTable("support_tickets", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  ticketRef: text("ticket_ref").notNull(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  firmId: varchar("firm_id").references(() => firms.id),
+  caseId: varchar("case_id").references(() => cases.id),
+  category: text("category").notNull(),
+  severity: text("severity").notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  rawTranscript: text("raw_transcript"),
+  aiSummary: text("ai_summary"),
+  status: text("status").notNull().default("open"),
+  screenshotPath: text("screenshot_path"),
+  contextMetadata: jsonb("context_metadata").default({}),
+  adminNotes: text("admin_notes"),
+  resolvedAt: timestamp("resolved_at"),
+  resolvedBy: varchar("resolved_by").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertSupportTicketSchema = createInsertSchema(supportTickets).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertSupportTicket = z.infer<typeof insertSupportTicketSchema>;
+export type SupportTicket = typeof supportTickets.$inferSelect;
+
+export const supportTicketPreviewBodySchema = z.object({
+  category: z.enum([
+    "record_meeting",
+    "livebot",
+    "share",
+    "calendar",
+    "documents",
+    "login",
+    "other",
+  ]),
+  severity: z.enum(["blocked", "annoying", "question"]),
+  description: z.string().trim().min(10).max(8000),
+});
+
+export const supportTicketCreateBodySchema = supportTicketPreviewBodySchema.extend({
+  caseId: z.string().uuid().optional().nullable(),
+  title: z.string().trim().min(3).max(200).optional(),
+  polishedDescription: z.string().trim().min(10).max(8000).optional(),
+  aiSummary: z.string().trim().max(2000).optional(),
+  pageUrl: z.string().trim().max(500).optional(),
+  userAgent: z.string().trim().max(500).optional(),
+});
+
+export const supportTicketAdminUpdateSchema = z.object({
+  status: z.enum(["open", "in_progress", "resolved", "closed"]).optional(),
+  adminNotes: z.string().trim().max(4000).optional().nullable(),
+  notifyUser: z.boolean().optional(),
+});
+
+export type SupportTicketPreviewBody = z.infer<typeof supportTicketPreviewBodySchema>;
+export type SupportTicketCreateBody = z.infer<typeof supportTicketCreateBodySchema>;
+export type SupportTicketAdminUpdateBody = z.infer<typeof supportTicketAdminUpdateSchema>;

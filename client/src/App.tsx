@@ -33,6 +33,8 @@ import AdminDashboard from "@/pages/AdminDashboard";
 import AdminDpaMintPage from "@/pages/AdminDpaMintPage";
 import AdminDpaAcceptancesPage from "@/pages/AdminDpaAcceptancesPage";
 import AdminProvisionFirmPage from "@/pages/AdminProvisionFirmPage";
+import AdminSupportTicketsPage from "@/pages/AdminSupportTicketsPage";
+import SupportPage from "@/pages/SupportPage";
 import FirmOverview from "@/pages/FirmOverview";
 import SecurityFeatures from "@/pages/SecurityFeatures";
 import Landing from "@/pages/Landing";
@@ -126,6 +128,7 @@ function Router() {
       <Route path="/admin/dpa-mint" component={AdminDpaMintPage} />
       <Route path="/admin/dpa-acceptances" component={AdminDpaAcceptancesPage} />
       <Route path="/admin/provision-firm" component={AdminProvisionFirmPage} />
+      <Route path="/admin/support-tickets" component={AdminSupportTicketsPage} />
       <Route path="/admin" component={AdminDashboard} />
       
       {isLoading || !isAuthenticated ? (
@@ -154,6 +157,7 @@ function Router() {
           <Route path="/case/:id" component={CaseDetail} />
           <Route path="/cases" component={SavedCases} />
           <Route path="/settings" component={Settings} />
+          <Route path="/support" component={SupportPage} />
           <Route path="/profile" component={MyProfile} />
           <Route path="/audit-logs" component={AuditLogs} />
           <Route path="/app/security" component={SecurityFeatures} />

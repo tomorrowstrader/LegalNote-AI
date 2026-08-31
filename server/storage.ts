@@ -43,6 +43,7 @@ import {
   type SupervisionSignoff, type InsertSupervisionSignoff,
   type ProductInsight, type InsertProductInsight,
   type ShareFeedback, type InsertShareFeedback,
+  type SupportTicket, type InsertSupportTicket,
   users,
   authIdentities,
   clients,
@@ -87,6 +88,7 @@ import {
   supervisionSignoffs,
   productInsights,
   shareFeedback,
+  supportTickets,
 } from "@shared/schema";
 import crypto, { randomUUID } from "crypto";
 import { db } from "./db";
@@ -639,6 +641,22 @@ export interface IStorage {
     updates: { resolved: boolean },
   ): Promise<ShareFeedback | undefined>;
   countShareFeedbackForLink(shareLinkId: string, since?: Date): Promise<number>;
+
+  // In-app support tickets
+  createSupportTicket(data: InsertSupportTicket): Promise<SupportTicket>;
+  getSupportTicketsByUser(userId: string): Promise<SupportTicket[]>;
+  getSupportTicketById(id: string, userId: string): Promise<SupportTicket | undefined>;
+  listSupportTicketsAdmin(filters?: { status?: string }): Promise<SupportTicket[]>;
+  getSupportTicketByIdAdmin(id: string): Promise<SupportTicket | undefined>;
+  updateSupportTicketAdmin(
+    id: string,
+    updates: {
+      status?: string;
+      adminNotes?: string | null;
+      resolvedAt?: Date | null;
+      resolvedBy?: string | null;
+    },
+  ): Promise<SupportTicket | undefined>;
   
   // Search methods
   searchCases(query: string, userId: string): Promise<Case[]>;
@@ -899,6 +917,7 @@ export class MemStorage implements IStorage {
   private firmProfiles: Map<string, FirmProfile>;
   private productInsightsMap: Map<string, ProductInsight>;
   private shareFeedbackMap: Map<string, ShareFeedback>;
+  private supportTicketsMap: Map<string, SupportTicket>;
 
   constructor() {
     this.users = new Map();
@@ -919,6 +938,7 @@ export class MemStorage implements IStorage {
     this.firmProfiles = new Map();
     this.productInsightsMap = new Map();
     this.shareFeedbackMap = new Map();
+    this.supportTicketsMap = new Map();
   }
 
   async getUser(id: string): Promise<User | undefined> {
@@ -2337,7 +2357,77 @@ export class MemStorage implements IStorage {
       return true;
     }).length;
   }
-  
+
+  async createSupportTicket(data: InsertSupportTicket): Promise<SupportTicket> {
+    const id = randomUUID();
+    const now = new Date();
+    const row: SupportTicket = {
+      id,
+      ticketRef: data.ticketRef,
+      userId: data.userId,
+      firmId: data.firmId ?? null,
+      caseId: data.caseId ?? null,
+      category: data.category,
+      severity: data.severity,
+      title: data.title,
+      description: data.description,
+      rawTranscript: data.rawTranscript ?? null,
+      aiSummary: data.aiSummary ?? null,
+      status: data.status ?? "open",
+      screenshotPath: data.screenshotPath ?? null,
+      contextMetadata: data.contextMetadata ?? {},
+      adminNotes: data.adminNotes ?? null,
+      resolvedAt: data.resolvedAt ?? null,
+      resolvedBy: data.resolvedBy ?? null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.supportTicketsMap.set(id, row);
+    return row;
+  }
+
+  async getSupportTicketsByUser(userId: string): Promise<SupportTicket[]> {
+    return Array.from(this.supportTicketsMap.values())
+      .filter((t) => t.userId === userId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  async getSupportTicketById(id: string, userId: string): Promise<SupportTicket | undefined> {
+    const row = this.supportTicketsMap.get(id);
+    if (!row || row.userId !== userId) return undefined;
+    return row;
+  }
+
+  async listSupportTicketsAdmin(filters?: { status?: string }): Promise<SupportTicket[]> {
+    return Array.from(this.supportTicketsMap.values())
+      .filter((t) => !filters?.status || t.status === filters.status)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  async getSupportTicketByIdAdmin(id: string): Promise<SupportTicket | undefined> {
+    return this.supportTicketsMap.get(id);
+  }
+
+  async updateSupportTicketAdmin(
+    id: string,
+    updates: {
+      status?: string;
+      adminNotes?: string | null;
+      resolvedAt?: Date | null;
+      resolvedBy?: string | null;
+    },
+  ): Promise<SupportTicket | undefined> {
+    const existing = this.supportTicketsMap.get(id);
+    if (!existing) return undefined;
+    const updated: SupportTicket = {
+      ...existing,
+      ...updates,
+      updatedAt: new Date(),
+    };
+    this.supportTicketsMap.set(id, updated);
+    return updated;
+  }
+
   async searchCases(query: string, userId: string): Promise<Case[]> {
     // MemStorage: Simple in-memory search implementation
     const userCases = Array.from(this.cases.values()).filter(c => c.createdBy === userId);
@@ -5067,6 +5157,61 @@ export class DbStorage implements IStorage {
       .from(shareFeedback)
       .where(and(...conditions));
     return Number(rows[0]?.value ?? 0);
+  }
+
+  async createSupportTicket(data: InsertSupportTicket): Promise<SupportTicket> {
+    const inserted = await db.insert(supportTickets).values(data).returning();
+    return inserted[0];
+  }
+
+  async getSupportTicketsByUser(userId: string): Promise<SupportTicket[]> {
+    return db
+      .select()
+      .from(supportTickets)
+      .where(eq(supportTickets.userId, userId))
+      .orderBy(desc(supportTickets.createdAt));
+  }
+
+  async getSupportTicketById(id: string, userId: string): Promise<SupportTicket | undefined> {
+    const rows = await db
+      .select()
+      .from(supportTickets)
+      .where(and(eq(supportTickets.id, id), eq(supportTickets.userId, userId)))
+      .limit(1);
+    return rows[0];
+  }
+
+  async listSupportTicketsAdmin(filters?: { status?: string }): Promise<SupportTicket[]> {
+    if (filters?.status) {
+      return db
+        .select()
+        .from(supportTickets)
+        .where(eq(supportTickets.status, filters.status))
+        .orderBy(desc(supportTickets.createdAt));
+    }
+    return db.select().from(supportTickets).orderBy(desc(supportTickets.createdAt));
+  }
+
+  async getSupportTicketByIdAdmin(id: string): Promise<SupportTicket | undefined> {
+    const rows = await db.select().from(supportTickets).where(eq(supportTickets.id, id)).limit(1);
+    return rows[0];
+  }
+
+  async updateSupportTicketAdmin(
+    id: string,
+    updates: {
+      status?: string;
+      adminNotes?: string | null;
+      resolvedAt?: Date | null;
+      resolvedBy?: string | null;
+    },
+  ): Promise<SupportTicket | undefined> {
+    const result = await db
+      .update(supportTickets)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(supportTickets.id, id))
+      .returning();
+    return result[0];
   }
   
   async searchCases(query: string, userId: string): Promise<Case[]> {

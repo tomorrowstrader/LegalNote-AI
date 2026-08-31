@@ -199,6 +199,9 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
                       <DropdownMenuItem asChild data-testid="menu-item-admin-provision-firm-nav">
                         <Link href="/admin/provision-firm">Provision evaluation firm</Link>
                       </DropdownMenuItem>
+                      <DropdownMenuItem asChild data-testid="menu-item-admin-support-tickets">
+                        <Link href="/admin/support-tickets">Support queue</Link>
+                      </DropdownMenuItem>
                       <DropdownMenuItem asChild data-testid="menu-item-admin-dpa-mint-nav">
                         <Link href="/admin/dpa-mint">Mint DPA Link</Link>
                       </DropdownMenuItem>
@@ -207,6 +210,10 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
                       </DropdownMenuItem>
                     </>
                   )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild data-testid="menu-item-support">
+                    <Link href="/support">Help &amp; Support</Link>
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={onRestartTour} data-testid="menu-item-restart-tour">
                     <HelpCircle className="w-4 h-4 mr-2" />

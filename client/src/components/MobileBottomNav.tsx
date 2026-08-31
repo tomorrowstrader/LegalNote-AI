@@ -244,6 +244,15 @@ export default function MobileBottomNav({ onRestartTour }: MobileBottomNavProps)
             </button>
             <button
               type="button"
+              onClick={() => go("/support")}
+              className="flex items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-medium min-h-[44px] hover:bg-muted"
+              data-testid="mobile-more-support"
+            >
+              <HelpCircle className="w-5 h-5 text-muted-foreground" />
+              Help &amp; Support
+            </button>
+            <button
+              type="button"
               onClick={() => go("/profile")}
               className="flex items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-medium min-h-[44px] hover:bg-muted"
               data-testid="mobile-more-profile"

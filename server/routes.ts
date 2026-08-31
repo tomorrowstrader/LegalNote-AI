@@ -102,7 +102,7 @@ function resolveTemplatePath(filename: string): string {
 }
 import { storage } from "./storage";
 import { db } from "./db";
-import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema, insertAmlMonitoringNoteSchema, insertAmlDecisionRecordSchema, insertTimeEntrySchema, insertUndertakingSchema, insertConflictCheckSchema, PRACTICE_AREAS, type ScheduledMeeting, PRIMARY_ROLES, PRIMARY_ROLE_LABELS, REGULATORY_DESIGNATIONS, REGULATORY_DESIGNATION_LABELS, type RegulatoryDesignation, demoLeads, dpaRequestSchema, dpaConfirmBodySchema, evaluationOnboardingSubmitSchema, isClientMatterKind, normalizeMatterKind, partyLabelForMatterKind, requiresSealedConsentForProcessing, type InsertCase, adoptFeedbackBodySchema, shareFeedbackBodySchema } from "@shared/schema";
+import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema, insertAmlMonitoringNoteSchema, insertAmlDecisionRecordSchema, insertTimeEntrySchema, insertUndertakingSchema, insertConflictCheckSchema, PRACTICE_AREAS, type ScheduledMeeting, PRIMARY_ROLES, PRIMARY_ROLE_LABELS, REGULATORY_DESIGNATIONS, REGULATORY_DESIGNATION_LABELS, type RegulatoryDesignation, demoLeads, dpaRequestSchema, dpaConfirmBodySchema, evaluationOnboardingSubmitSchema, isClientMatterKind, normalizeMatterKind, partyLabelForMatterKind, requiresSealedConsentForProcessing, type InsertCase, adoptFeedbackBodySchema, shareFeedbackBodySchema, supportTicketPreviewBodySchema, supportTicketCreateBodySchema, supportTicketAdminUpdateSchema } from "@shared/schema";
 import { scrubInsightComment } from "@shared/productInsights";
 import { CONSENT_DISCLAIMER_TEXT, CONSENT_DISCLAIMER_VERSION } from "@shared/consent";
 import { defaultRecordingTypeForMatterKind, validateRecordingType } from "@shared/recordingTypes";
@@ -146,7 +146,12 @@ import { askMatterQuestion, compareMatterNote } from "./services/matterAskServic
 import { synthesizeVoiceReply, VOICE_TTS_MAX_CHARS } from "./services/voiceTtsService";
 import { privilegedComplete } from "./services/llm/privilegedComplete";
 import { AssemblyAIService } from "./services/assemblyAIService";
-import { sendCaseEmail, sendRecordingConfirmationEmail, sendConsentResponseNotification, sendAcknowledgementRequestEmail, sendInvitationEmail, sendDpaConfirmationEmail, sendLegalAgreementAcceptedEmail, sendEvaluationSetupEmail, sendEvaluationSetupSubmittedAdminEmail, sendGovernedEvaluationLoginInviteEmail, sendShareVerificationCodeEmail, legalNoteBrandHeaderHtml } from "./email";
+import { sendCaseEmail, sendRecordingConfirmationEmail, sendConsentResponseNotification, sendAcknowledgementRequestEmail, sendInvitationEmail, sendDpaConfirmationEmail, sendLegalAgreementAcceptedEmail, sendEvaluationSetupEmail, sendEvaluationSetupSubmittedAdminEmail, sendGovernedEvaluationLoginInviteEmail, sendShareVerificationCodeEmail, sendSupportTicketAdminNotification, sendSupportTicketReceivedEmail, sendSupportTicketStatusEmail, legalNoteBrandHeaderHtml } from "./email";
+import {
+  polishSupportTicketWithAi,
+  createSupportTicketRecord,
+  severitySortWeight,
+} from "./services/supportTicketService";
 import {
   renderConsentAlreadyRespondedPage,
   renderConsentDecisionPage,
@@ -3702,6 +3707,41 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
     }
   });
 
+  // In-app support tickets (preview + list — JSON)
+  app.post("/api/support/tickets/preview", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const parsed = supportTicketPreviewBodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Validation error", errors: parsed.error.format() });
+      }
+      const preview = await polishSupportTicketWithAi(parsed.data);
+      res.json(preview);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/support/tickets", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const tickets = await storage.getSupportTicketsByUser(userId);
+      res.json(tickets);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/support/tickets/:id", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const ticket = await storage.getSupportTicketById(req.params.id, userId);
+      if (!ticket) return res.status(404).json({ message: "Ticket not found" });
+      res.json(ticket);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Solicitor Reasoning Note endpoint
   app.patch("/api/documents/:id/reasoning-note", isAuthenticated, async (req: any, res, next) => {
     try {
@@ -5462,6 +5502,110 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       res.json({ text });
     } catch (error: any) {
       console.error('Quick note transcription error:', error);
+      next(error);
+    }
+  });
+
+  app.post("/api/support/tickets", isAuthenticated, upload.single("screenshot"), async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(401).json({ message: "User not found" });
+
+      const bodyInput = {
+        category: req.body.category,
+        severity: req.body.severity,
+        description: req.body.description,
+        caseId: req.body.caseId || undefined,
+        title: req.body.title || undefined,
+        polishedDescription: req.body.polishedDescription || undefined,
+        aiSummary: req.body.aiSummary || undefined,
+        pageUrl: req.body.pageUrl || undefined,
+        userAgent: req.body.userAgent || req.headers["user-agent"],
+      };
+      const parsed = supportTicketCreateBodySchema.safeParse(bodyInput);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Validation error", errors: parsed.error.format() });
+      }
+
+      if (req.file) {
+        const allowed = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+        if (!allowed.includes(req.file.mimetype)) {
+          return res.status(400).json({ message: "Screenshot must be PNG, JPEG, WebP, or GIF" });
+        }
+        if (req.file.size > 5 * 1024 * 1024) {
+          return res.status(400).json({ message: "Screenshot must be under 5MB" });
+        }
+      }
+
+      let ticket = await createSupportTicketRecord({
+        user,
+        body: parsed.data,
+        rawTranscript: typeof req.body.rawTranscript === "string" ? req.body.rawTranscript : undefined,
+      });
+
+      if (req.file) {
+        const ext =
+          req.file.mimetype === "image/png"
+            ? "png"
+            : req.file.mimetype === "image/webp"
+              ? "webp"
+              : req.file.mimetype === "image/gif"
+                ? "gif"
+                : "jpg";
+        const screenshotPath = `.private/support-tickets/${ticket.id}/screenshot.${ext}`;
+        const objectStorageService = new ObjectStorageService();
+        await objectStorageService.uploadFile(screenshotPath, req.file.buffer, req.file.mimetype);
+        const updated = await storage.updateSupportTicketAdmin(ticket.id, { screenshotPath });
+        if (updated) ticket = updated;
+      }
+
+      const userName = [user.firstName, user.lastName].filter(Boolean).join(" ") || null;
+      let firmName: string | null = null;
+      if (user.firmId) {
+        const firm = await storage.getFirm(user.firmId);
+        firmName = firm?.name ?? null;
+      }
+
+      void sendSupportTicketAdminNotification({
+        ticket,
+        userEmail: user.email ?? null,
+        userName,
+        firmName,
+      });
+      if (user.email) {
+        void sendSupportTicketReceivedEmail({
+          ticket,
+          userEmail: user.email,
+          userName,
+        });
+      }
+
+      await logAuditEvent(userId, "support_ticket_created", {
+        metadata: { ticketId: ticket.id, ticketRef: ticket.ticketRef, category: ticket.category },
+      });
+
+      res.status(201).json(ticket);
+    } catch (error: any) {
+      if (error?.message === "CASE_NOT_FOUND") {
+        return res.status(400).json({ message: "Linked matter not found" });
+      }
+      next(error);
+    }
+  });
+
+  app.get("/api/support/tickets/:id/screenshot", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const ticket = await storage.getSupportTicketById(req.params.id, userId);
+      if (!ticket?.screenshotPath) return res.status(404).json({ message: "Screenshot not found" });
+      const objectStorageService = new ObjectStorageService();
+      res.setHeader("Content-Type", "image/png");
+      await objectStorageService.downloadObject(ticket.screenshotPath, res);
+    } catch (error) {
+      if (error instanceof ObjectNotFoundError) {
+        return res.status(404).json({ message: "Screenshot not found" });
+      }
       next(error);
     }
   });
@@ -8766,6 +8910,121 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       await storage.deleteWaitlistEntry(id);
       res.status(204).send();
     } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/admin/support/tickets", isAuthenticated, isAdmin, async (req: any, res, next) => {
+    try {
+      const status = typeof req.query.status === "string" ? req.query.status : undefined;
+      const tickets = await storage.listSupportTicketsAdmin(status ? { status } : undefined);
+      const enriched = await Promise.all(
+        tickets.map(async (ticket) => {
+          const user = await storage.getUser(ticket.userId);
+          let firmName: string | null = null;
+          if (ticket.firmId) {
+            const firm = await storage.getFirm(ticket.firmId);
+            firmName = firm?.name ?? null;
+          }
+          return {
+            ...ticket,
+            userEmail: user?.email ?? null,
+            userName: [user?.firstName, user?.lastName].filter(Boolean).join(" ") || null,
+            firmName,
+          };
+        }),
+      );
+      enriched.sort((a, b) => {
+        const sev = severitySortWeight(a.severity) - severitySortWeight(b.severity);
+        if (sev !== 0) return sev;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
+      res.json(enriched);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/admin/support/tickets/:id", isAuthenticated, isAdmin, async (req: any, res, next) => {
+    try {
+      const ticket = await storage.getSupportTicketByIdAdmin(req.params.id);
+      if (!ticket) return res.status(404).json({ message: "Ticket not found" });
+      const user = await storage.getUser(ticket.userId);
+      let firmName: string | null = null;
+      if (ticket.firmId) {
+        const firm = await storage.getFirm(ticket.firmId);
+        firmName = firm?.name ?? null;
+      }
+      res.json({
+        ...ticket,
+        userEmail: user?.email ?? null,
+        userName: [user?.firstName, user?.lastName].filter(Boolean).join(" ") || null,
+        firmName,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.patch("/api/admin/support/tickets/:id", isAuthenticated, isAdmin, async (req: any, res, next) => {
+    try {
+      const adminId = req.user.claims.sub;
+      const parsed = supportTicketAdminUpdateSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Validation error", errors: parsed.error.format() });
+      }
+      const existing = await storage.getSupportTicketByIdAdmin(req.params.id);
+      if (!existing) return res.status(404).json({ message: "Ticket not found" });
+
+      const updates: {
+        status?: string;
+        adminNotes?: string | null;
+        resolvedAt?: Date | null;
+        resolvedBy?: string | null;
+      } = {};
+      if (parsed.data.status) updates.status = parsed.data.status;
+      if (parsed.data.adminNotes !== undefined) updates.adminNotes = parsed.data.adminNotes;
+      if (parsed.data.status === "resolved" || parsed.data.status === "closed") {
+        updates.resolvedAt = new Date();
+        updates.resolvedBy = adminId;
+      } else if (parsed.data.status === "open" || parsed.data.status === "in_progress") {
+        updates.resolvedAt = null;
+        updates.resolvedBy = null;
+      }
+
+      const ticket = await storage.updateSupportTicketAdmin(req.params.id, updates);
+      if (!ticket) return res.status(404).json({ message: "Ticket not found" });
+
+      const notify = parsed.data.notifyUser !== false;
+      const statusChanged = parsed.data.status && parsed.data.status !== existing.status;
+      if (notify && statusChanged) {
+        const user = await storage.getUser(ticket.userId);
+        if (user?.email) {
+          void sendSupportTicketStatusEmail({
+            ticket,
+            userEmail: user.email,
+            userName: [user.firstName, user.lastName].filter(Boolean).join(" ") || null,
+            previousStatus: existing.status,
+          });
+        }
+      }
+
+      res.json(ticket);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/admin/support/tickets/:id/screenshot", isAuthenticated, isAdmin, async (req: any, res, next) => {
+    try {
+      const ticket = await storage.getSupportTicketByIdAdmin(req.params.id);
+      if (!ticket?.screenshotPath) return res.status(404).json({ message: "Screenshot not found" });
+      const objectStorageService = new ObjectStorageService();
+      await objectStorageService.downloadObject(ticket.screenshotPath, res);
+    } catch (error) {
+      if (error instanceof ObjectNotFoundError) {
+        return res.status(404).json({ message: "Screenshot not found" });
+      }
       next(error);
     }
   });

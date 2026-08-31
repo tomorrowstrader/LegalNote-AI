@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Users, FileText, DollarSign, CheckCircle2, TrendingUp, Clock, FileDown, Loader2, UserPlus, Mail, Building2, Calendar, Check, X, Sparkles } from "lucide-react";
+import { Users, FileText, DollarSign, CheckCircle2, TrendingUp, Clock, FileDown, Loader2, UserPlus, Mail, Building2, Calendar, Check, X, Sparkles, LifeBuoy } from "lucide-react";
 import { format } from "date-fns";
 import { Link } from "wouter";
 import { exportMarkdownToPDF } from "@/lib/documentExport";
@@ -240,6 +240,12 @@ export default function AdminDashboard() {
           <p className="text-muted-foreground">System overview and cost monitoring</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline" size="sm" data-testid="button-admin-support-tickets">
+            <Link href="/admin/support-tickets">
+              <LifeBuoy className="w-4 h-4 mr-2" />
+              Support queue
+            </Link>
+          </Button>
           <Button asChild variant="outline" size="sm" data-testid="button-admin-provision-firm">
             <Link href="/admin/provision-firm">
               <Building2 className="w-4 h-4 mr-2" />
