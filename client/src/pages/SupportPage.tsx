@@ -11,6 +11,7 @@ import {
   Mic,
   MicOff,
   LifeBuoy,
+  X,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,8 @@ type Step = "category" | "severity" | "describe" | "review";
 
 const STEPS: Step[] = ["category", "severity", "describe", "review"];
 
+const MAX_SCREENSHOTS = 8;
+
 export default function SupportPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -55,8 +58,8 @@ export default function SupportPage() {
   const [aiSummary, setAiSummary] = useState("");
   const [polishedDescription, setPolishedDescription] = useState("");
   const [caseId, setCaseId] = useState<string>("");
-  const [screenshot, setScreenshot] = useState<File | null>(null);
-  const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
+  const [screenshots, setScreenshots] = useState<File[]>([]);
+  const [screenshotPreviews, setScreenshotPreviews] = useState<string[]>([]);
   const [previewLoading, setPreviewLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -74,14 +77,23 @@ export default function SupportPage() {
   const voice = useVoiceCommandRecognition({ onFinalTranscript: appendTranscript });
 
   useEffect(() => {
-    if (!screenshot) {
-      setScreenshotPreview(null);
-      return;
-    }
-    const url = URL.createObjectURL(screenshot);
-    setScreenshotPreview(url);
-    return () => URL.revokeObjectURL(url);
-  }, [screenshot]);
+    const urls = screenshots.map((f) => URL.createObjectURL(f));
+    setScreenshotPreviews(urls);
+    return () => urls.forEach((u) => URL.revokeObjectURL(u));
+  }, [screenshots]);
+
+  const addScreenshotFiles = useCallback((files: FileList | File[]) => {
+    const incoming = Array.from(files).filter((f) => f.type.startsWith("image/"));
+    if (!incoming.length) return;
+    setScreenshots((prev) => {
+      const merged = [...prev, ...incoming].slice(0, MAX_SCREENSHOTS);
+      return merged;
+    });
+  }, []);
+
+  const removeScreenshot = (index: number) => {
+    setScreenshots((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const stepIndex = STEPS.indexOf(step);
 
@@ -150,7 +162,7 @@ export default function SupportPage() {
       form.append("pageUrl", window.location.href);
       form.append("userAgent", navigator.userAgent);
       if (caseId) form.append("caseId", caseId);
-      if (screenshot) form.append("screenshot", screenshot);
+      screenshots.forEach((file) => form.append("screenshots", file));
 
       const res = await fetch("/api/support/tickets", {
         method: "POST",
@@ -176,7 +188,7 @@ export default function SupportPage() {
       setAiSummary("");
       setPolishedDescription("");
       setCaseId("");
-      setScreenshot(null);
+      setScreenshots([]);
       setStep("category");
     },
     onError: (err: Error) => {
@@ -191,15 +203,16 @@ export default function SupportPage() {
   const onPasteScreenshot = (e: React.ClipboardEvent) => {
     const items = e.clipboardData?.items;
     if (!items) return;
+    const imageFiles: File[] = [];
     for (const item of items) {
       if (item.type.startsWith("image/")) {
         const file = item.getAsFile();
-        if (file) {
-          setScreenshot(file);
-          e.preventDefault();
-        }
-        break;
+        if (file) imageFiles.push(file);
       }
+    }
+    if (imageFiles.length) {
+      addScreenshotFiles(imageFiles);
+      e.preventDefault();
     }
   };
 
@@ -241,7 +254,7 @@ export default function SupportPage() {
             {step === "review" && "Review before sending"}
           </CardTitle>
           <CardDescription>
-            {step === "describe" && "Tap the microphone and speak naturally — we'll transcribe it for you to edit."}
+            {step === "describe" && "Tap the microphone and speak — we'll transcribe it for you to edit below."}
             {step === "review" && "Check the summary below. You can edit the title and description."}
           </CardDescription>
         </CardHeader>
@@ -286,43 +299,68 @@ export default function SupportPage() {
           )}
 
           {step === "describe" && (
-            <div className="space-y-3">
-              <div className="flex flex-wrap gap-2 items-center">
-                <Button
+            <div className="space-y-5">
+              <div className="flex flex-col items-center py-4">
+                <button
                   type="button"
-                  variant={voice.status === "listening" ? "destructive" : "secondary"}
                   onClick={() => {
                     if (voice.status === "listening") void voice.finish();
                     else void voice.start();
                   }}
                   disabled={voice.status === "transcribing" || voice.status === "unsupported"}
-                  data-testid="support-voice-btn"
-                >
-                  {voice.status === "listening" ? (
-                    <MicOff className="h-4 w-4 mr-2" />
-                  ) : voice.status === "transcribing" ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Mic className="h-4 w-4 mr-2" />
+                  className={cn(
+                    "flex h-28 w-28 items-center justify-center rounded-full shadow-lg transition-transform",
+                    "border-4 border-background focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    voice.status === "listening"
+                      ? "bg-red-600 text-white ring-4 ring-red-500/30 scale-105"
+                      : "bg-primary text-primary-foreground hover:scale-105",
+                    (voice.status === "transcribing" || voice.status === "unsupported") && "opacity-60 cursor-not-allowed",
                   )}
+                  data-testid="support-voice-btn"
+                  aria-label={
+                    voice.status === "listening"
+                      ? "Stop recording"
+                      : voice.status === "transcribing"
+                        ? "Transcribing"
+                        : "Speak your issue"
+                  }
+                >
+                  {voice.status === "transcribing" ? (
+                    <Loader2 className="h-10 w-10 animate-spin" />
+                  ) : voice.status === "listening" ? (
+                    <MicOff className="h-10 w-10" />
+                  ) : (
+                    <Mic className="h-10 w-10" />
+                  )}
+                </button>
+                <p className="mt-4 text-sm font-medium text-center">
                   {voice.status === "listening"
-                    ? "Stop"
+                    ? "Listening… tap to stop"
                     : voice.status === "transcribing"
-                      ? "Transcribing…"
+                      ? "Transcribing your message…"
                       : "Speak your issue"}
-                </Button>
-                {voice.status === "listening" && (
-                  <span className="text-xs text-muted-foreground animate-pulse">Listening…</span>
-                )}
+                </p>
+                <p className="text-xs text-muted-foreground text-center mt-1 max-w-xs">
+                  Describe what you were doing and what went wrong. We'll turn it into text you can edit.
+                </p>
               </div>
+
               {voice.errorMessage && (
-                <p className="text-xs text-destructive">{voice.errorMessage}</p>
+                <p className="text-xs text-destructive text-center">{voice.errorMessage}</p>
               )}
+
+              <div className="flex items-center gap-3">
+                <div className="h-px flex-1 bg-border" />
+                <span className="text-xs text-muted-foreground uppercase tracking-wide">or type</span>
+                <div className="h-px flex-1 bg-border" />
+              </div>
+
               <Textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Or type here — include what you were trying to do and any error messages you saw."
-                rows={8}
+                placeholder="Prefer typing? Briefly describe the issue and any error messages."
+                rows={3}
+                className="text-sm resize-none"
                 data-testid="support-description"
               />
             </div>
@@ -380,32 +418,53 @@ export default function SupportPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Screenshot (optional)</Label>
+                <Label>Screenshots (optional)</Label>
                 <div className="flex flex-wrap gap-2 items-center">
                   <input
                     ref={fileInputRef}
                     type="file"
                     accept="image/*"
+                    multiple
                     className="hidden"
-                    onChange={(e) => setScreenshot(e.target.files?.[0] ?? null)}
+                    onChange={(e) => {
+                      if (e.target.files?.length) addScreenshotFiles(e.target.files);
+                      e.target.value = "";
+                    }}
                   />
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
                     onClick={() => fileInputRef.current?.click()}
+                    disabled={screenshots.length >= MAX_SCREENSHOTS}
                   >
                     <ImagePlus className="h-4 w-4 mr-2" />
-                    Upload image
+                    Add images
                   </Button>
-                  <span className="text-xs text-muted-foreground">or paste from clipboard on this step</span>
+                  <span className="text-xs text-muted-foreground">
+                    up to {MAX_SCREENSHOTS} · paste from clipboard
+                  </span>
                 </div>
-                {screenshotPreview && (
-                  <img
-                    src={screenshotPreview}
-                    alt="Screenshot preview"
-                    className="max-h-48 rounded-md border object-contain"
-                  />
+                {screenshotPreviews.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {screenshotPreviews.map((src, i) => (
+                      <div key={src} className="relative">
+                        <img
+                          src={src}
+                          alt={`Screenshot ${i + 1}`}
+                          className="h-24 w-24 rounded-md border object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeScreenshot(i)}
+                          className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-background border shadow flex items-center justify-center"
+                          aria-label="Remove screenshot"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             </div>

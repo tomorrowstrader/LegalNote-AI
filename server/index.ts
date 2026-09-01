@@ -18,6 +18,7 @@ import { ensureEvaluationOnboardingSetupsTable } from "./evaluationOnboardingMig
 import { ensureMeetingImportsConsentColumns } from "./meetingImportsConsentMigration";
 import { ensureMeetingBookingTables } from "./meetingBookingMigration";
 import { ensureMatterKindColumn } from "./matterKindMigration";
+import { ensureSupportTicketsTable } from "./supportTicketsMigration";
 import { getStripeSync } from "./stripeClient";
 import { WebhookHandlers } from "./webhookHandlers";
 import "./envValidation"; // Validate environment on startup
@@ -275,6 +276,8 @@ app.use((req, res, next) => {
 
   // Ensure cases.matter_kind for internal / firm meetings (idempotent)
   await ensureMatterKindColumn();
+
+  await ensureSupportTicketsTable();
 
   // Remove calendar-scraped consent recipients (solicitor must choose explicitly)
   await clearScheduledMeetingGuessedRecipients();

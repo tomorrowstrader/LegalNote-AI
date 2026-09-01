@@ -5506,7 +5506,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
     }
   });
 
-  app.post("/api/support/tickets", isAuthenticated, upload.single("screenshot"), async (req: any, res, next) => {
+  app.post("/api/support/tickets", isAuthenticated, upload.array("screenshots", 8), async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
@@ -5528,13 +5528,14 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         return res.status(400).json({ message: "Validation error", errors: parsed.error.format() });
       }
 
-      if (req.file) {
-        const allowed = ["image/png", "image/jpeg", "image/webp", "image/gif"];
-        if (!allowed.includes(req.file.mimetype)) {
-          return res.status(400).json({ message: "Screenshot must be PNG, JPEG, WebP, or GIF" });
+      const files: Express.Multer.File[] = Array.isArray(req.files) ? req.files : [];
+      const allowed = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+      for (const file of files) {
+        if (!allowed.includes(file.mimetype)) {
+          return res.status(400).json({ message: "Screenshots must be PNG, JPEG, WebP, or GIF" });
         }
-        if (req.file.size > 5 * 1024 * 1024) {
-          return res.status(400).json({ message: "Screenshot must be under 5MB" });
+        if (file.size > 5 * 1024 * 1024) {
+          return res.status(400).json({ message: "Each screenshot must be under 5MB" });
         }
       }
 
@@ -5544,20 +5545,41 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         rawTranscript: typeof req.body.rawTranscript === "string" ? req.body.rawTranscript : undefined,
       });
 
-      if (req.file) {
-        const ext =
-          req.file.mimetype === "image/png"
-            ? "png"
-            : req.file.mimetype === "image/webp"
-              ? "webp"
-              : req.file.mimetype === "image/gif"
-                ? "gif"
-                : "jpg";
-        const screenshotPath = `.private/support-tickets/${ticket.id}/screenshot.${ext}`;
+      if (files.length > 0) {
         const objectStorageService = new ObjectStorageService();
-        await objectStorageService.uploadFile(screenshotPath, req.file.buffer, req.file.mimetype);
-        const updated = await storage.updateSupportTicketAdmin(ticket.id, { screenshotPath });
-        if (updated) ticket = updated;
+        const screenshotPaths: string[] = [];
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          const ext =
+            file.mimetype === "image/png"
+              ? "png"
+              : file.mimetype === "image/webp"
+                ? "webp"
+                : file.mimetype === "image/gif"
+                  ? "gif"
+                  : "jpg";
+          const screenshotPath = `.private/support-tickets/${ticket.id}/screenshot-${i + 1}.${ext}`;
+          try {
+            await objectStorageService.uploadFile(screenshotPath, file.buffer, file.mimetype);
+            screenshotPaths.push(screenshotPath);
+          } catch (uploadErr) {
+            console.error("[SUPPORT] Screenshot upload failed:", uploadErr);
+          }
+        }
+        if (screenshotPaths.length > 0) {
+          const existingMeta =
+            ticket.contextMetadata && typeof ticket.contextMetadata === "object"
+              ? (ticket.contextMetadata as Record<string, unknown>)
+              : {};
+          const updated = await storage.updateSupportTicketAdmin(ticket.id, {
+            screenshotPath: screenshotPaths[0],
+            contextMetadata: {
+              ...existingMeta,
+              screenshotPaths,
+            },
+          });
+          if (updated) ticket = updated;
+        }
       }
 
       const userName = [user.firstName, user.lastName].filter(Boolean).join(" ") || null;
@@ -5581,14 +5603,39 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         });
       }
 
-      await logAuditEvent(userId, "support_ticket_created", {
+      void logAuditEvent(userId, "support_ticket_created", {
         metadata: { ticketId: ticket.id, ticketRef: ticket.ticketRef, category: ticket.category },
       });
 
       res.status(201).json(ticket);
     } catch (error: any) {
+      console.error("[SUPPORT] Ticket create failed:", error);
       if (error?.message === "CASE_NOT_FOUND") {
         return res.status(400).json({ message: "Linked matter not found" });
+      }
+      next(error);
+    }
+  });
+
+  app.get("/api/support/tickets/:id/screenshots/:index", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const ticket = await storage.getSupportTicketById(req.params.id, userId);
+      if (!ticket) return res.status(404).json({ message: "Ticket not found" });
+      const index = parseInt(req.params.index, 10);
+      const meta = ticket.contextMetadata as { screenshotPaths?: string[] } | null;
+      const paths = meta?.screenshotPaths?.length
+        ? meta.screenshotPaths
+        : ticket.screenshotPath
+          ? [ticket.screenshotPath]
+          : [];
+      const path = paths[index];
+      if (!path) return res.status(404).json({ message: "Screenshot not found" });
+      const objectStorageService = new ObjectStorageService();
+      await objectStorageService.downloadObject(path, res);
+    } catch (error) {
+      if (error instanceof ObjectNotFoundError) {
+        return res.status(404).json({ message: "Screenshot not found" });
       }
       next(error);
     }
@@ -9015,12 +9062,21 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
     }
   });
 
-  app.get("/api/admin/support/tickets/:id/screenshot", isAuthenticated, isAdmin, async (req: any, res, next) => {
+  app.get("/api/admin/support/tickets/:id/screenshots/:index", isAuthenticated, isAdmin, async (req: any, res, next) => {
     try {
       const ticket = await storage.getSupportTicketByIdAdmin(req.params.id);
-      if (!ticket?.screenshotPath) return res.status(404).json({ message: "Screenshot not found" });
+      if (!ticket) return res.status(404).json({ message: "Ticket not found" });
+      const index = parseInt(req.params.index, 10);
+      const meta = ticket.contextMetadata as { screenshotPaths?: string[] } | null;
+      const paths = meta?.screenshotPaths?.length
+        ? meta.screenshotPaths
+        : ticket.screenshotPath
+          ? [ticket.screenshotPath]
+          : [];
+      const path = paths[index];
+      if (!path) return res.status(404).json({ message: "Screenshot not found" });
       const objectStorageService = new ObjectStorageService();
-      await objectStorageService.downloadObject(ticket.screenshotPath, res);
+      await objectStorageService.downloadObject(path, res);
     } catch (error) {
       if (error instanceof ObjectNotFoundError) {
         return res.status(404).json({ message: "Screenshot not found" });

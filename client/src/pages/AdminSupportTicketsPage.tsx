@@ -39,6 +39,12 @@ function severityBadgeClass(severity: string): string {
   return "bg-slate-500/10 text-slate-700 border-slate-200";
 }
 
+function ticketScreenshotPaths(ticket: SupportTicket): string[] {
+  const meta = ticket.contextMetadata as { screenshotPaths?: string[] } | null;
+  if (meta?.screenshotPaths?.length) return meta.screenshotPaths;
+  return ticket.screenshotPath ? [ticket.screenshotPath] : [];
+}
+
 export default function AdminSupportTicketsPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -221,21 +227,25 @@ export default function AdminSupportTicketsPage() {
                   )}
                   <p className="text-sm whitespace-pre-wrap">{selected.description}</p>
 
-                  {selected.screenshotPath && (
+                  {ticketScreenshotPaths(selected).length > 0 && (
                     <div>
-                      <Label className="text-xs text-muted-foreground">Screenshot</Label>
-                      <a
-                        href={`/api/admin/support/tickets/${selected.id}/screenshot`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="block mt-1"
-                      >
-                        <img
-                          src={`/api/admin/support/tickets/${selected.id}/screenshot`}
-                          alt="Ticket screenshot"
-                          className="max-h-64 rounded border object-contain"
-                        />
-                      </a>
+                      <Label className="text-xs text-muted-foreground">Screenshots</Label>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {ticketScreenshotPaths(selected).map((_, i) => (
+                          <a
+                            key={i}
+                            href={`/api/admin/support/tickets/${selected.id}/screenshots/${i}`}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            <img
+                              src={`/api/admin/support/tickets/${selected.id}/screenshots/${i}`}
+                              alt={`Screenshot ${i + 1}`}
+                              className="h-24 w-24 rounded border object-cover"
+                            />
+                          </a>
+                        ))}
+                      </div>
                     </div>
                   )}
 

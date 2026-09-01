@@ -655,6 +655,8 @@ export interface IStorage {
       adminNotes?: string | null;
       resolvedAt?: Date | null;
       resolvedBy?: string | null;
+      screenshotPath?: string | null;
+      contextMetadata?: Record<string, unknown>;
     },
   ): Promise<SupportTicket | undefined>;
   
@@ -2415,6 +2417,8 @@ export class MemStorage implements IStorage {
       adminNotes?: string | null;
       resolvedAt?: Date | null;
       resolvedBy?: string | null;
+      screenshotPath?: string | null;
+      contextMetadata?: Record<string, unknown>;
     },
   ): Promise<SupportTicket | undefined> {
     const existing = this.supportTicketsMap.get(id);
@@ -2422,6 +2426,7 @@ export class MemStorage implements IStorage {
     const updated: SupportTicket = {
       ...existing,
       ...updates,
+      contextMetadata: updates.contextMetadata ?? existing.contextMetadata,
       updatedAt: new Date(),
     };
     this.supportTicketsMap.set(id, updated);
@@ -5204,6 +5209,8 @@ export class DbStorage implements IStorage {
       adminNotes?: string | null;
       resolvedAt?: Date | null;
       resolvedBy?: string | null;
+      screenshotPath?: string | null;
+      contextMetadata?: Record<string, unknown>;
     },
   ): Promise<SupportTicket | undefined> {
     const result = await db
