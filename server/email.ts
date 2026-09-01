@@ -2760,9 +2760,6 @@ export async function sendGovernedEvaluationDatesUpdatedEmail(params: {
   const loginUrl = `${baseUrl}/login`;
   const safeTo = escapeHtmlEmail(params.to);
   const safeFirm = escapeHtmlEmail(params.firmName);
-  const invitedBy = params.invitedByName
-    ? escapeHtmlEmail(params.invitedByName)
-    : null;
 
   const formatDate = (d: Date) =>
     d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
@@ -2786,11 +2783,7 @@ export async function sendGovernedEvaluationDatesUpdatedEmail(params: {
     footerNote: `This email was sent to ${safeTo}. Contact jazz.dennis@legalnote.ai if you have questions.`,
     bodyHtml: `
       <h2>Your evaluation schedule has been updated</h2>
-      ${
-        invitedBy
-          ? `<p>${invitedBy} has confirmed the governed evaluation schedule for <strong>${safeFirm}</strong>.</p>`
-          : `<p>The governed evaluation schedule for <strong>${safeFirm}</strong> has been updated.</p>`
-      }
+      <p>The governed evaluation schedule for <strong>${safeFirm}</strong> has been updated.</p>
       <p>Your existing LegalNote account, firm details, and any matters you have already set up are <strong>unchanged</strong>. No further onboarding is required — continue using the same sign-in email as before.</p>
       <div class="meta">
         ${detailLines.join('\n        ')}
