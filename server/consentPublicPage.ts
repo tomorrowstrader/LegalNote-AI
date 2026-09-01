@@ -3,6 +3,8 @@
  * No matter titles or client identifiers in the page body.
  */
 
+import { legalNoteBrandMarkLightHtml } from './email';
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -12,16 +14,7 @@ function escapeHtml(value: string): string {
 }
 
 function brandMark(): string {
-  return `
-    <div style="text-align:center;margin:0 0 28px;">
-      <div style="font-family:Georgia,'Times New Roman',serif;font-size:28px;font-weight:700;letter-spacing:-0.03em;color:#3d3028;line-height:1;">
-        Legal<span style="color:#c97d4d;">Note</span>
-      </div>
-      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:10px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:#8a7d72;margin-top:6px;">
-        Meeting to Matter
-      </div>
-    </div>
-  `;
+  return legalNoteBrandMarkLightHtml();
 }
 
 function pageShell(opts: { title: string; body: string }): string {

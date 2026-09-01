@@ -37,6 +37,10 @@ async function sendEmail(
   const { from, subject, html, replyTo, headers } = params;
   const attachments = params.attachments || [];
 
+  if (html && !html.includes('legalnote-wordmark-white.png')) {
+    console.warn(`[EMAIL] Outbound HTML may be missing the standard LegalNote brand header (subject: "${subject}")`);
+  }
+
   try {
     if (EMAIL_PROVIDER === 'ses') {
       if (!sesClient) {
@@ -156,6 +160,31 @@ export function legalNoteBrandHeaderTableRow(): string {
         ${legalNoteTextLogoHtml()}
       </td>
     </tr>
+  `;
+}
+
+/** Official black wordmark for light backgrounds (consent pages, etc.). */
+export function legalNoteEmailWordmarkLightUrl(): string {
+  const base = (process.env.APP_URL || 'https://legalnote.ai').replace(/\/$/, '');
+  return `${base}/assets/email/legalnote-wordmark.png?v=20260901b`;
+}
+
+/** Brand mark for light-background HTML pages (e.g. public consent). */
+export function legalNoteBrandMarkLightHtml(): string {
+  const wordmarkSrc = legalNoteEmailWordmarkLightUrl();
+  return `
+    <div style="text-align:center;margin:0 0 28px;">
+      <img
+        src="${wordmarkSrc}"
+        alt="LegalNote"
+        width="200"
+        height="62"
+        style="display:block;margin:0 auto;width:200px;max-width:100%;height:auto;border:0;outline:none;"
+      />
+      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:10px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:#8a7d72;margin-top:8px;">
+        Meeting to Matter
+      </div>
+    </div>
   `;
 }
 
@@ -2386,10 +2415,10 @@ function getLegalNoteEmailBaseUrl(): string {
 }
 
 /**
- * Shared LegalNote platform shell — text wordmark header, warm brand palette, registered-office footer.
- * Used for DPA / legal agreement emails (and aligned with waitlist branding).
+ * Shared LegalNote platform shell — wordmark header, warm brand palette, registered-office footer.
+ * Used for DPA, support, waitlist-style emails, and other outbound correspondence.
  */
-function wrapLegalNoteBrandedEmail(opts: {
+export function wrapLegalNoteBrandedEmail(opts: {
   eyebrow: string;
   bodyHtml: string;
   footerNote: string;
@@ -3052,6 +3081,102 @@ export async function sendSupportTicketStatusEmail(params: {
     });
   } catch (error: any) {
     console.error('[EMAIL] Exception sending support ticket status email:', error);
+    return { success: false, error: error.message || 'Unknown error' };
+  }
+}
+
+export async function sendDemoMatterShareEmail(params: {
+  to: string;
+  senderName: string;
+  firmName: string;
+  demoUrl?: string;
+}): Promise<{ success: boolean; error?: string }> {
+  const safeSender = escapeHtmlEmail(params.senderName);
+  const safeFirm = escapeHtmlEmail(params.firmName);
+  const cta = params.demoUrl
+    ? `<p style="text-align:center;margin:28px 0;"><a href="${escapeHtmlEmail(params.demoUrl)}" class="cta-btn">View Matter Record</a></p>`
+    : '';
+
+  const emailHtml = wrapLegalNoteBrandedEmail({
+    eyebrow: 'Shared with you',
+    footerNote: 'Sent via LegalNote — Meeting to Matter.',
+    bodyHtml: `
+      <p>Hello,</p>
+      <p><strong>${safeSender}</strong> at <strong>${safeFirm}</strong> has shared access to a matter record via LegalNote.</p>
+      <p>This record includes a session transcript, attendance note, and audit trail.</p>
+      ${cta}
+    `,
+  });
+
+  try {
+    return await sendEmail({
+      from: 'LegalNote\u2122 <noreply@legalnote.ai>',
+      to: params.to,
+      subject: `${params.senderName} shared a matter record with you`,
+      html: emailHtml,
+    });
+  } catch (error: any) {
+    console.error('[EMAIL] Exception sending demo matter share email:', error);
+    return { success: false, error: error.message || 'Unknown error' };
+  }
+}
+
+export async function sendDemoColleagueLinkEmail(params: {
+  to: string;
+  senderName: string;
+  firmName: string;
+  demoUrl?: string;
+}): Promise<{ success: boolean; error?: string }> {
+  const safeSender = escapeHtmlEmail(params.senderName);
+  const safeFirm = escapeHtmlEmail(params.firmName);
+  const cta = params.demoUrl
+    ? `<p style="text-align:center;margin:28px 0;"><a href="${escapeHtmlEmail(params.demoUrl)}" class="cta-btn">See the interactive walkthrough</a></p>`
+    : '';
+
+  const emailHtml = wrapLegalNoteBrandedEmail({
+    eyebrow: 'Recommended for your firm',
+    footerNote: 'Sent via LegalNote — Meeting to Matter.',
+    bodyHtml: `
+      <p>Hello,</p>
+      <p><strong>${safeSender}</strong> from <strong>${safeFirm}</strong> sent you this because they believe LegalNote is relevant to your firm's compliance obligations.</p>
+      ${cta}
+    `,
+  });
+
+  try {
+    return await sendEmail({
+      from: 'LegalNote\u2122 <noreply@legalnote.ai>',
+      to: params.to,
+      subject: `${params.senderName} thought you should see this`,
+      html: emailHtml,
+    });
+  } catch (error: any) {
+    console.error('[EMAIL] Exception sending demo colleague link email:', error);
+    return { success: false, error: error.message || 'Unknown error' };
+  }
+}
+
+export async function sendInternalSystemAlertEmail(params: {
+  to: string | string[];
+  subject: string;
+  bodyText: string;
+}): Promise<{ success: boolean; error?: string }> {
+  const safeBody = escapeHtmlEmail(params.bodyText).replace(/\n/g, '<br>');
+  const emailHtml = wrapLegalNoteBrandedEmail({
+    eyebrow: 'System alert',
+    footerNote: 'Internal LegalNote operations notification.',
+    bodyHtml: `<p style="white-space:pre-wrap">${safeBody}</p>`,
+  });
+
+  try {
+    return await sendEmail({
+      from: 'LegalNote System <noreply@legalnote.ai>',
+      to: params.to,
+      subject: params.subject,
+      html: emailHtml,
+    });
+  } catch (error: any) {
+    console.error('[EMAIL] Exception sending internal system alert:', error);
     return { success: false, error: error.message || 'Unknown error' };
   }
 }

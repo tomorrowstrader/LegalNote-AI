@@ -146,7 +146,7 @@ import { askMatterQuestion, compareMatterNote } from "./services/matterAskServic
 import { synthesizeVoiceReply, VOICE_TTS_MAX_CHARS } from "./services/voiceTtsService";
 import { privilegedComplete } from "./services/llm/privilegedComplete";
 import { AssemblyAIService } from "./services/assemblyAIService";
-import { sendCaseEmail, sendRecordingConfirmationEmail, sendConsentResponseNotification, sendAcknowledgementRequestEmail, sendInvitationEmail, sendDpaConfirmationEmail, sendLegalAgreementAcceptedEmail, sendEvaluationSetupEmail, sendEvaluationSetupSubmittedAdminEmail, sendGovernedEvaluationLoginInviteEmail, sendShareVerificationCodeEmail, sendSupportTicketAdminNotification, sendSupportTicketReceivedEmail, sendSupportTicketStatusEmail, legalNoteBrandHeaderHtml } from "./email";
+import { sendCaseEmail, sendRecordingConfirmationEmail, sendConsentResponseNotification, sendAcknowledgementRequestEmail, sendInvitationEmail, sendDpaConfirmationEmail, sendLegalAgreementAcceptedEmail, sendEvaluationSetupEmail, sendEvaluationSetupSubmittedAdminEmail, sendGovernedEvaluationLoginInviteEmail, sendShareVerificationCodeEmail, sendSupportTicketAdminNotification, sendSupportTicketReceivedEmail, sendSupportTicketStatusEmail, sendDemoMatterShareEmail, sendDemoColleagueLinkEmail } from "./email";
 import {
   polishSupportTicketWithAi,
   createSupportTicketRecord,
@@ -14235,19 +14235,15 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       const { recipientEmail, caseTitle, senderName, firmName, demoUrl } = req.body;
       if (!recipientEmail) return res.status(400).json({ message: "recipientEmail required" });
       console.log('[DEMO] Share request received');
-      if (process.env.RESEND_API_KEY) {
-        try {
-          const { Resend } = await import("resend");
-          const resend = new Resend(process.env.RESEND_API_KEY);
-          await resend.emails.send({
-            from: "LegalNote <noreply@legalnote.app>",
-            to: recipientEmail,
-            subject: `${senderName} shared a matter record with you`,
-            html: `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;color:#222;max-width:600px;margin:0 auto;padding:0;background:#faf9f7">${legalNoteBrandHeaderHtml()}<div style="padding:24px;background:#fff"><p>Hello,</p><p><strong>${senderName}</strong> at <strong>${firmName}</strong> has shared access to a matter record via LegalNote.</p><p>This record includes a session transcript, attendance note, and audit trail.</p>${demoUrl ? `<p style="margin:28px 0"><a href="${demoUrl}" style="background:#c97d4d;color:#fff;padding:12px 24px;border-radius:4px;text-decoration:none;font-weight:bold">View Matter Record</a></p>` : ""}<hr style="margin:32px 0;border:none;border-top:1px solid #e8e4df"><p style="font-size:12px;color:#8a7d72">Sent via LegalNote — Meeting to Matter.</p></div></body></html>`,
-          });
-        } catch (emailErr) {
-          console.error("[DEMO] Email send failed:", emailErr);
-        }
+      try {
+        await sendDemoMatterShareEmail({
+          to: recipientEmail,
+          senderName: senderName || 'A colleague',
+          firmName: firmName || 'their firm',
+          demoUrl,
+        });
+      } catch (emailErr) {
+        console.error("[DEMO] Email send failed:", emailErr);
       }
       res.json({ success: true, message: "Share notification sent" });
     } catch (error) {
@@ -14286,19 +14282,15 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       const { email, senderName, firmName, demoUrl } = req.body;
       if (!email) return res.status(400).json({ message: "email required" });
       console.log('[DEMO] Colleague link request received');
-      if (process.env.RESEND_API_KEY) {
-        try {
-          const { Resend } = await import("resend");
-          const resend = new Resend(process.env.RESEND_API_KEY);
-          await resend.emails.send({
-            from: "LegalNote <noreply@legalnote.app>",
-            to: email,
-            subject: `${senderName} thought you should see this`,
-            html: `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;color:#222;max-width:600px;margin:0 auto;padding:0;background:#faf9f7">${legalNoteBrandHeaderHtml()}<div style="padding:24px;background:#fff"><p>Hello,</p><p><strong>${senderName}</strong> from <strong>${firmName}</strong> sent you this because they believe LegalNote is relevant to your firm's compliance obligations.</p>${demoUrl ? `<p style="margin:28px 0"><a href="${demoUrl}" style="background:#c97d4d;color:#fff;padding:12px 24px;border-radius:4px;text-decoration:none;font-weight:bold">See the interactive walkthrough</a></p>` : ""}<hr style="margin:32px 0;border:none;border-top:1px solid #e8e4df"><p style="font-size:12px;color:#8a7d72">Sent via LegalNote — Meeting to Matter.</p></div></body></html>`,
-          });
-        } catch (emailErr) {
-          console.error("[DEMO] Colleague link email failed:", emailErr);
-        }
+      try {
+        await sendDemoColleagueLinkEmail({
+          to: email,
+          senderName: senderName || 'A colleague',
+          firmName: firmName || 'their firm',
+          demoUrl,
+        });
+      } catch (emailErr) {
+        console.error("[DEMO] Colleague link email failed:", emailErr);
       }
       res.json({ success: true, message: "Colleague invitation sent" });
     } catch (error) {
