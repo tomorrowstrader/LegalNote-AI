@@ -1,7 +1,5 @@
 import { Resend } from 'resend';
 import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
-import fs from 'fs';
-import path from 'path';
 import { MATTER_KIND_PARTY_LABELS } from '@shared/matterKinds';
 import type { FirmRiskDigest } from './storage';
 import type { SupportTicket } from '@shared/schema';
@@ -37,10 +35,7 @@ async function sendEmail(
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   const to = Array.isArray(params.to) ? params.to : [params.to];
   const { from, subject, html, replyTo, headers } = params;
-  const attachments = [...(params.attachments || [])];
-  if (html.includes(`cid:${LEGALNOTE_EMAIL_ICON_CID}`)) {
-    attachments.push(...legalNoteEmailAttachments());
-  }
+  const attachments = params.attachments || [];
 
   try {
     if (EMAIL_PROVIDER === 'ses') {
@@ -94,62 +89,28 @@ async function sendEmail(
   }
 }
 
-/** Content-ID for the inline LegalNote icon in outbound HTML email. */
-export const LEGALNOTE_EMAIL_ICON_CID = 'legalnote-icon';
-
-let cachedLegalNoteEmailIconBase64: string | null | undefined;
-
-function getLegalNoteEmailIconBase64(): string | null {
-  if (cachedLegalNoteEmailIconBase64 !== undefined) {
-    return cachedLegalNoteEmailIconBase64;
-  }
-  const candidates = [
-    path.resolve(import.meta.dirname, 'public', 'assets', 'email', 'legalnote-icon-white.png'),
-    path.resolve(import.meta.dirname, '..', 'client', 'public', 'assets', 'email', 'legalnote-icon-white.png'),
-  ];
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
-      cachedLegalNoteEmailIconBase64 = fs.readFileSync(candidate).toString('base64');
-      return cachedLegalNoteEmailIconBase64;
-    }
-  }
-  cachedLegalNoteEmailIconBase64 = null;
-  return null;
-}
-
-/** Inline attachment for the LegalNote email brand icon (CID embedding). */
-export function legalNoteEmailAttachments(): Array<{ filename: string; content: string; content_id: string }> {
-  const content = getLegalNoteEmailIconBase64();
-  if (!content) return [];
-  return [{
-    filename: 'legalnote-icon-white.png',
-    content,
-    content_id: LEGALNOTE_EMAIL_ICON_CID,
-  }];
-}
-
-/** Absolute URL for the LegalNote email icon (white mark; use on a dark header). */
+/** Absolute URL for the LegalNote email icon (hosted on APP_URL; optional in templates). */
 export function legalNoteEmailIconUrl(): string {
   const base = (process.env.APP_URL || 'https://legalnote.ai').replace(/\/$/, '');
   return `${base}/assets/email/legalnote-icon-white.png`;
 }
 
-/** Canonical outbound email brand mark — icon + wordmark text. */
+/**
+ * Email-safe brand mark — HTML/CSS only.
+ * Production uses AWS SES Simple API (no inline CID attachments), so we never reference cid: images here.
+ */
 export function legalNoteTextLogoHtml(): string {
-  const iconSrc = getLegalNoteEmailIconBase64()
-    ? `cid:${LEGALNOTE_EMAIL_ICON_CID}`
-    : legalNoteEmailIconUrl();
   return `
-    <div style="margin:0 auto;text-align:center;line-height:1;">
-      <img
-        src="${iconSrc}"
-        alt="LegalNote"
-        width="48"
-        height="48"
-        style="display:block;margin:0 auto 10px;width:48px;height:48px;border:0;outline:none;"
-      />
+    <div style="margin:0 auto;text-align:center;line-height:1.15;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto 12px;">
+        <tr>
+          <td align="center" valign="middle" width="48" height="48" style="width:48px;height:48px;border-radius:12px;background-color:#b8e000;font-family:Georgia,'Times New Roman',serif;font-size:17px;font-weight:700;color:#0a0a0a;line-height:48px;mso-line-height-rule:exactly;">
+            LN
+          </td>
+        </tr>
+      </table>
       <span style="font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:700;letter-spacing:-0.03em;color:#ffffff;">
-        Legal<span style="color:#b8e000;">Note</span>
+        Legal<span style="color:#b8e000;">Note</span><sup style="font-size:9px;color:#b8e000;vertical-align:super;line-height:0;">&trade;</sup>
       </span>
       <span style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:10px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:#a3a3a3;display:block;margin-top:6px;">
         Meeting to Matter
