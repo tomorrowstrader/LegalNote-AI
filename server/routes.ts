@@ -146,7 +146,7 @@ import { askMatterQuestion, compareMatterNote } from "./services/matterAskServic
 import { synthesizeVoiceReply, VOICE_TTS_MAX_CHARS } from "./services/voiceTtsService";
 import { privilegedComplete } from "./services/llm/privilegedComplete";
 import { AssemblyAIService } from "./services/assemblyAIService";
-import { sendCaseEmail, sendRecordingConfirmationEmail, sendConsentResponseNotification, sendAcknowledgementRequestEmail, sendInvitationEmail, sendDpaConfirmationEmail, sendLegalAgreementAcceptedEmail, sendEvaluationSetupEmail, sendEvaluationSetupSubmittedAdminEmail, sendGovernedEvaluationLoginInviteEmail, sendShareVerificationCodeEmail, sendSupportTicketAdminNotification, sendSupportTicketReceivedEmail, sendSupportTicketStatusEmail, sendDemoMatterShareEmail, sendDemoColleagueLinkEmail } from "./email";
+import { sendCaseEmail, sendRecordingConfirmationEmail, sendConsentResponseNotification, sendAcknowledgementRequestEmail, sendInvitationEmail, sendDpaConfirmationEmail, sendDpaAcceptanceInviteEmail, sendLegalAgreementAcceptedEmail, sendEvaluationSetupEmail, sendEvaluationSetupSubmittedAdminEmail, sendGovernedEvaluationLoginInviteEmail, sendShareVerificationCodeEmail, sendSupportTicketAdminNotification, sendSupportTicketReceivedEmail, sendSupportTicketStatusEmail, sendDemoMatterShareEmail, sendDemoColleagueLinkEmail } from "./email";
 import {
   polishSupportTicketWithAi,
   createSupportTicketRecord,
@@ -203,11 +203,20 @@ function validateReferralCode(code: string): typeof REFERRAL_CODES[string] | nul
 }
 
 function requireFeatureVisible(key: FeatureKey) {
-  return (_req: any, res: any, next: any) => {
-    if (!isFeatureVisible(key)) {
-      return res.status(404).json({ message: "Not found" });
+  return async (req: any, res: any, next: any) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const { isFeatureEnabledForUser } = await import("./services/featureAccessService");
+      if (!(await isFeatureEnabledForUser(userId, key))) {
+        return res.status(404).json({ message: "Not found" });
+      }
+      next();
+    } catch (error) {
+      next(error);
     }
-    next();
   };
 }
 
@@ -2077,6 +2086,17 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           ? "outlook"
           : "google";
 
+      let firmIsEvaluation = false;
+      let evaluationActive = false;
+      if (user?.firmId) {
+        const firm = await storage.getFirm(user.firmId);
+        if (firm?.isEvaluation) {
+          firmIsEvaluation = true;
+          const { enrichFirmEvaluationStatus } = await import("@shared/evaluationAccess");
+          evaluationActive = enrichFirmEvaluationStatus(firm).evaluationActive ?? false;
+        }
+      }
+
       const userWithFlags = {
         ...user,
         isAdmin,
@@ -2085,6 +2105,8 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         role: isAdmin ? 'admin' : (user?.role || 'solicitor'),
         authProviders,
         preferredCalendarProvider,
+        firmIsEvaluation,
+        evaluationActive,
       };
       
       res.json(userWithFlags);
@@ -6965,7 +6987,13 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       if (!document) return res.status(404).json({ message: "This link is invalid or has expired." });
 
       const caseData = await storage.getCaseById(document.caseId);
-      const firmProfile = await storage.getFirmProfile();
+      let firmProfile = await storage.getFirmProfile();
+      if (caseData?.userId) {
+        const owner = await storage.getUser(caseData.userId);
+        if (owner?.firmId) {
+          firmProfile = (await storage.getFirmProfile(owner.firmId)) ?? firmProfile;
+        }
+      }
 
       res.json({
         documentId: document.id,
@@ -6984,6 +7012,8 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         firmProfile: firmProfile ? {
           firmName: firmProfile.firmName,
           logoUrl: firmProfile.logoUrl || null,
+          phone: firmProfile.phone || null,
+          email: firmProfile.email || null,
         } : null,
       });
     } catch (error: any) {
@@ -7744,10 +7774,11 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
   // ---- SRA Compliance Readiness ----
   app.get("/api/cases/:id/sra-readiness", isAuthenticated, async (req: any, res, next) => {
     try {
-      if (!isFeatureVisible("sraReadiness")) {
+      const userId = req.user.claims.sub;
+      const { isFeatureEnabledForUser } = await import("./services/featureAccessService");
+      if (!(await isFeatureEnabledForUser(userId, "sraReadiness"))) {
         return res.status(404).json({ message: "Not found" });
       }
-      const userId = req.user.claims.sub;
       const caseId = req.params.id;
       const caseData = await storage.getCase(caseId, userId);
       if (!caseData) return res.status(403).json({ message: "Not authorized" });
@@ -8041,10 +8072,11 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
   // ---- SRA Matter Report Preview (section counts for modal) ----
   app.get("/api/cases/:id/sra-report/preview", isAuthenticated, async (req: any, res, next) => {
     try {
-      if (!isFeatureVisible("sraReadiness")) {
+      const userId = req.user.claims.sub;
+      const { isFeatureEnabledForUser } = await import("./services/featureAccessService");
+      if (!(await isFeatureEnabledForUser(userId, "sraReadiness"))) {
         return res.status(404).json({ message: "Not found" });
       }
-      const userId = req.user.claims.sub;
       const caseId = req.params.id;
       const caseData = await storage.getCase(caseId, userId);
       if (!caseData) return res.status(403).json({ message: "Not authorized" });
@@ -8069,10 +8101,11 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
   // ---- SRA Matter Report (compile PDF) ----
   app.post("/api/cases/:id/sra-report", isAuthenticated, async (req: any, res, next) => {
     try {
-      if (!isFeatureVisible("sraReadiness")) {
+      const userId = req.user.claims.sub;
+      const { isFeatureEnabledForUser } = await import("./services/featureAccessService");
+      if (!(await isFeatureEnabledForUser(userId, "sraReadiness"))) {
         return res.status(404).json({ message: "Not found" });
       }
-      const userId = req.user.claims.sub;
       const caseId = req.params.id;
       const caseData = await storage.getCase(caseId, userId);
       if (!caseData) return res.status(403).json({ message: "Not authorized" });
@@ -8541,6 +8574,103 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         expiresAt: expiresAt.toISOString(),
         expiresAtDisplay: expiresAt.toUTCString(),
         ref: ref ?? null,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Mint a signed link and email it from LegalNote support (admin only)
+  app.post("/api/admin/dpa/send-invite", isAuthenticated, isAdmin, async (req: any, res, next) => {
+    try {
+      const schema = z.object({
+        recipientEmail: z.string().email().max(255),
+        firmName: z
+          .string()
+          .max(300)
+          .optional()
+          .transform((s) => (s?.trim() ? s.trim() : undefined)),
+        signerName: z
+          .string()
+          .max(200)
+          .optional()
+          .transform((s) => (s?.trim() ? s.trim() : undefined)),
+        evaluationPeriodDays: z.coerce.number().int().min(1).max(3650),
+        feeEarnerCount: z.coerce.number().int().min(1).max(100000),
+        validForDays: z.coerce.number().int().min(1).max(365),
+        ref: z
+          .string()
+          .max(100)
+          .optional()
+          .transform((s) => (s?.trim() ? s.trim() : undefined)),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          message: "Invalid send-invite request",
+          errors: parsed.error.flatten().fieldErrors,
+        });
+      }
+
+      const { evaluationPeriodDays, feeEarnerCount, validForDays, ref, recipientEmail, firmName, signerName } =
+        parsed.data;
+      const expiresAtUnix = Math.floor(Date.now() / 1000) + validForDays * 24 * 60 * 60;
+      const expiresAt = new Date(expiresAtUnix * 1000);
+
+      const { buildSignedKeyTermsQuery } = await import("./services/keyTermsSign");
+      const query = buildSignedKeyTermsQuery(
+        { evaluationPeriodDays, feeEarnerCount, expiresAtUnix },
+        ref ? { ref } : undefined,
+      );
+      const baseUrl = getCanonicalBaseUrl(req);
+      const url = `${baseUrl}/dpa?${query}`;
+
+      const emailResult = await sendDpaAcceptanceInviteEmail({
+        to: recipientEmail,
+        acceptanceUrl: url,
+        evaluationPeriodDays,
+        feeEarnerCount,
+        expiresAt,
+        firmName,
+        signerName,
+      });
+
+      if (!emailResult.success) {
+        return res.status(502).json({
+          message: emailResult.error || "Failed to send invitation email",
+          url,
+        });
+      }
+
+      await storage.createAuditLog({
+        eventType: "dpa_acceptance_invite_sent",
+        userId: req.user.claims.sub,
+        severity: "info",
+        metadata: {
+          recipientEmail,
+          firmName: firmName ?? null,
+          signerName: signerName ?? null,
+          evaluationPeriodDays,
+          feeEarnerCount,
+          validForDays,
+          ref: ref ?? null,
+          expiresAt: expiresAt.toISOString(),
+          messageId: emailResult.messageId,
+        },
+      }).catch(() => {});
+
+      res.json({
+        success: true,
+        message: `Invitation sent to ${recipientEmail}`,
+        url,
+        evaluationPeriodDays,
+        feeEarnerCount,
+        ktExp: expiresAtUnix,
+        validForDays,
+        expiresAt: expiresAt.toISOString(),
+        expiresAtDisplay: expiresAt.toUTCString(),
+        ref: ref ?? null,
+        messageId: emailResult.messageId,
       });
     } catch (error) {
       next(error);
@@ -12587,6 +12717,9 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
               clientEmail
             : undefined;
 
+      const { shouldDefaultAutoRecordEnabled } = await import("./services/featureAccessService");
+      const autoRecordEnabled = await shouldDefaultAutoRecordEnabled(userId, clientEmail);
+
       const meeting = await storage.createScheduledMeeting({
         userId,
         caseId: data.caseId || undefined,
@@ -12601,7 +12734,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         attendees,
         clientEmail: clientEmail || undefined,
         clientName: clientName || undefined,
-        autoRecordEnabled: false,
+        autoRecordEnabled,
         consentStatus: "pending",
         status: "scheduled",
       });
@@ -12611,6 +12744,12 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         void (async () => {
           try {
             const { sendMeetingInviteConfirmationEmail } = await import("./email");
+            const schedulingUser = await storage.getUser(userId);
+            const firmProfile = schedulingUser?.firmId
+              ? await storage.getFirmProfile(schedulingUser.firmId)
+              : await storage.getFirmProfile();
+            const firmName = firmProfile?.firmName?.trim() || null;
+            const firmLogoUrl = firmProfile?.logoUrl?.trim() || null;
             const results = await Promise.allSettled(
               attendees.map((a) =>
                 sendMeetingInviteConfirmationEmail({
@@ -12621,6 +12760,8 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
                   endTime,
                   meetingUrl,
                   meetingPlatform,
+                  firmName,
+                  firmLogoUrl,
                 }),
               ),
             );
@@ -12967,8 +13108,12 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         return res.status(400).json({ message: "Cannot update a cancelled meeting" });
       }
 
-      if (autoRecordEnabled === true && !isFeatureVisible('calendarAutoRecord')) {
-        return res.status(403).json({ message: "Auto-record is not available" });
+      if (autoRecordEnabled === true) {
+        const { isFeatureEnabledForUser } = await import("./services/featureAccessService");
+        const allowed = await isFeatureEnabledForUser(userId, "calendarAutoRecord");
+        if (!allowed) {
+          return res.status(403).json({ message: "Auto-record is not available" });
+        }
       }
       
       const updates: Partial<ScheduledMeeting> = {};
@@ -13276,6 +13421,12 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         void (async () => {
           try {
             const { sendMeetingInviteConfirmationEmail } = await import("./email");
+            const schedulingUser = await storage.getUser(userId);
+            const firmProfile = schedulingUser?.firmId
+              ? await storage.getFirmProfile(schedulingUser.firmId)
+              : await storage.getFirmProfile();
+            const firmName = firmProfile?.firmName?.trim() || null;
+            const firmLogoUrl = firmProfile?.logoUrl?.trim() || null;
             const recipients =
               attendeesList.length > 0
                 ? attendeesList
@@ -13291,6 +13442,8 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
                   meetingUrl: replacementMeetingUrl!,
                   meetingPlatform: platform,
                   isReschedule: true,
+                  firmName,
+                  firmLogoUrl,
                 }),
               ),
             );
@@ -13394,10 +13547,6 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       
       if (!meeting.meetingUrl) {
         return res.status(400).json({ message: "No meeting URL detected for this meeting" });
-      }
-      
-      if (meeting.consentStatus !== 'approved') {
-        return res.status(400).json({ message: "Client consent not yet approved" });
       }
       
       const { meetingSchedulerService } = await import("./services/meetingSchedulerService");

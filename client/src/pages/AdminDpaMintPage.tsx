@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Copy, Check, Link2 } from "lucide-react";
+import { Copy, Check, Link2, Mail, Loader2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,28 +21,50 @@ type MintResult = {
   ref: string | null;
 };
 
+type SendInviteResult = MintResult & {
+  success: boolean;
+  message: string;
+  messageId?: string;
+};
+
+function buildMintPayload(
+  evaluationPeriodDays: string,
+  feeEarnerCount: string,
+  validForDays: string,
+  ref: string,
+) {
+  return {
+    evaluationPeriodDays: Number(evaluationPeriodDays),
+    feeEarnerCount: Number(feeEarnerCount),
+    validForDays: Number(validForDays),
+    ref: ref.trim() || undefined,
+  };
+}
+
 export default function AdminDpaMintPage() {
   const { toast } = useToast();
-  const [evaluationPeriodDays, setEvaluationPeriodDays] = useState("90");
-  const [feeEarnerCount, setFeeEarnerCount] = useState("5");
+  const [evaluationPeriodDays, setEvaluationPeriodDays] = useState("21");
+  const [feeEarnerCount, setFeeEarnerCount] = useState("3");
   const [validForDays, setValidForDays] = useState("7");
   const [ref, setRef] = useState("");
+  const [recipientEmail, setRecipientEmail] = useState("");
+  const [firmName, setFirmName] = useState("");
+  const [signerName, setSignerName] = useState("");
   const [result, setResult] = useState<MintResult | null>(null);
   const [copied, setCopied] = useState(false);
 
-  // Same pattern as AdminDashboard: probe an admin GET; 403 → Access Denied, not the form.
   const { isLoading: accessLoading, error: accessError } = useQuery({
     queryKey: ["/api/admin/dpa/acceptances"],
   });
 
   const mintMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest<MintResult>("POST", "/api/admin/dpa/mint", {
-        evaluationPeriodDays: Number(evaluationPeriodDays),
-        feeEarnerCount: Number(feeEarnerCount),
-        validForDays: Number(validForDays),
-        ref: ref.trim() || undefined,
-      });
+      return apiRequest<MintResult>("POST", "/api/admin/dpa/mint", buildMintPayload(
+        evaluationPeriodDays,
+        feeEarnerCount,
+        validForDays,
+        ref,
+      ));
     },
     onSuccess: (data) => {
       setResult(data);
@@ -56,6 +78,32 @@ export default function AdminDpaMintPage() {
       toast({
         title: "Mint failed",
         description: getApiErrorMessage(error, "Could not mint acceptance link."),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const sendInviteMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest<SendInviteResult>("POST", "/api/admin/dpa/send-invite", {
+        ...buildMintPayload(evaluationPeriodDays, feeEarnerCount, validForDays, ref),
+        recipientEmail: recipientEmail.trim(),
+        firmName: firmName.trim() || undefined,
+        signerName: signerName.trim() || undefined,
+      });
+    },
+    onSuccess: (data) => {
+      setResult(data);
+      setCopied(false);
+      toast({
+        title: "Invitation sent",
+        description: data.message,
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Send failed",
+        description: getApiErrorMessage(error, "Could not send acceptance invitation."),
         variant: "destructive",
       });
     },
@@ -77,6 +125,11 @@ export default function AdminDpaMintPage() {
     }
   };
 
+  const termsValid =
+    Number(evaluationPeriodDays) > 0 &&
+    Number(feeEarnerCount) > 0 &&
+    Number(validForDays) > 0;
+
   if (accessLoading) {
     return (
       <div className="container mx-auto p-6">
@@ -93,7 +146,7 @@ export default function AdminDpaMintPage() {
       <div className="container mx-auto p-6" data-testid="admin-dpa-mint-denied">
         <Card>
           <CardHeader>
-            <CardTitle>Access Denied</CardTitle>
+            <CardTitle>Access denied</CardTitle>
             <CardDescription>Admin access required to view this page</CardDescription>
           </CardHeader>
           <CardContent>
@@ -114,7 +167,7 @@ export default function AdminDpaMintPage() {
             Mint DPA acceptance link
           </h1>
           <p className="text-muted-foreground">
-            Create a signed Key Terms link for a firm. Signing stays on the server.
+            Create a signed Key Terms link, or send a branded invitation from LegalNote support.
           </p>
         </div>
         <div className="flex gap-2 text-sm">
@@ -195,19 +248,89 @@ export default function AdminDpaMintPage() {
                 id="ref"
                 value={ref}
                 onChange={(e) => setRef(e.target.value)}
-                placeholder="acme-eval"
+                placeholder="penn-chambers"
                 maxLength={100}
                 data-testid="input-ref"
               />
             </div>
             <Button
               type="submit"
-              disabled={mintMutation.isPending}
+              variant="outline"
+              disabled={mintMutation.isPending || sendInviteMutation.isPending || !termsValid}
               data-testid="button-mint-link"
             >
-              {mintMutation.isPending ? "Minting…" : "Mint signed link"}
+              {mintMutation.isPending ? "Minting…" : "Mint link only"}
             </Button>
           </form>
+        </CardContent>
+      </Card>
+
+      <Card data-testid="card-dpa-send-invite">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Mail className="h-5 w-5" />
+            Send invitation from LegalNote
+          </CardTitle>
+          <CardDescription>
+            Emails the signed acceptance link from{" "}
+            <strong>noreply@legalnote.ai</strong> with reply-to{" "}
+            <strong>support@legalnote.ai</strong>. The recipient completes acceptance on LegalNote;
+            you do not need to email them the link yourself.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4 max-w-md">
+          <div className="space-y-2">
+            <Label htmlFor="recipientEmail">Recipient email</Label>
+            <Input
+              id="recipientEmail"
+              type="email"
+              value={recipientEmail}
+              onChange={(e) => setRecipientEmail(e.target.value)}
+              placeholder="shak.inayat@penngroup.co.uk"
+              required
+              data-testid="input-recipient-email"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="firmName">Firm name (optional)</Label>
+            <Input
+              id="firmName"
+              value={firmName}
+              onChange={(e) => setFirmName(e.target.value)}
+              placeholder="Penn Chambers"
+              data-testid="input-invite-firm-name"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="signerName">Signatory first name (optional)</Label>
+            <Input
+              id="signerName"
+              value={signerName}
+              onChange={(e) => setSignerName(e.target.value)}
+              placeholder="Shak"
+              data-testid="input-invite-signer-name"
+            />
+          </div>
+          <Button
+            type="button"
+            disabled={
+              sendInviteMutation.isPending ||
+              mintMutation.isPending ||
+              !termsValid ||
+              !recipientEmail.trim()
+            }
+            onClick={() => sendInviteMutation.mutate()}
+            data-testid="button-send-dpa-invite"
+          >
+            {sendInviteMutation.isPending ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Sending…
+              </>
+            ) : (
+              "Mint and send invitation"
+            )}
+          </Button>
         </CardContent>
       </Card>
 

@@ -252,7 +252,7 @@ export async function sendCaseEmail(params: SendCaseEmailParams): Promise<{ succ
         <tr>
           <td align="center" style="padding:0;">
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;margin:0 auto;">
-              ${legalNoteBrandHeaderTableRow()}
+              ${firmBrandedEmailHeaderTableRow({ firmName: firmProfile?.firmName, logoUrl: firmProfile?.logoUrl })}
               <!-- Light top band with firm name only (logo omitted — often broken / clipped in clients) -->
               <tr>
                 <td align="center" style="background-color:#f3f3f3;padding:40px 24px 56px;">
@@ -806,8 +806,10 @@ export async function sendMeetingBookingProposalEmail(params: {
   durationMinutes: number;
   /** Firm or organiser display name when known — never a generic “solicitor” fallback. */
   organiserName?: string | null;
+  firmName?: string | null;
+  firmLogoUrl?: string | null;
 }): Promise<{ success: boolean; messageId?: string; error?: string }> {
-  const { to, recipientName, bookingUrl, slots, durationMinutes, organiserName } = params;
+  const { to, recipientName, bookingUrl, slots, durationMinutes, organiserName, firmName, firmLogoUrl } = params;
 
   const displayName = publicFacingDisplayName(recipientName);
   const greeting = displayName ? `Hi ${escapeHtmlPlain(displayName)},` : "Hi,";
@@ -848,7 +850,7 @@ export async function sendMeetingBookingProposalEmail(params: {
         <tr>
           <td align="center" style="padding:0;">
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;margin:0 auto;">
-              ${legalNoteBrandHeaderTableRow()}
+              ${firmBrandedEmailHeaderTableRow({ firmName: firmName || organiserName, logoUrl: firmLogoUrl })}
               <tr>
                 <td align="center" style="background-color:#f3f3f3;padding:36px 24px 48px;">
                   <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:400;line-height:1.3;color:#1a1a1a;">
@@ -933,8 +935,10 @@ export async function sendMeetingBookingProposalUpdatedEmail(params: {
   slots: Array<{ startsAt: Date; endsAt: Date }>;
   durationMinutes: number;
   organiserName?: string | null;
+  firmName?: string | null;
+  firmLogoUrl?: string | null;
 }): Promise<{ success: boolean; messageId?: string; error?: string }> {
-  const { to, recipientName, bookingUrl, slots, durationMinutes, organiserName } = params;
+  const { to, recipientName, bookingUrl, slots, durationMinutes, organiserName, firmName, firmLogoUrl } = params;
 
   const displayName = publicFacingDisplayName(recipientName);
   const greeting = displayName ? `Hi ${escapeHtmlPlain(displayName)},` : "Hi,";
@@ -975,7 +979,7 @@ export async function sendMeetingBookingProposalUpdatedEmail(params: {
         <tr>
           <td align="center" style="padding:0;">
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;margin:0 auto;">
-              ${legalNoteBrandHeaderTableRow()}
+              ${firmBrandedEmailHeaderTableRow({ firmName: firmName || organiserName, logoUrl: firmLogoUrl })}
               <tr>
                 <td align="center" style="background-color:#f3f3f3;padding:36px 24px 48px;">
                   <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:400;line-height:1.3;color:#1a1a1a;">
@@ -2192,6 +2196,8 @@ interface SendMeetingInviteConfirmationEmailParams {
   meetingPlatform?: string | null;
   /** When true, copy reflects a reschedule rather than a new invite */
   isReschedule?: boolean;
+  firmName?: string | null;
+  firmLogoUrl?: string | null;
 }
 
 /**
@@ -2210,6 +2216,8 @@ export async function sendMeetingInviteConfirmationEmail(
     meetingUrl,
     meetingPlatform,
     isReschedule = false,
+    firmName,
+    firmLogoUrl,
   } = params;
 
   let safeJoinUrl: string;
@@ -2254,7 +2262,7 @@ export async function sendMeetingInviteConfirmationEmail(
     </head>
     <body style="margin:0;padding:0;background-color:#faf9f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1a1a1a;">
       <div style="max-width:600px;margin:0 auto;background:#ffffff;">
-        ${legalNoteBrandHeaderHtml()}
+        ${firmBrandedEmailHeaderHtml({ firmName, logoUrl: firmLogoUrl })}
         <div style="padding:28px 32px 36px;">
           <h1 style="margin:0 0 8px;font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:400;color:#3d3028;">${heading}</h1>
           <p style="margin:0 0 20px;font-size:15px;line-height:1.55;color:#4a3f35;">Hi ${safeName},</p>
@@ -2401,6 +2409,165 @@ export async function sendMeetingReminderEmail(
   }
 }
 
+/** Firm-branded email header when logo/name available; falls back to LegalNote. */
+export function firmBrandedEmailHeaderHtml(params: {
+  firmName?: string | null;
+  logoUrl?: string | null;
+}): string {
+  const firmName = params.firmName?.trim();
+  const logoUrl = params.logoUrl?.trim();
+  if (firmName && logoUrl) {
+    const safeName = escapeHtml(firmName);
+    const safeLogo = escapeHtml(logoUrl);
+    return `
+      <div style="text-align:center;padding:28px 24px 20px;background-color:#0a0a0a;border-bottom:1px solid #1f1f1f;">
+        <img src="${safeLogo}" alt="${safeName}" width="160" height="48" style="display:block;margin:0 auto;max-width:160px;max-height:48px;height:auto;border:0;" />
+        <p style="margin:12px 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:13px;color:#e5e5e5 !important;">${safeName}</p>
+      </div>
+    `;
+  }
+  if (firmName) {
+    return `
+      <div style="text-align:center;padding:28px 24px 20px;background-color:#0a0a0a;border-bottom:1px solid #1f1f1f;">
+        <p style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:18px;font-weight:600;color:#ffffff !important;">${escapeHtml(firmName)}</p>
+      </div>
+    `;
+  }
+  return legalNoteBrandHeaderHtml();
+}
+
+/** Firm-branded header as a table row; falls back to LegalNote. */
+export function firmBrandedEmailHeaderTableRow(params: {
+  firmName?: string | null;
+  logoUrl?: string | null;
+}): string {
+  const firmName = params.firmName?.trim();
+  const logoUrl = params.logoUrl?.trim();
+  if (firmName && logoUrl) {
+    const safeName = escapeHtml(firmName);
+    const safeLogo = escapeHtml(logoUrl);
+    return `
+      <tr>
+        <td align="center" style="background-color:#0a0a0a;padding:28px 24px 20px;border-bottom:1px solid #1f1f1f;">
+          <img src="${safeLogo}" alt="${safeName}" width="160" height="48" style="display:block;margin:0 auto;max-width:160px;max-height:48px;height:auto;border:0;" />
+          <p style="margin:12px 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:13px;color:#e5e5e5 !important;">${safeName}</p>
+        </td>
+      </tr>
+    `;
+  }
+  if (firmName) {
+    return `
+      <tr>
+        <td align="center" style="background-color:#0a0a0a;padding:28px 24px 20px;border-bottom:1px solid #1f1f1f;">
+          <p style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:18px;font-weight:600;color:#ffffff !important;">${escapeHtml(firmName)}</p>
+        </td>
+      </tr>
+    `;
+  }
+  return legalNoteBrandHeaderTableRow();
+}
+
+interface SendClientMeetingReminderEmailParams {
+  to: string;
+  clientName?: string;
+  meetingTitle: string;
+  startTime: Date;
+  kind: '10m' | 'start';
+  meetingUrl: string;
+  meetingPlatform?: string;
+  firmName?: string | null;
+  firmLogoUrl?: string | null;
+}
+
+/** Client-facing meeting reminder with join button (GDPR-minimal — no matter title). */
+export async function sendClientMeetingReminderEmail(
+  params: SendClientMeetingReminderEmailParams,
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const {
+    to,
+    clientName,
+    meetingTitle,
+    startTime,
+    kind,
+    meetingUrl,
+    meetingPlatform,
+    firmName,
+    firmLogoUrl,
+  } = params;
+
+  const safeName = escapeHtml(publicFacingDisplayName(clientName) || 'there');
+  const safeTitle = escapeHtml(meetingTitle);
+  const safePlatform = meetingPlatform ? escapeHtml(meetingPlatform) : null;
+  const when = startTime.toLocaleString('en-GB', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Europe/London',
+  });
+
+  const subject =
+    kind === 'start'
+      ? `Your meeting is starting now`
+      : `Your meeting starts in 10 minutes`;
+
+  const intro =
+    kind === 'start'
+      ? `<p>Your meeting is starting now. Use the button below to join.</p>`
+      : `<p>Your meeting starts in about 10 minutes.</p>`;
+
+  const joinLabel =
+    kind === 'start' ? 'Join now' : 'Join meeting';
+
+  const emailHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>${legalNoteEmailHeadTags()}</head>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background: #f5f5f5;">
+      <div style="max-width: 600px; margin: 40px auto; background: #fff; border-radius: 8px; overflow: hidden;">
+        ${firmBrandedEmailHeaderHtml({ firmName, logoUrl: firmLogoUrl })}
+        <div style="padding: 28px 32px; border-bottom: 1px solid #e8e4df;">
+          <h1 style="margin: 0; font-size: 22px; color: #3d3028;">${kind === 'start' ? 'Starting now' : 'Reminder'}</h1>
+        </div>
+        <div style="padding: 32px;">
+          <p>Hi ${safeName},</p>
+          ${intro}
+          <div style="background: #f0f4f8; border-radius: 6px; padding: 16px; margin: 20px 0;">
+            <p style="margin: 0 0 8px;"><strong>${safeTitle}</strong></p>
+            <p style="margin: 0; color: #555;">${escapeHtml(when)} (UK time)</p>
+          </div>
+          <p style="margin: 24px 0;"><a href="${escapeHtml(meetingUrl)}" style="display:inline-block;background:#1e3a5f;color:#fff;text-decoration:none;padding:14px 28px;border-radius:6px;font-weight:600;font-size:16px;">${joinLabel}${safePlatform ? ` (${safePlatform})` : ''}</a></p>
+          <p style="font-size:12px;color:#888;word-break:break-all;">${escapeHtml(meetingUrl)}</p>
+        </div>
+        <div style="padding: 16px 32px; background: #f8f8f8; font-size: 12px; color: #999; text-align: center;">
+          Secured by LegalNote
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  try {
+    const fromName = firmName?.trim() || 'LegalNote';
+    const result = await sendEmail({
+      from: `${fromName} via LegalNote <noreply@legalnote.ai>`,
+      to,
+      subject,
+      html: emailHtml,
+    });
+    if (!result.success) {
+      console.error('[EMAIL] Failed to send client meeting reminder:', result.error);
+    } else {
+      console.log('[EMAIL] Client meeting reminder sent:', result.messageId, kind);
+    }
+    return result;
+  } catch (error: any) {
+    console.error('[EMAIL] Exception sending client meeting reminder:', error);
+    return { success: false, error: error.message || 'Unknown error' };
+  }
+}
+
 function escapeHtmlEmail(str: string): string {
   return str
     .replace(/&/g, '&amp;')
@@ -2543,6 +2710,81 @@ export function wrapLegalNoteBrandedEmail(opts: {
     </body>
     </html>
   `;
+}
+
+/**
+ * Admin-initiated invite to review and accept DPA + Governed Evaluation Agreement.
+ * Sent from LegalNote (noreply) — no personal sign-off; replies go to support.
+ */
+export async function sendDpaAcceptanceInviteEmail(params: {
+  to: string;
+  acceptanceUrl: string;
+  evaluationPeriodDays: number;
+  feeEarnerCount: number;
+  expiresAt: Date;
+  firmName?: string | null;
+  signerName?: string | null;
+}): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const safeTo = escapeHtmlEmail(params.to);
+  const safeUrl = escapeHtmlEmail(params.acceptanceUrl);
+  const firmLabel = params.firmName?.trim()
+    ? escapeHtmlEmail(params.firmName.trim())
+    : null;
+  const greeting = params.signerName?.trim()
+    ? `Dear ${escapeHtmlEmail(params.signerName.trim())},`
+    : "Hello,";
+  const expiresDisplay = params.expiresAt.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+
+  const emailHtml = wrapLegalNoteBrandedEmail({
+    eyebrow: "Agreement acceptance",
+    footerNote: `This email was sent to ${safeTo}. For questions about acceptance, contact support@legalnote.ai — no reply is required.`,
+    bodyHtml: `
+      <h2>Review and accept LegalNote agreements</h2>
+      <p>${greeting}</p>
+      ${
+        firmLabel
+          ? `<p>LegalNote has prepared the Data Processing Agreement and Governed Evaluation Agreement for <strong>${firmLabel}</strong>.</p>`
+          : `<p>LegalNote has prepared the Data Processing Agreement and Governed Evaluation Agreement for your firm&apos;s governed evaluation.</p>`
+      }
+      <div class="meta">
+        <p style="margin:0 0 8px"><strong>Evaluation period:</strong> ${params.evaluationPeriodDays} days (from configuration date)</p>
+        <p style="margin:0"><strong>Fee earners:</strong> up to ${params.feeEarnerCount}</p>
+      </div>
+      <p>Use the link below to review both agreements and submit your firm details. You will then receive a separate confirmation email to complete acceptance — that step verifies your email address.</p>
+      <p style="text-align:center;margin:28px 0;">
+        <a href="${params.acceptanceUrl}" class="cta-btn">Review agreements</a>
+      </p>
+      <div class="notice">
+        <strong>This link expires on ${escapeHtmlEmail(expiresDisplay)}.</strong><br>
+        If you are not the right person to accept on behalf of the firm, please forward this email or contact support@legalnote.ai.
+      </div>
+      <p class="url-fallback">If the button does not work, copy and paste this link into your browser:<br>${safeUrl}</p>
+      <p style="margin-top:28px;">Kind regards,<br><strong>LegalNote</strong></p>
+    `,
+  });
+
+  try {
+    const result = await sendEmail({
+      from: "LegalNote\u2122 <noreply@legalnote.ai>",
+      to: params.to,
+      replyTo: "support@legalnote.ai",
+      subject: "LegalNote — review and accept agreements",
+      html: emailHtml,
+    });
+    if (!result.success) {
+      console.error("[EMAIL] Error sending DPA acceptance invite:", result.error);
+    } else {
+      console.log("[EMAIL] DPA acceptance invite sent:", result.messageId);
+    }
+    return result;
+  } catch (error: any) {
+    console.error("[EMAIL] Exception sending DPA acceptance invite:", error);
+    return { success: false, error: error.message || "Unknown error" };
+  }
 }
 
 /**
