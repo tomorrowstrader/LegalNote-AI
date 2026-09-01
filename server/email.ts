@@ -89,28 +89,26 @@ async function sendEmail(
   }
 }
 
-/** Absolute URL for the LegalNote email icon (hosted on APP_URL; optional in templates). */
+/** Absolute URL for the LegalNote quill mark (white on dark header). Always HTTPS — SES Simple API cannot send CID inline images. */
 export function legalNoteEmailIconUrl(): string {
   const base = (process.env.APP_URL || 'https://legalnote.ai').replace(/\/$/, '');
-  return `${base}/assets/email/legalnote-icon-white.png`;
+  return `${base}/assets/email/legalnote-icon-white.png?v=20260901`;
 }
 
-/**
- * Email-safe brand mark — HTML/CSS only.
- * Production uses AWS SES Simple API (no inline CID attachments), so we never reference cid: images here.
- */
+/** Canonical outbound email brand mark — quill icon + wordmark text. */
 export function legalNoteTextLogoHtml(): string {
+  const iconSrc = legalNoteEmailIconUrl();
   return `
-    <div style="margin:0 auto;text-align:center;line-height:1.15;">
-      <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto 12px;">
-        <tr>
-          <td align="center" valign="middle" width="48" height="48" style="width:48px;height:48px;border-radius:12px;background-color:#b8e000;font-family:Georgia,'Times New Roman',serif;font-size:17px;font-weight:700;color:#0a0a0a;line-height:48px;mso-line-height-rule:exactly;">
-            LN
-          </td>
-        </tr>
-      </table>
+    <div style="margin:0 auto;text-align:center;line-height:1;">
+      <img
+        src="${iconSrc}"
+        alt="LegalNote"
+        width="48"
+        height="48"
+        style="display:block;margin:0 auto 10px;width:48px;height:48px;border:0;outline:none;"
+      />
       <span style="font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:700;letter-spacing:-0.03em;color:#ffffff;">
-        Legal<span style="color:#b8e000;">Note</span><sup style="font-size:9px;color:#b8e000;vertical-align:super;line-height:0;">&trade;</sup>
+        Legal<span style="color:#b8e000;">Note</span>
       </span>
       <span style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:10px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:#a3a3a3;display:block;margin-top:6px;">
         Meeting to Matter
