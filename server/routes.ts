@@ -4666,6 +4666,21 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
     },
   });
 
+  const imageUpload = multer.default({
+    storage: multer.default.memoryStorage(),
+    limits: {
+      fileSize: 5 * 1024 * 1024, // 5MB per screenshot
+    },
+    fileFilter: (_req, file, cb) => {
+      const allowed = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif'];
+      if (allowed.includes(file.mimetype)) {
+        cb(null, true);
+      } else {
+        cb(new Error('Invalid file type. Screenshots must be PNG, JPEG, WebP, or GIF.'));
+      }
+    },
+  });
+
   // Multer error handling middleware
   const handleMulterError = (err: any, req: any, res: Response, next: NextFunction) => {
     if (err instanceof multer.default.MulterError) {
@@ -5506,7 +5521,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
     }
   });
 
-  app.post("/api/support/tickets", isAuthenticated, upload.array("screenshots", 8), async (req: any, res, next) => {
+  app.post("/api/support/tickets", isAuthenticated, imageUpload.array("screenshots", 8), handleMulterError, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
