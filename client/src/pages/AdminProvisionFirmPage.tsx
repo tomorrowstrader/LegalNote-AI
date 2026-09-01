@@ -36,6 +36,7 @@ type EvaluationFirm = {
   provisionedLeadEmail: string | null;
   provisionedLeadUserId: string | null;
   provisionedAt: string | null;
+  evaluationStartsAt: string | null;
   evaluationEndsAt: string | null;
   createdAt: string;
   wasUpdate?: boolean;
@@ -57,6 +58,8 @@ function toDateInputValue(iso: string | null | undefined): string {
   return d.toISOString().slice(0, 10);
 }
 
+type EvaluationEmailNotification = "none" | "confirmation" | "schedule_update";
+
 export default function AdminProvisionFirmPage() {
   const { toast } = useToast();
   const [firmName, setFirmName] = useState("");
@@ -68,8 +71,9 @@ export default function AdminProvisionFirmPage() {
   const [inviteEndsAt, setInviteEndsAt] = useState("");
   const [sendingFirmId, setSendingFirmId] = useState<string | null>(null);
   const [savingFirmId, setSavingFirmId] = useState<string | null>(null);
+  const [startDateEdits, setStartDateEdits] = useState<Record<string, string>>({});
   const [endDateEdits, setEndDateEdits] = useState<Record<string, string>>({});
-  const [notifyOnSave, setNotifyOnSave] = useState<Record<string, boolean>>({});
+  const [emailOnSave, setEmailOnSave] = useState<Record<string, EvaluationEmailNotification>>({});
 
   const { isLoading: accessLoading, error: accessError, data: firms = [] } = useQuery<EvaluationFirm[]>({
     queryKey: ["/api/admin/evaluation-firms"],
@@ -136,28 +140,34 @@ export default function AdminProvisionFirmPage() {
     },
   });
 
-  const updateEndDateMutation = useMutation({
+  const updateScheduleMutation = useMutation({
     mutationFn: async (payload: {
       firmId: string;
+      evaluationStartsAt: string | null;
       evaluationEndsAt: string | null;
-      notifyLead: boolean;
+      emailNotification: EvaluationEmailNotification;
     }) => {
       return apiRequest<EvaluationFirm>(
         "PATCH",
         `/api/admin/evaluation-firms/${payload.firmId}`,
         {
+          evaluationStartsAt: payload.evaluationStartsAt,
           evaluationEndsAt: payload.evaluationEndsAt,
-          notifyLead: payload.notifyLead,
+          emailNotification: payload.emailNotification,
         },
       );
     },
     onSuccess: (_firm, variables) => {
       setSavingFirmId(null);
+      const descriptions: Record<EvaluationEmailNotification, string> = {
+        none: "Schedule saved. No email was sent.",
+        confirmation:
+          "Evaluation confirmation emailed from LegalNote support (configuration + end dates).",
+        schedule_update: "End-date schedule update emailed from LegalNote support.",
+      };
       toast({
-        title: "Evaluation end date saved",
-        description: variables.notifyLead
-          ? "The lead was emailed about the updated schedule."
-          : "End date updated. Existing firm setup and account data were not changed.",
+        title: "Evaluation schedule saved",
+        description: descriptions[variables.emailNotification],
       });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/evaluation-firms"] });
     },
@@ -165,7 +175,7 @@ export default function AdminProvisionFirmPage() {
       setSavingFirmId(null);
       toast({
         title: "Update failed",
-        description: getApiErrorMessage(error, "Could not update evaluation end date."),
+        description: getApiErrorMessage(error, "Could not update evaluation schedule."),
         variant: "destructive",
       });
     },
@@ -179,16 +189,23 @@ export default function AdminProvisionFirmPage() {
     inviteMutation.mutate(payload);
   };
 
+  const startDateForFirm = (firm: EvaluationFirm) =>
+    startDateEdits[firm.id] ?? toDateInputValue(firm.evaluationStartsAt);
+
   const endDateForFirm = (firm: EvaluationFirm) =>
     endDateEdits[firm.id] ?? toDateInputValue(firm.evaluationEndsAt);
 
-  const saveEndDate = (firm: EvaluationFirm) => {
+  const setEmailOption = (firmId: string, option: EvaluationEmailNotification) => {
+    setEmailOnSave((prev) => ({ ...prev, [firmId]: option }));
+  };
+
+  const saveSchedule = (firm: EvaluationFirm) => {
     setSavingFirmId(firm.id);
-    const value = endDateForFirm(firm);
-    updateEndDateMutation.mutate({
+    updateScheduleMutation.mutate({
       firmId: firm.id,
-      evaluationEndsAt: value || null,
-      notifyLead: notifyOnSave[firm.id] ?? false,
+      evaluationStartsAt: startDateForFirm(firm) || null,
+      evaluationEndsAt: endDateForFirm(firm) || null,
+      emailNotification: emailOnSave[firm.id] ?? "none",
     });
   };
 
@@ -419,7 +436,9 @@ export default function AdminProvisionFirmPage() {
           <CardHeader>
             <CardTitle>Evaluation firms</CardTitle>
             <CardDescription>
-              Update end dates inline without affecting firm setup. Active firms keep all existing data.
+              Set configuration (start) and end dates, then optionally email confirmation from{" "}
+              <strong>support@legalnote.ai</strong>. Use end-date update only when correcting the
+              schedule later.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -432,7 +451,7 @@ export default function AdminProvisionFirmPage() {
                     <TableHead>Firm</TableHead>
                     <TableHead>Lead email</TableHead>
                     <TableHead>Seats</TableHead>
-                    <TableHead>Ends</TableHead>
+                    <TableHead>Schedule</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Provisioned</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -445,40 +464,66 @@ export default function AdminProvisionFirmPage() {
                       <TableCell>{firm.provisionedLeadEmail ?? "—"}</TableCell>
                       <TableCell>{firm.seatLimit ?? "Unlimited"}</TableCell>
                       <TableCell>
-                        <div className="flex flex-col gap-2 min-w-[10rem]">
-                          <Input
-                            type="date"
-                            value={endDateForFirm(firm)}
-                            onChange={(e) =>
-                              setEndDateEdits((prev) => ({ ...prev, [firm.id]: e.target.value }))
-                            }
-                            data-testid={`input-eval-ends-${firm.id}`}
-                          />
+                        <div className="flex flex-col gap-2 min-w-[11rem]">
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Starts</Label>
+                            <Input
+                              type="date"
+                              value={startDateForFirm(firm)}
+                              onChange={(e) =>
+                                setStartDateEdits((prev) => ({ ...prev, [firm.id]: e.target.value }))
+                              }
+                              data-testid={`input-eval-starts-${firm.id}`}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Ends</Label>
+                            <Input
+                              type="date"
+                              value={endDateForFirm(firm)}
+                              onChange={(e) =>
+                                setEndDateEdits((prev) => ({ ...prev, [firm.id]: e.target.value }))
+                              }
+                              data-testid={`input-eval-ends-${firm.id}`}
+                            />
+                          </div>
                           <label className="flex items-center gap-2 text-xs text-muted-foreground">
                             <Checkbox
-                              checked={notifyOnSave[firm.id] ?? false}
+                              checked={(emailOnSave[firm.id] ?? "none") === "confirmation"}
                               onCheckedChange={(checked) =>
-                                setNotifyOnSave((prev) => ({
-                                  ...prev,
-                                  [firm.id]: checked === true,
-                                }))
+                                setEmailOption(
+                                  firm.id,
+                                  checked === true ? "confirmation" : "none",
+                                )
                               }
                             />
-                            Email lead
+                            Send evaluation confirmation
+                          </label>
+                          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Checkbox
+                              checked={(emailOnSave[firm.id] ?? "none") === "schedule_update"}
+                              onCheckedChange={(checked) =>
+                                setEmailOption(
+                                  firm.id,
+                                  checked === true ? "schedule_update" : "none",
+                                )
+                              }
+                            />
+                            Send end-date update only
                           </label>
                           <Button
                             size="sm"
                             variant="secondary"
-                            disabled={updateEndDateMutation.isPending}
-                            onClick={() => saveEndDate(firm)}
-                            data-testid={`button-save-ends-${firm.id}`}
+                            disabled={updateScheduleMutation.isPending}
+                            onClick={() => saveSchedule(firm)}
+                            data-testid={`button-save-schedule-${firm.id}`}
                           >
-                            {savingFirmId === firm.id && updateEndDateMutation.isPending ? (
+                            {savingFirmId === firm.id && updateScheduleMutation.isPending ? (
                               <Loader2 className="w-3 h-3 animate-spin" />
                             ) : (
                               <>
                                 <Save className="w-3 h-3 mr-1" />
-                                Save date
+                                Save schedule
                               </>
                             )}
                           </Button>

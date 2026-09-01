@@ -742,6 +742,7 @@ export interface IStorage {
   getMeetingsReadyForBot(userId: string): Promise<ScheduledMeeting[]>;
   getAllScheduledMeetingsWithAutoRecord(): Promise<ScheduledMeeting[]>;
   getMeetingsNeedingReminders(minutesBefore: 30 | 10): Promise<ScheduledMeeting[]>;
+  getMeetingsNeedingClientReminders(kind: '10m' | 'start'): Promise<ScheduledMeeting[]>;
   updateScheduledMeeting(id: string, updates: Partial<ScheduledMeeting>): Promise<ScheduledMeeting | undefined>;
   deleteScheduledMeeting(id: string): Promise<void>;
   
@@ -2727,6 +2728,10 @@ export class MemStorage implements IStorage {
   }
 
   async getMeetingsNeedingReminders(_minutesBefore: 30 | 10): Promise<ScheduledMeeting[]> {
+    return [];
+  }
+
+  async getMeetingsNeedingClientReminders(_kind: '10m' | 'start'): Promise<ScheduledMeeting[]> {
     return [];
   }
   
@@ -6351,7 +6356,6 @@ export class DbStorage implements IStorage {
         and(
           eq(scheduledMeetings.userId, userId),
           eq(scheduledMeetings.autoRecordEnabled, true),
-          eq(scheduledMeetings.consentStatus, 'approved'),
           eq(scheduledMeetings.status, 'scheduled'),
           gte(scheduledMeetings.startTime, windowStart),
           lte(scheduledMeetings.startTime, windowEnd),
@@ -6409,6 +6413,51 @@ export class DbStorage implements IStorage {
           gte(scheduledMeetings.startTime, windowStart),
           lte(scheduledMeetings.startTime, windowEnd)
         )
+      )
+      .orderBy(scheduledMeetings.startTime);
+  }
+
+  /**
+   * Client-facing reminders: T-10 and at start. Requires clientEmail + meetingUrl.
+   * Windows sized for the 5-minute cron.
+   */
+  async getMeetingsNeedingClientReminders(kind: '10m' | 'start'): Promise<ScheduledMeeting[]> {
+    const now = new Date();
+    const windowHalfMinutes = 5;
+
+    if (kind === '10m') {
+      const windowStart = new Date(now.getTime() + (10 - windowHalfMinutes) * 60 * 1000);
+      const windowEnd = new Date(now.getTime() + (10 + windowHalfMinutes) * 60 * 1000);
+      return await db
+        .select()
+        .from(scheduledMeetings)
+        .where(
+          and(
+            eq(scheduledMeetings.status, 'scheduled'),
+            isNotNull(scheduledMeetings.clientEmail),
+            isNotNull(scheduledMeetings.meetingUrl),
+            isNull(scheduledMeetings.clientReminder10mSentAt),
+            gte(scheduledMeetings.startTime, windowStart),
+            lte(scheduledMeetings.startTime, windowEnd),
+          ),
+        )
+        .orderBy(scheduledMeetings.startTime);
+    }
+
+    const windowStart = new Date(now.getTime() - windowHalfMinutes * 60 * 1000);
+    const windowEnd = new Date(now.getTime() + windowHalfMinutes * 60 * 1000);
+    return await db
+      .select()
+      .from(scheduledMeetings)
+      .where(
+        and(
+          eq(scheduledMeetings.status, 'scheduled'),
+          isNotNull(scheduledMeetings.clientEmail),
+          isNotNull(scheduledMeetings.meetingUrl),
+          isNull(scheduledMeetings.clientReminderStartSentAt),
+          gte(scheduledMeetings.startTime, windowStart),
+          lte(scheduledMeetings.startTime, windowEnd),
+        ),
       )
       .orderBy(scheduledMeetings.startTime);
   }
@@ -6951,6 +7000,7 @@ export class DbStorage implements IStorage {
       provisionedLeadUserId: data.provisionedLeadUserId ?? null,
       provisionedByUserId: data.provisionedByUserId ?? null,
       provisionedAt: data.provisionedAt ?? null,
+      evaluationStartsAt: data.evaluationStartsAt ?? null,
       evaluationEndsAt: data.evaluationEndsAt ?? null,
     }).returning();
     return result[0];

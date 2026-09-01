@@ -10,6 +10,16 @@ export function parseEvaluationEndsAtInput(raw: string): Date | null {
   return endsAt;
 }
 
+export function parseEvaluationStartsAtInput(raw: string): Date | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const startsAt = /^\d{4}-\d{2}-\d{2}$/.test(trimmed)
+    ? new Date(`${trimmed}T00:00:00.000Z`)
+    : new Date(trimmed);
+  if (Number.isNaN(startsAt.getTime())) return null;
+  return startsAt;
+}
+
 export function isEvaluationExpired(
   evaluationEndsAt: Date | string | null | undefined,
   now: Date = new Date(),

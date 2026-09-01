@@ -3,9 +3,15 @@ import {
   getEvaluationDaysRemaining,
   isEvaluationExpired,
   parseEvaluationEndsAtInput,
+  parseEvaluationStartsAtInput,
 } from "./evaluationAccess";
 
 describe("evaluationAccess", () => {
+  it("parses YYYY-MM-DD start as start of that UTC day", () => {
+    const startsAt = parseEvaluationStartsAtInput("2026-09-01");
+    expect(startsAt?.toISOString()).toBe("2026-09-01T00:00:00.000Z");
+  });
+
   it("parses YYYY-MM-DD as end of that UTC day", () => {
     const endsAt = parseEvaluationEndsAtInput("2026-09-15");
     expect(endsAt?.toISOString()).toBe("2026-09-15T23:59:59.000Z");

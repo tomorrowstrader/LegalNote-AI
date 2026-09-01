@@ -114,7 +114,7 @@ import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { chunkedUploadService } from "./services/chunkedUploadService";
 import { setupAuth, isAuthenticated, resolveUserAccessAllowed, getAdminUserId } from "./replitAuth";
 import { evaluationAccessGate } from "./services/evaluationAccessGate";
-import { parseAdminEvaluationEndsAt } from "./services/evaluationAdmin";
+import { parseAdminEvaluationEndsAt, parseAdminEvaluationStartsAt } from "./services/evaluationAdmin";
 import { enrichFirmEvaluationStatus } from "@shared/evaluationAccess";
 import { MAX_AUDIO_SIZE_BYTES } from "./uploadSecurity";
 import {
@@ -146,7 +146,7 @@ import { askMatterQuestion, compareMatterNote } from "./services/matterAskServic
 import { synthesizeVoiceReply, VOICE_TTS_MAX_CHARS } from "./services/voiceTtsService";
 import { privilegedComplete } from "./services/llm/privilegedComplete";
 import { AssemblyAIService } from "./services/assemblyAIService";
-import { sendCaseEmail, sendRecordingConfirmationEmail, sendConsentResponseNotification, sendAcknowledgementRequestEmail, sendInvitationEmail, sendDpaConfirmationEmail, sendDpaAcceptanceInviteEmail, sendLegalAgreementAcceptedEmail, sendEvaluationSetupEmail, sendEvaluationSetupSubmittedAdminEmail, sendGovernedEvaluationLoginInviteEmail, sendShareVerificationCodeEmail, sendSupportTicketAdminNotification, sendSupportTicketReceivedEmail, sendSupportTicketStatusEmail, sendDemoMatterShareEmail, sendDemoColleagueLinkEmail } from "./email";
+import { sendCaseEmail, sendRecordingConfirmationEmail, sendConsentResponseNotification, sendAcknowledgementRequestEmail, sendInvitationEmail, sendDpaConfirmationEmail, sendDpaAcceptanceInviteEmail, sendLegalAgreementAcceptedEmail, sendEvaluationSetupEmail, sendEvaluationSetupSubmittedAdminEmail, sendGovernedEvaluationLoginInviteEmail, sendGovernedEvaluationConfirmedEmail, sendGovernedEvaluationDatesUpdatedEmail, sendShareVerificationCodeEmail, sendSupportTicketAdminNotification, sendSupportTicketReceivedEmail, sendSupportTicketStatusEmail, sendDemoMatterShareEmail, sendDemoColleagueLinkEmail } from "./email";
 import {
   polishSupportTicketWithAi,
   createSupportTicketRecord,
@@ -8778,12 +8778,15 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
     }
   });
 
-  // Update evaluation end date without re-provisioning or overwriting firm details.
+  // Update evaluation schedule without re-provisioning or overwriting firm details.
   app.patch("/api/admin/evaluation-firms/:firmId", isAuthenticated, isAdmin, async (req: any, res, next) => {
     try {
       const schema = z.object({
+        evaluationStartsAt: z.string().min(1).max(40).optional().nullable(),
         evaluationEndsAt: z.string().min(1).max(40).optional().nullable(),
+        /** @deprecated use emailNotification */
         notifyLead: z.boolean().optional(),
+        emailNotification: z.enum(["none", "confirmation", "schedule_update"]).optional(),
       });
       const parsed = schema.safeParse(req.body);
       if (!parsed.success) {
@@ -8798,48 +8801,97 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         return res.status(404).json({ message: "Evaluation firm not found." });
       }
 
+      const updates: {
+        evaluationStartsAt?: Date | null;
+        evaluationEndsAt?: Date | null;
+      } = {};
+
+      if (parsed.data.evaluationStartsAt !== undefined) {
+        const parsedStarts = parseAdminEvaluationStartsAt(parsed.data.evaluationStartsAt ?? "");
+        if (!parsedStarts.ok) {
+          return res.status(400).json({ message: parsedStarts.message });
+        }
+        updates.evaluationStartsAt = parsedStarts.value;
+      }
+
       if (parsed.data.evaluationEndsAt !== undefined) {
         const parsedEnds = parseAdminEvaluationEndsAt(parsed.data.evaluationEndsAt ?? "");
         if (!parsedEnds.ok) {
           return res.status(400).json({ message: parsedEnds.message });
         }
-        const updated = await storage.updateFirm(firm.id, { evaluationEndsAt: parsedEnds.value });
-        if (!updated) {
-          return res.status(500).json({ message: "Failed to update evaluation firm." });
-        }
+        updates.evaluationEndsAt = parsedEnds.value;
+      }
 
-        if (parsed.data.notifyLead && updated.provisionedLeadEmail) {
-          const adminUser = await storage.getUser(req.user.claims.sub);
-          const invitedByName = adminUser
-            ? [adminUser.firstName, adminUser.lastName].filter(Boolean).join(" ") || adminUser.email
-            : null;
-          const alreadyClaimed = Boolean(updated.provisionedLeadUserId);
-          await sendGovernedEvaluationLoginInviteEmail({
+      if (
+        parsed.data.evaluationStartsAt === undefined &&
+        parsed.data.evaluationEndsAt === undefined
+      ) {
+        return res.status(400).json({ message: "Provide a start date, end date, or both." });
+      }
+
+      const updated = await storage.updateFirm(firm.id, updates);
+      if (!updated) {
+        return res.status(500).json({ message: "Failed to update evaluation firm." });
+      }
+
+      const emailNotification =
+        parsed.data.emailNotification ??
+        (parsed.data.notifyLead ? "schedule_update" : "none");
+
+      if (emailNotification !== "none" && updated.provisionedLeadEmail) {
+        if (emailNotification === "confirmation") {
+          if (!updated.evaluationStartsAt || !updated.evaluationEndsAt) {
+            return res.status(400).json({
+              message:
+                "Both configuration (start) and end dates are required to send the evaluation confirmation email.",
+            });
+          }
+          const emailResult = await sendGovernedEvaluationConfirmedEmail({
+            to: updated.provisionedLeadEmail,
+            firmName: updated.name,
+            evaluationStartsAt: updated.evaluationStartsAt,
+            evaluationEndsAt: updated.evaluationEndsAt,
+          });
+          if (!emailResult.success) {
+            return res.status(502).json({
+              message: emailResult.error || "Failed to send evaluation confirmation email",
+              ...updated,
+            });
+          }
+        } else if (emailNotification === "schedule_update") {
+          const emailResult = await sendGovernedEvaluationDatesUpdatedEmail({
             to: updated.provisionedLeadEmail,
             firmName: updated.name,
             evaluationEndsAt: updated.evaluationEndsAt,
-            invitedByName,
-            alreadyClaimed,
+            configurationStartsAt: updated.evaluationStartsAt,
           });
+          if (!emailResult.success) {
+            return res.status(502).json({
+              message: emailResult.error || "Failed to send schedule update email",
+              ...updated,
+            });
+          }
         }
-
-        await storage.createAuditLog({
-          eventType: "evaluation_firm_end_date_updated",
-          userId: req.user.claims.sub,
-          severity: "info",
-          metadata: {
-            firmId: updated.id,
-            firmName: updated.name,
-            leadEmail: updated.provisionedLeadEmail,
-            evaluationEndsAt: updated.evaluationEndsAt,
-            notifyLead: Boolean(parsed.data.notifyLead),
-          },
-        }).catch(() => {});
-
-        return res.json(updated);
       }
 
-      res.json(firm);
+      await storage.createAuditLog({
+        eventType:
+          emailNotification === "confirmation"
+            ? "evaluation_firm_confirmation_sent"
+            : "evaluation_firm_schedule_updated",
+        userId: req.user.claims.sub,
+        severity: "info",
+        metadata: {
+          firmId: updated.id,
+          firmName: updated.name,
+          leadEmail: updated.provisionedLeadEmail,
+          evaluationStartsAt: updated.evaluationStartsAt,
+          evaluationEndsAt: updated.evaluationEndsAt,
+          emailNotification,
+        },
+      }).catch(() => {});
+
+      return res.json(updated);
     } catch (error) {
       next(error);
     }

@@ -3020,6 +3020,65 @@ export async function sendGovernedEvaluationLoginInviteEmail(params: {
  * Notify an active evaluation lead that schedule dates were corrected.
  * Does not imply re-onboarding — existing firm setup and data are unchanged.
  */
+export async function sendGovernedEvaluationConfirmedEmail(params: {
+  to: string;
+  firmName: string;
+  evaluationStartsAt: Date;
+  evaluationEndsAt: Date;
+}): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const baseUrl = getLegalNoteEmailBaseUrl();
+  const loginUrl = `${baseUrl}/login`;
+  const safeTo = escapeHtmlEmail(params.to);
+  const safeFirm = escapeHtmlEmail(params.firmName);
+
+  const formatDate = (d: Date) =>
+    d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+
+  const emailHtml = wrapLegalNoteBrandedEmail({
+    eyebrow: "Evaluation confirmation",
+    footerNote: `This email was sent to ${safeTo}. For questions, contact support@legalnote.ai.`,
+    bodyHtml: `
+      <h2>Your governed evaluation is configured</h2>
+      <p>LegalNote has configured the governed evaluation for <strong>${safeFirm}</strong>. Your evaluation period is confirmed below.</p>
+      <div class="meta">
+        <p style="margin:0 0 8px"><strong>Firm:</strong> ${safeFirm}</p>
+        <p style="margin:0 0 8px"><strong>Configuration date:</strong> ${escapeHtmlEmail(formatDate(params.evaluationStartsAt))}</p>
+        <p style="margin:0 0 8px"><strong>Evaluation ends:</strong> ${escapeHtmlEmail(formatDate(params.evaluationEndsAt))}</p>
+        <p style="margin:0"><strong>Sign-in email:</strong> ${safeTo}</p>
+      </div>
+      <p>Your evaluation period runs from the <strong>configuration date</strong> shown above, in line with your Governed Evaluation Agreement. Your existing account, firm details, and any matters you have already set up are <strong>unchanged</strong> — no further onboarding is required.</p>
+      <p style="text-align:center;margin:28px 0;">
+        <a href="${loginUrl}" class="cta-btn">Open LegalNote</a>
+      </p>
+      <p class="url-fallback">If the button does not work, copy and paste this link into your browser:<br>${loginUrl}</p>
+      <p style="margin-top:28px;">Kind regards,<br><strong>LegalNote</strong></p>
+    `,
+  });
+
+  try {
+    const result = await sendEmail({
+      from: "LegalNote\u2122 <noreply@legalnote.ai>",
+      to: params.to,
+      replyTo: "support@legalnote.ai",
+      subject: "LegalNote evaluation — your evaluation is configured",
+      html: emailHtml,
+    });
+    if (!result.success) {
+      console.error("[EMAIL] Error sending evaluation confirmation:", result.error);
+    } else {
+      console.log("[EMAIL] Evaluation confirmation sent:", result.messageId);
+    }
+    return result;
+  } catch (error: any) {
+    console.error("[EMAIL] Exception sending evaluation confirmation:", error);
+    return { success: false, error: error.message || "Unknown error" };
+  }
+}
+
+/**
+ * Notify an active evaluation lead that schedule dates were corrected.
+ * Does not imply re-onboarding — existing firm setup and data are unchanged.
+ */
 export async function sendGovernedEvaluationDatesUpdatedEmail(params: {
   to: string;
   firmName: string;
@@ -3051,7 +3110,7 @@ export async function sendGovernedEvaluationDatesUpdatedEmail(params: {
 
   const emailHtml = wrapLegalNoteBrandedEmail({
     eyebrow: 'Evaluation schedule update',
-    footerNote: `This email was sent to ${safeTo}. Contact jazz.dennis@legalnote.ai if you have questions.`,
+    footerNote: `This email was sent to ${safeTo}. Contact support@legalnote.ai if you have questions.`,
     bodyHtml: `
       <h2>Your evaluation schedule has been updated</h2>
       <p>The governed evaluation schedule for <strong>${safeFirm}</strong> has been updated.</p>
@@ -3071,7 +3130,7 @@ export async function sendGovernedEvaluationDatesUpdatedEmail(params: {
     const result = await sendEmail({
       from: 'LegalNote\u2122 <noreply@legalnote.ai>',
       to: params.to,
-      replyTo: 'jazz.dennis@legalnote.ai',
+      replyTo: 'support@legalnote.ai',
       subject: 'LegalNote evaluation — schedule update',
       html: emailHtml,
     });

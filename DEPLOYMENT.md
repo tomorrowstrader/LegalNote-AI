@@ -133,3 +133,4 @@ Run these on Neon when deploying schema changes that are not applied by `drizzle
 - `scripts/display-name-confirmed-at.sql` — adds `users.display_name_confirmed_at` so display names can be confirmed once and locked against OAuth overwrites
 - `scripts/integrations-onboarding-pref.sql` — integrations onboarding preference flag
 - `scripts/meeting-reminder-columns.sql` — adds `scheduled_meetings.reminder_30m_sent_at` / `reminder_10m_sent_at` (required after meeting-reminder deploy; without these, Upcoming Meetings fails to load)
+- `scripts/evaluation-starts-at.sql` — adds `firms.evaluation_starts_at` for governed evaluation configuration date
