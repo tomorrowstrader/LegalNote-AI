@@ -326,6 +326,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Setup Replit Auth
   await setupAuth(app);
 
+  // Email deep links to /support — unauthenticated users must sign in first.
+  // Server redirect works even when an older client bundle lacks SupportRoute.
+  app.get("/support", (req, res, next) => {
+    const user = (req as any).user;
+    if (!req.isAuthenticated?.() || !user?.claims?.sub) {
+      return res.redirect(302, `/login?returnTo=${encodeURIComponent("/support")}`);
+    }
+    next();
+  });
+
   // Apply general rate limiting to all API routes (except polling + session identity)
   app.use('/api/', (req, res, next) => {
     // Skip general rate limiter for polling endpoints - they have their own lenient limits

@@ -3016,9 +3016,14 @@ export async function sendGovernedEvaluationLoginInviteEmail(params: {
   }
 }
 
+/** Login-first deep link so support works before and after client deploys. */
+function supportAppUrl(baseUrl: string): string {
+  return `${baseUrl}/login?returnTo=${encodeURIComponent("/support")}`;
+}
+
 /** In-app support guidance for governed evaluation emails (link + short steps; no image assets). */
 function governedEvaluationHelpSectionHtml(baseUrl: string): string {
-  const supportUrl = `${baseUrl}/support`;
+  const supportUrl = supportAppUrl(baseUrl);
   return `
       <div class="notice">
         <strong>Need help during your evaluation?</strong><br><br>
@@ -3337,7 +3342,7 @@ export async function sendSupportTicketReceivedEmail(params: {
       <p>Thanks for contacting LegalNote support. Your reference is <strong>${escapeHtmlEmail(params.ticket.ticketRef)}</strong>.</p>
       <p><strong>${escapeHtmlEmail(params.ticket.title)}</strong></p>
       <p>We typically respond within one business day. For urgent blockers during evaluation, mention your firm name and reference in any follow-up.</p>
-      <p><a href="${baseUrl}/support">View your tickets</a></p>
+      <p><a href="${supportAppUrl(baseUrl)}">View your tickets</a></p>
     `,
   });
 
@@ -3387,7 +3392,7 @@ export async function sendSupportTicketStatusEmail(params: {
       <p><strong>${escapeHtmlEmail(params.ticket.title)}</strong></p>
       <p>Status: <strong>${escapeHtmlEmail(status.replace('_', ' '))}</strong></p>
       ${notesBlock}
-      <p><a href="${baseUrl}/support">View in LegalNote</a></p>
+      <p><a href="${supportAppUrl(baseUrl)}">View in LegalNote</a></p>
     `,
   });
 
