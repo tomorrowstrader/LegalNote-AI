@@ -89,17 +89,34 @@ async function sendEmail(
   }
 }
 
+/** Lime accent for "Note" on dark email headers — matches product email branding. */
+export const LEGALNOTE_EMAIL_NOTE_COLOR = '#b8e000';
+
+/** Head tags that reduce Gmail/Apple Mail dark-mode recolouring of brand colours. */
+export function legalNoteEmailHeadTags(): string {
+  return `
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light only">
+    <meta name="supported-color-schemes" content="light">
+  `;
+}
+
 /** Absolute URL for the LegalNote quill mark (white on dark header). Always HTTPS — SES Simple API cannot send CID inline images. */
 export function legalNoteEmailIconUrl(): string {
   const base = (process.env.APP_URL || 'https://legalnote.ai').replace(/\/$/, '');
   return `${base}/assets/email/legalnote-icon-white.png?v=20260901`;
 }
 
-/** Canonical outbound email brand mark — quill icon + wordmark text. */
+/**
+ * Canonical outbound email brand mark — quill icon + wordmark.
+ * Table + font tags + !important survive Gmail/Outlook better than nested spans alone.
+ */
 export function legalNoteTextLogoHtml(): string {
   const iconSrc = legalNoteEmailIconUrl();
+  const noteColor = LEGALNOTE_EMAIL_NOTE_COLOR;
   return `
-    <div style="margin:0 auto;text-align:center;line-height:1;">
+    <div style="margin:0 auto;text-align:center;line-height:1;background-color:#0a0a0a;">
       <img
         src="${iconSrc}"
         alt="LegalNote"
@@ -107,10 +124,13 @@ export function legalNoteTextLogoHtml(): string {
         height="48"
         style="display:block;margin:0 auto 10px;width:48px;height:48px;border:0;outline:none;"
       />
-      <span style="font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:700;letter-spacing:-0.03em;color:#ffffff;">
-        Legal<span style="color:#b8e000;">Note</span>
-      </span>
-      <span style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:10px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:#a3a3a3;display:block;margin-top:6px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto;border-collapse:collapse;">
+        <tr>
+          <td style="font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:700;letter-spacing:-0.03em;color:#ffffff !important;-webkit-text-fill-color:#ffffff !important;padding:0;mso-line-height-rule:exactly;line-height:1.2;">Legal</td>
+          <td style="font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:700;letter-spacing:-0.03em;color:${noteColor} !important;-webkit-text-fill-color:${noteColor} !important;padding:0;mso-line-height-rule:exactly;line-height:1.2;"><font color="${noteColor}">Note</font></td>
+        </tr>
+      </table>
+      <span style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:10px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:#a3a3a3 !important;-webkit-text-fill-color:#a3a3a3 !important;display:block;margin-top:6px;">
         Meeting to Matter
       </span>
     </div>
@@ -193,8 +213,7 @@ export async function sendCaseEmail(params: SendCaseEmailParams): Promise<{ succ
     <!DOCTYPE html>
     <html lang="en">
     <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      ${legalNoteEmailHeadTags()}
       <title>Secure document access</title>
     </head>
     <body style="margin:0;padding:0;background-color:#f3f3f3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
@@ -305,9 +324,11 @@ export async function sendShareVerificationCodeEmail(params: {
   const emailHtml = `
     <!DOCTYPE html>
     <html lang="en">
-    <head><meta charset="utf-8"><title>Secure access code</title></head>
-    <body style="margin:0;padding:24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:#f3f3f3;color:#1a1a1a;">
-      <div style="max-width:480px;margin:0 auto;background:#ffffff;border-radius:12px;padding:32px;">
+    <head>${legalNoteEmailHeadTags()}<title>Secure access code</title></head>
+    <body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:#faf9f7;color:#1a1a1a;">
+      <div style="max-width:600px;margin:0 auto;background:#ffffff;overflow:hidden;">
+        ${legalNoteBrandHeaderHtml()}
+        <div style="padding:32px;">
         <h1 style="margin:0 0 12px;font-size:22px;font-weight:600;">Your secure access code</h1>
         <p style="margin:0 0 24px;font-size:15px;line-height:1.5;color:#555;">
           Use this code to verify access to your shared documents. It expires in ${minutes} minutes.
@@ -316,6 +337,7 @@ export async function sendShareVerificationCodeEmail(params: {
         <p style="margin:24px 0 0;font-size:12px;line-height:1.5;color:#888;">
           If you did not request this code, you can ignore this email. Do not share this code with anyone.
         </p>
+        </div>
       </div>
     </body>
     </html>
@@ -382,8 +404,7 @@ export async function sendRecordingConfirmationEmail(params: SendRecordingConfir
     <!DOCTYPE html>
     <html>
     <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      ${legalNoteEmailHeadTags()}
       <style>
         body {
           font-family: 'Helvetica Neue', Arial, sans-serif;
@@ -659,8 +680,7 @@ export async function sendPreConsentEmail(params: SendPreConsentEmailParams): Pr
     <!DOCTYPE html>
     <html lang="en">
     <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      ${legalNoteEmailHeadTags()}
       <title>Recording consent request</title>
     </head>
     <body style="margin:0;padding:0;background-color:#f3f3f3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
@@ -789,8 +809,7 @@ export async function sendMeetingBookingProposalEmail(params: {
     <!DOCTYPE html>
     <html lang="en">
     <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      ${legalNoteEmailHeadTags()}
       <title>Choose a meeting time</title>
     </head>
     <body style="margin:0;padding:0;background-color:#f3f3f3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
@@ -917,8 +936,7 @@ export async function sendMeetingBookingProposalUpdatedEmail(params: {
     <!DOCTYPE html>
     <html lang="en">
     <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      ${legalNoteEmailHeadTags()}
       <title>Updated meeting times</title>
     </head>
     <body style="margin:0;padding:0;background-color:#f3f3f3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
@@ -1072,8 +1090,7 @@ export async function sendMeetingBookingResponseNotification(params: {
     <!DOCTYPE html>
     <html>
     <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      ${legalNoteEmailHeadTags()}
     </head>
     <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;line-height:1.6;color:#1a1a1a;max-width:600px;margin:0 auto;padding:20px;background-color:#f5f5f5;">
       <div style="background:white;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
@@ -1148,8 +1165,7 @@ export async function sendBrandedClientNoticeEmail(params: {
     <!DOCTYPE html>
     <html lang="en">
     <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      ${legalNoteEmailHeadTags()}
       <title>${escapeHtmlPlain(subject)}</title>
     </head>
     <body style="margin:0;padding:0;background-color:#faf9f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1a1a1a;">
@@ -1231,8 +1247,7 @@ export async function sendConsentResponseNotification(params: SendConsentRespons
     <!DOCTYPE html>
     <html>
     <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      ${legalNoteEmailHeadTags()}
     </head>
     <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1a1a1a; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f5f5f5;">
       <div style="background: white; border-radius: 8px; padding: 0; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
@@ -1292,8 +1307,7 @@ export async function sendWaitlistConfirmationEmail(to: string, firstName: strin
     <!DOCTYPE html>
     <html>
     <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      ${legalNoteEmailHeadTags()}
       <style>
         body {
           font-family: Georgia, 'Times New Roman', serif;
@@ -1478,8 +1492,7 @@ export async function sendWaitlistAdminNotification(params: WaitlistAdminNotific
     <!DOCTYPE html>
     <html>
     <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      ${legalNoteEmailHeadTags()}
       <style>
         body {
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -1627,8 +1640,7 @@ export async function sendLeadMagnetEmail(
     <!DOCTYPE html>
     <html>
     <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      ${legalNoteEmailHeadTags()}
       <style>
         body {
           font-family: 'Georgia', serif;
@@ -1844,8 +1856,7 @@ export async function sendAcknowledgementRequestEmail(
     <!DOCTYPE html>
     <html>
     <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      ${legalNoteEmailHeadTags()}
       <style>
         body { font-family: 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 0; }
         .header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 32px 40px; }
@@ -1970,7 +1981,7 @@ export async function sendRiskDigestEmail(params: {
   const emailHtml = `
     <!DOCTYPE html>
     <html>
-    <head><meta charset="utf-8"><title>Weekly Risk Digest</title></head>
+    <head>${legalNoteEmailHeadTags()}<title>Weekly Risk Digest</title></head>
     <body style="font-family: Georgia, serif; max-width: 680px; margin: 0 auto; padding: 32px 24px; color: #1a1a1a; background: #fafaf8;">
       ${legalNoteBrandHeaderHtml()}
       <div style="border-bottom: 3px solid #8b4513; padding: 20px 0; margin-bottom: 28px;">
@@ -2058,7 +2069,7 @@ export async function sendInvitationEmail(params: SendInvitationEmailParams): Pr
     <!DOCTYPE html>
     <html>
     <head>
-      <meta charset="utf-8">
+      ${legalNoteEmailHeadTags()}
       <style>
         body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background: #f5f5f5; }
         .container { max-width: 600px; margin: 40px auto; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
@@ -2207,8 +2218,7 @@ export async function sendMeetingInviteConfirmationEmail(
     <!DOCTYPE html>
     <html lang="en">
     <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      ${legalNoteEmailHeadTags()}
       <title>${escapeHtml(subject)}</title>
     </head>
     <body style="margin:0;padding:0;background-color:#faf9f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1a1a1a;">
@@ -2312,7 +2322,7 @@ export async function sendMeetingReminderEmail(
   const emailHtml = `
     <!DOCTYPE html>
     <html>
-    <head><meta charset="utf-8"></head>
+    <head>${legalNoteEmailHeadTags()}</head>
     <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background: #f5f5f5;">
       <div style="max-width: 600px; margin: 40px auto; background: #fff; border-radius: 8px; overflow: hidden;">
         ${legalNoteBrandHeaderHtml()}
@@ -2386,8 +2396,7 @@ function wrapLegalNoteBrandedEmail(opts: {
     <!DOCTYPE html>
     <html>
     <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      ${legalNoteEmailHeadTags()}
       <style>
         body {
           font-family: Georgia, 'Times New Roman', serif;
