@@ -3016,9 +3016,26 @@ export async function sendGovernedEvaluationLoginInviteEmail(params: {
   }
 }
 
+/** In-app support guidance for governed evaluation emails (link + short steps; no image assets). */
+function governedEvaluationHelpSectionHtml(baseUrl: string): string {
+  const supportUrl = `${baseUrl}/support`;
+  return `
+      <div class="notice">
+        <strong>Need help during your evaluation?</strong><br><br>
+        Once signed in, open <strong>Help &amp; Support</strong> from the main menu — on desktop it is under your profile menu; on mobile, use the bottom navigation.<br><br>
+        From there you can raise a support ticket in a few steps: choose a category, describe what happened (voice dictation works well), attach screenshots if useful, and track status until it is resolved.
+      </div>
+      <p style="text-align:center;margin:20px 0 0;">
+        <a href="${supportUrl}" class="cta-btn cta-btn-secondary">Open Help &amp; Support</a>
+      </p>
+      <p style="text-align:center;font-size:13px;color:#8a7d72;margin:12px 0 0;">
+        Prefer email? Write to <a href="mailto:support@legalnote.ai" style="color:#c97d4d;text-decoration:none;">support@legalnote.ai</a>
+      </p>
+  `;
+}
+
 /**
- * Notify an active evaluation lead that schedule dates were corrected.
- * Does not imply re-onboarding — existing firm setup and data are unchanged.
+ * Positive confirmation when a governed evaluation schedule is first configured.
  */
 export async function sendGovernedEvaluationConfirmedEmail(params: {
   to: string;
@@ -3047,9 +3064,10 @@ export async function sendGovernedEvaluationConfirmedEmail(params: {
         <p style="margin:0"><strong>Sign-in email:</strong> ${safeTo}</p>
       </div>
       <p>Your evaluation period runs from the <strong>configuration date</strong> shown above, in line with your Governed Evaluation Agreement. Your existing account, firm details, and any matters you have already set up are <strong>unchanged</strong> — no further onboarding is required.</p>
-      <p style="text-align:center;margin:28px 0;">
+      <p style="text-align:center;margin:28px 0 0;">
         <a href="${loginUrl}" class="cta-btn">Open LegalNote</a>
       </p>
+      ${governedEvaluationHelpSectionHtml(baseUrl)}
       <p class="url-fallback">If the button does not work, copy and paste this link into your browser:<br>${loginUrl}</p>
       <p style="margin-top:28px;">Kind regards,<br><strong>LegalNote</strong></p>
     `,
