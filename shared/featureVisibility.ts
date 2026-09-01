@@ -22,6 +22,29 @@ export const FEATURE_VISIBILITY = {
 
 export type FeatureKey = keyof typeof FEATURE_VISIBILITY;
 
+/** Enabled for active governed-evaluation firms even when the global flag is off. */
+export const EVAL_FIRM_ENABLED_FEATURES: FeatureKey[] = [
+  "sraReadiness",
+  "firmComplianceDashboard",
+  "calendarAutoRecord",
+];
+
+export type FeatureVisibilityContext = {
+  firmIsEvaluation?: boolean;
+  /** When false, eval-only features stay hidden even on eval firms. */
+  evaluationActive?: boolean;
+};
+
 export function isFeatureVisible(key: FeatureKey): boolean {
   return FEATURE_VISIBILITY[key];
+}
+
+export function isFeatureVisibleForContext(
+  key: FeatureKey,
+  context?: FeatureVisibilityContext | null,
+): boolean {
+  if (FEATURE_VISIBILITY[key]) return true;
+  if (!context?.firmIsEvaluation) return false;
+  if (context.evaluationActive === false) return false;
+  return EVAL_FIRM_ENABLED_FEATURES.includes(key);
 }
