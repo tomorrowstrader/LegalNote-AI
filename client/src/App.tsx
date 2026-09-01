@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Loader2 } from "lucide-react";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -76,20 +77,43 @@ import PublicDemo from "@/pages/PublicDemo";
 import DemoGenerator from "@/pages/DemoGenerator";
 import MeetingNotesPopout from "@/pages/MeetingNotesPopout";
 import { isFeatureVisible } from "@/lib/features";
+import { useFeatureVisibility } from "@/hooks/useFeatureVisibility";
 import { isMeetingNotesPopoutRoute } from "@/lib/meetingNotesPopout";
 import { isCalendarOAuthPopupWindow } from "@/lib/calendarOAuthBridge";
 
-const firmComplianceDashboardVisible = isFeatureVisible("firmComplianceDashboard");
 const publicComplianceBadgeVisible = isFeatureVisible("publicComplianceBadge");
 
 function RedirectTo({ to }: { to: string }) {
   const [, setLocation] = useLocation();
-  useEffect(() => { setLocation(to); }, []);
+  useEffect(() => { setLocation(to); }, [setLocation, to]);
   return null;
+}
+
+/** Deep link from emails — sign in first, then land on Help & Support. */
+function SupportRoute() {
+  const { isAuthenticated, isLoading } = useAuth();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      setLocation(`/login?returnTo=${encodeURIComponent("/support")}`);
+    }
+  }, [isLoading, isAuthenticated, setLocation]);
+
+  if (isLoading || !isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return <SupportPage />;
 }
 
 function Router() {
   const { user, isAuthenticated, isLoading, isAdmin, isWaitlisted, isFirmAdmin, canAccessFirmCompliance } = useAuth();
+  const firmComplianceDashboardVisible = useFeatureVisibility("firmComplianceDashboard");
   const isPendingApproval = user?.inviteStatus === "pending_approval";
   const isAccessPending = user?.accessAllowed === false && !isAdmin;
 
@@ -122,6 +146,7 @@ function Router() {
       <Route path="/features" component={Features} />
       <Route path="/calculator" component={Calculator} />
       <Route path="/login" component={Login} />
+      <Route path="/support" component={SupportRoute} />
 
       {/* Admin tools — always registered so deep links don't blank before/without auth.
           API still enforces isAuthenticated + isAdmin. */}
@@ -157,7 +182,6 @@ function Router() {
           <Route path="/case/:id" component={CaseDetail} />
           <Route path="/cases" component={SavedCases} />
           <Route path="/settings" component={Settings} />
-          <Route path="/support" component={SupportPage} />
           <Route path="/profile" component={MyProfile} />
           <Route path="/audit-logs" component={AuditLogs} />
           <Route path="/app/security" component={SecurityFeatures} />
