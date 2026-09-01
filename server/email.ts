@@ -89,8 +89,11 @@ async function sendEmail(
   }
 }
 
-/** Lime accent for "Note" on dark email headers — matches product email branding. */
-export const LEGALNOTE_EMAIL_NOTE_COLOR = '#b8e000';
+/** Copper accent — matches website primary, consent pages, and email CTAs. */
+export const LEGALNOTE_BRAND_ACCENT = '#c97d4d';
+
+/** @deprecated Use LEGALNOTE_BRAND_ACCENT */
+export const LEGALNOTE_EMAIL_NOTE_COLOR = LEGALNOTE_BRAND_ACCENT;
 
 /** Head tags that reduce Gmail/Apple Mail dark-mode recolouring of brand colours. */
 export function legalNoteEmailHeadTags(): string {
@@ -102,35 +105,34 @@ export function legalNoteEmailHeadTags(): string {
   `;
 }
 
-/** Absolute URL for the LegalNote quill mark (white on dark header). Always HTTPS — SES Simple API cannot send CID inline images. */
+/** Absolute URL for the LegalNote quill mark. Always HTTPS — SES Simple API cannot send CID inline images. */
 export function legalNoteEmailIconUrl(): string {
   const base = (process.env.APP_URL || 'https://legalnote.ai').replace(/\/$/, '');
   return `${base}/assets/email/legalnote-icon-white.png?v=20260901`;
 }
 
+/** Official white-on-black wordmark — same asset as the website login/landing dark logo. */
+export function legalNoteEmailWordmarkUrl(): string {
+  const base = (process.env.APP_URL || 'https://legalnote.ai').replace(/\/$/, '');
+  return `${base}/assets/email/legalnote-wordmark-white.png?v=20260901b`;
+}
+
 /**
- * Canonical outbound email brand mark — quill icon + wordmark.
- * Table + font tags + !important survive Gmail/Outlook better than nested spans alone.
+ * Canonical outbound email brand mark — hosted wordmark image + tagline.
+ * Uses the same white-on-black wordmark as the website (quill-in-N, all-white type).
  */
 export function legalNoteTextLogoHtml(): string {
-  const iconSrc = legalNoteEmailIconUrl();
-  const noteColor = LEGALNOTE_EMAIL_NOTE_COLOR;
+  const wordmarkSrc = legalNoteEmailWordmarkUrl();
   return `
     <div style="margin:0 auto;text-align:center;line-height:1;background-color:#0a0a0a;">
       <img
-        src="${iconSrc}"
+        src="${wordmarkSrc}"
         alt="LegalNote"
-        width="48"
-        height="48"
-        style="display:block;margin:0 auto 10px;width:48px;height:48px;border:0;outline:none;"
+        width="200"
+        height="62"
+        style="display:block;margin:0 auto;width:200px;max-width:100%;height:auto;border:0;outline:none;"
       />
-      <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto;border-collapse:collapse;">
-        <tr>
-          <td style="font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:700;letter-spacing:-0.03em;color:#ffffff !important;-webkit-text-fill-color:#ffffff !important;padding:0;mso-line-height-rule:exactly;line-height:1.2;">Legal</td>
-          <td style="font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:700;letter-spacing:-0.03em;color:${noteColor} !important;-webkit-text-fill-color:${noteColor} !important;padding:0;mso-line-height-rule:exactly;line-height:1.2;"><font color="${noteColor}">Note</font></td>
-        </tr>
-      </table>
-      <span style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:10px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:#a3a3a3 !important;-webkit-text-fill-color:#a3a3a3 !important;display:block;margin-top:6px;">
+      <span style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:10px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:#a3a3a3 !important;-webkit-text-fill-color:#a3a3a3 !important;display:block;margin-top:8px;">
         Meeting to Matter
       </span>
     </div>
@@ -239,7 +241,7 @@ export async function sendCaseEmail(params: SendCaseEmailParams): Promise<{ succ
                   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:480px;margin:-40px auto 0;background-color:#ffffff;border-radius:16px;">
                     <tr>
                       <td style="padding:40px 32px 36px;text-align:center;">
-                        <div style="width:56px;height:56px;margin:0 auto 24px;border-radius:50%;background:linear-gradient(145deg,#c8d4c4 0%,#9aab9a 55%,#b8e000 100%);line-height:56px;font-size:26px;color:#ffffff;">✓</div>
+                        <div style="width:56px;height:56px;margin:0 auto 24px;border-radius:50%;background:linear-gradient(145deg,#f0e6dc 0%,#d4a574 55%,${LEGALNOTE_BRAND_ACCENT} 100%);line-height:56px;font-size:26px;color:#ffffff;">✓</div>
 
                         <h2 style="margin:0 0 12px;font-family:Georgia,'Times New Roman',serif;font-size:26px;font-weight:400;line-height:1.25;color:#1a1a1a;">
                           Secure document ready
@@ -259,13 +261,13 @@ export async function sendCaseEmail(params: SendCaseEmailParams): Promise<{ succ
                           </p>
                         `}
 
-                        <!-- Black CTA with lime accent (email-safe table button) -->
+                        <!-- Black CTA with copper accent (email-safe table button) -->
                         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;">
                           <tr>
                             <td align="center" style="background-color:#000000;border-radius:8px;">
                               <a href="${shareUrl}" style="display:block;padding:16px 24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:13px;font-weight:700;letter-spacing:0.06em;text-decoration:none;color:#ffffff;text-transform:uppercase;">
                                 View Secure Document
-                                <span style="display:inline-block;margin-left:12px;padding-left:12px;border-left:2px solid #b8e000;line-height:1;">↓</span>
+                                <span style="display:inline-block;margin-left:12px;padding-left:12px;border-left:2px solid ${LEGALNOTE_BRAND_ACCENT};line-height:1;">↓</span>
                               </a>
                             </td>
                           </tr>
@@ -715,7 +717,7 @@ export async function sendPreConsentEmail(params: SendPreConsentEmailParams): Pr
                             <td align="center" style="background-color:#000000;border-radius:8px;">
                               <a href="${escapeHtmlPlain(consentUrl)}" style="display:block;padding:16px 24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:13px;font-weight:700;letter-spacing:0.06em;text-decoration:none;color:#ffffff;text-transform:uppercase;">
                                 Review and respond
-                                <span style="display:inline-block;margin-left:12px;padding-left:12px;border-left:2px solid #b8e000;line-height:1;">→</span>
+                                <span style="display:inline-block;margin-left:12px;padding-left:12px;border-left:2px solid ${LEGALNOTE_BRAND_ACCENT};line-height:1;">→</span>
                               </a>
                             </td>
                           </tr>
@@ -844,7 +846,7 @@ export async function sendMeetingBookingProposalEmail(params: {
                             <td align="center" style="background-color:#000000;border-radius:8px;">
                               <a href="${escapeHtmlPlain(bookingUrl)}" style="display:block;padding:16px 24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:13px;font-weight:700;letter-spacing:0.06em;text-decoration:none;color:#ffffff;text-transform:uppercase;">
                                 Select a time
-                                <span style="display:inline-block;margin-left:12px;padding-left:12px;border-left:2px solid #b8e000;line-height:1;">→</span>
+                                <span style="display:inline-block;margin-left:12px;padding-left:12px;border-left:2px solid ${LEGALNOTE_BRAND_ACCENT};line-height:1;">→</span>
                               </a>
                             </td>
                           </tr>
@@ -974,7 +976,7 @@ export async function sendMeetingBookingProposalUpdatedEmail(params: {
                             <td align="center" style="background-color:#000000;border-radius:8px;">
                               <a href="${escapeHtmlPlain(bookingUrl)}" style="display:block;padding:16px 24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:13px;font-weight:700;letter-spacing:0.06em;text-decoration:none;color:#ffffff;text-transform:uppercase;">
                                 View updated times
-                                <span style="display:inline-block;margin-left:12px;padding-left:12px;border-left:2px solid #b8e000;line-height:1;">→</span>
+                                <span style="display:inline-block;margin-left:12px;padding-left:12px;border-left:2px solid ${LEGALNOTE_BRAND_ACCENT};line-height:1;">→</span>
                               </a>
                             </td>
                           </tr>
