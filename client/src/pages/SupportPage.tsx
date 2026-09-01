@@ -45,6 +45,62 @@ type Step = "category" | "severity" | "describe" | "review";
 
 const STEPS: Step[] = ["category", "severity", "describe", "review"];
 
+function ticketStatusDisplay(status: string): {
+  label: string;
+  dotClass: string;
+  hint: string;
+} {
+  switch (status) {
+    case "open":
+      return {
+        label: "Open",
+        dotClass: "bg-amber-500",
+        hint: "In our queue",
+      };
+    case "in_progress":
+      return {
+        label: "In progress",
+        dotClass: "bg-blue-500",
+        hint: "Team is working on it",
+      };
+    case "resolved":
+      return {
+        label: "Resolved",
+        dotClass: "bg-emerald-500",
+        hint: "Completed",
+      };
+    case "closed":
+      return {
+        label: "Closed",
+        dotClass: "bg-muted-foreground/60",
+        hint: "Archived",
+      };
+    default:
+      return {
+        label: supportStatusLabel(status),
+        dotClass: "bg-muted-foreground/60",
+        hint: "",
+      };
+  }
+}
+
+function TicketStatusIndicator({ status }: { status: string }) {
+  const { label, dotClass, hint } = ticketStatusDisplay(status);
+  return (
+    <div
+      className="flex flex-col items-end gap-0.5 shrink-0"
+      role="status"
+      aria-label={`Status: ${label}${hint ? ` — ${hint}` : ""}`}
+    >
+      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+        <span className={cn("h-2 w-2 rounded-full", dotClass)} aria-hidden />
+        {label}
+      </span>
+      {hint ? <span className="text-[10px] text-muted-foreground/80">{hint}</span> : null}
+    </div>
+  );
+}
+
 const MAX_SCREENSHOTS = 8;
 
 export default function SupportPage() {
@@ -515,7 +571,9 @@ export default function SupportPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Your requests</CardTitle>
-          <CardDescription>Track status of tickets you've opened.</CardDescription>
+          <CardDescription>
+            Status updates are emailed to you — nothing to click here.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {ticketsLoading ? (
@@ -527,16 +585,17 @@ export default function SupportPage() {
           ) : (
             <ul className="divide-y">
               {tickets.map((t) => (
-                <li key={t.id} className="py-3 flex flex-wrap items-start justify-between gap-2">
-                  <div>
+                <li
+                  key={t.id}
+                  className="py-3 flex items-start justify-between gap-4"
+                >
+                  <div className="min-w-0">
                     <div className="font-medium text-sm">{t.title}</div>
-                    <div className="text-xs text-muted-foreground">
+                    <div className="text-xs text-muted-foreground mt-0.5">
                       {t.ticketRef} · {format(new Date(t.createdAt), "dd MMM yyyy")}
                     </div>
                   </div>
-                  <Badge variant={t.status === "resolved" || t.status === "closed" ? "secondary" : "default"}>
-                    {supportStatusLabel(t.status)}
-                  </Badge>
+                  <TicketStatusIndicator status={t.status} />
                 </li>
               ))}
             </ul>
