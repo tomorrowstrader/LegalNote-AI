@@ -146,7 +146,7 @@ import { askMatterQuestion, compareMatterNote } from "./services/matterAskServic
 import { synthesizeVoiceReply, VOICE_TTS_MAX_CHARS } from "./services/voiceTtsService";
 import { privilegedComplete } from "./services/llm/privilegedComplete";
 import { AssemblyAIService } from "./services/assemblyAIService";
-import { sendCaseEmail, sendRecordingConfirmationEmail, sendConsentResponseNotification, sendAcknowledgementRequestEmail, sendInvitationEmail, sendDpaConfirmationEmail, sendDpaAcceptanceInviteEmail, sendLegalAgreementAcceptedEmail, sendEvaluationSetupEmail, sendEvaluationSetupSubmittedAdminEmail, sendGovernedEvaluationLoginInviteEmail, sendGovernedEvaluationConfirmedEmail, sendGovernedEvaluationDatesUpdatedEmail, sendShareVerificationCodeEmail, sendSupportTicketAdminNotification, sendSupportTicketReceivedEmail, sendSupportTicketStatusEmail, sendDemoMatterShareEmail, sendDemoColleagueLinkEmail } from "./email";
+import { sendCaseEmail, sendRecordingConfirmationEmail, sendConsentResponseNotification, sendAcknowledgementRequestEmail, sendInvitationEmail, sendDpaConfirmationEmail, sendDpaAcceptanceInviteEmail, sendLegalAgreementAcceptedEmail, sendEvaluationSetupEmail, sendEvaluationSetupSubmittedAdminEmail, sendGovernedEvaluationLoginInviteEmail, sendEvaluationFirmScheduleEmail, sendShareVerificationCodeEmail, sendSupportTicketAdminNotification, sendSupportTicketReceivedEmail, sendSupportTicketStatusEmail, sendDemoMatterShareEmail, sendDemoColleagueLinkEmail } from "./email";
 import {
   polishSupportTicketWithAi,
   createSupportTicketRecord,
@@ -8922,7 +8922,8 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
               toEmail: queued.toEmail,
             };
           } else {
-            const emailResult = await sendGovernedEvaluationConfirmedEmail({
+            const emailResult = await sendEvaluationFirmScheduleEmail({
+              kind: "confirmation",
               to: updated.provisionedLeadEmail,
               firmName: updated.name,
               evaluationStartsAt: updated.evaluationStartsAt,
@@ -8956,11 +8957,12 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
               toEmail: queued.toEmail,
             };
           } else {
-            const emailResult = await sendGovernedEvaluationDatesUpdatedEmail({
+            const emailResult = await sendEvaluationFirmScheduleEmail({
+              kind: "schedule_update",
               to: updated.provisionedLeadEmail,
               firmName: updated.name,
+              evaluationStartsAt: updated.evaluationStartsAt,
               evaluationEndsAt: updated.evaluationEndsAt,
-              configurationStartsAt: updated.evaluationStartsAt,
             });
             if (!emailResult.success) {
               return res.status(502).json({
@@ -9009,8 +9011,9 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       const schema = z.object({
         firmId: z.string().uuid().optional(),
         email: z.string().email().max(255).optional(),
-        /** Optional: correct evaluation end date before sending the invite email. */
+        evaluationStartsAt: z.string().min(1).max(40).optional().nullable(),
         evaluationEndsAt: z.string().min(1).max(40).optional().nullable(),
+        emailNotification: z.enum(["confirmation", "schedule_update"]).optional(),
       }).refine((d) => Boolean(d.firmId || d.email), {
         message: "Provide firmId or email",
       });
@@ -9039,12 +9042,29 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         });
       }
 
+      const scheduleUpdates: {
+        evaluationStartsAt?: Date | null;
+        evaluationEndsAt?: Date | null;
+      } = {};
+
+      if (parsed.data.evaluationStartsAt !== undefined) {
+        const parsedStarts = parseAdminEvaluationStartsAt(parsed.data.evaluationStartsAt ?? "");
+        if (!parsedStarts.ok) {
+          return res.status(400).json({ message: parsedStarts.message });
+        }
+        scheduleUpdates.evaluationStartsAt = parsedStarts.value;
+      }
+
       if (parsed.data.evaluationEndsAt !== undefined) {
         const parsedEnds = parseAdminEvaluationEndsAt(parsed.data.evaluationEndsAt ?? "");
         if (!parsedEnds.ok) {
           return res.status(400).json({ message: parsedEnds.message });
         }
-        const updated = await storage.updateFirm(firm.id, { evaluationEndsAt: parsedEnds.value });
+        scheduleUpdates.evaluationEndsAt = parsedEnds.value;
+      }
+
+      if (Object.keys(scheduleUpdates).length > 0) {
+        const updated = await storage.updateFirm(firm.id, scheduleUpdates);
         if (updated) firm = updated;
       }
 
@@ -9061,6 +9081,8 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         evaluationEndsAt: firm.evaluationEndsAt,
         invitedByName,
         alreadyClaimed,
+        configurationStartsAt: firm.evaluationStartsAt,
+        emailNotification: parsed.data.emailNotification,
       });
 
       if (!emailResult.success) {

@@ -121,7 +121,9 @@ export default function AdminProvisionFirmPage() {
     mutationFn: async (payload: {
       firmId?: string;
       email?: string;
+      evaluationStartsAt?: string | null;
       evaluationEndsAt?: string | null;
+      emailNotification?: Exclude<EvaluationEmailNotification, "none">;
     }) => {
       return apiRequest<LoginInviteResult>(
         "POST",
@@ -202,11 +204,39 @@ export default function AdminProvisionFirmPage() {
   });
 
   const sendInvite = (
-    payload: { firmId?: string; email?: string; evaluationEndsAt?: string | null },
+    payload: {
+      firmId?: string;
+      email?: string;
+      evaluationStartsAt?: string | null;
+      evaluationEndsAt?: string | null;
+      emailNotification?: Exclude<EvaluationEmailNotification, "none">;
+    },
     firmIdForSpinner?: string,
   ) => {
     if (firmIdForSpinner) setSendingFirmId(firmIdForSpinner);
     inviteMutation.mutate(payload);
+  };
+
+  const sendEmailUpdate = (firm: EvaluationFirm) => {
+    const notification = emailOnSave[firm.id] ?? "none";
+    if (notification === "none") {
+      toast({
+        title: "Choose an email type",
+        description:
+          "Tick Send evaluation confirmation or Send end-date update only — same options as Save schedule.",
+        variant: "destructive",
+      });
+      return;
+    }
+    sendInvite(
+      {
+        firmId: firm.id,
+        evaluationStartsAt: startDateForFirm(firm) || null,
+        evaluationEndsAt: endDateForFirm(firm) || null,
+        emailNotification: notification,
+      },
+      firm.id,
+    );
   };
 
   const startDateForFirm = (firm: EvaluationFirm) =>
@@ -602,7 +632,11 @@ export default function AdminProvisionFirmPage() {
                           size="sm"
                           variant="outline"
                           disabled={!firm.provisionedLeadEmail || inviteMutation.isPending}
-                          onClick={() => sendInvite({ firmId: firm.id }, firm.id)}
+                          onClick={() =>
+                            firm.provisionedLeadUserId
+                              ? sendEmailUpdate(firm)
+                              : sendInvite({ firmId: firm.id }, firm.id)
+                          }
                           data-testid={`button-invite-firm-${firm.id}`}
                         >
                           {sendingFirmId === firm.id && inviteMutation.isPending ? (

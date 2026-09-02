@@ -2923,17 +2923,23 @@ export async function sendGovernedEvaluationLoginInviteEmail(params: {
   seatLimit?: number | null;
   evaluationEndsAt?: Date | null;
   invitedByName?: string | null;
-  /** When true, sends a dates-update email instead of a first-login invite. */
+  /** When true, sends using the same templates as Save schedule (not first-login invite). */
   alreadyClaimed?: boolean;
   configurationStartsAt?: Date | null;
+  emailNotification?: EvaluationFirmEmailKind;
 }): Promise<{ success: boolean; messageId?: string; error?: string }> {
   if (params.alreadyClaimed) {
-    return sendGovernedEvaluationDatesUpdatedEmail({
+    const kind =
+      params.emailNotification ??
+      (params.configurationStartsAt && params.evaluationEndsAt
+        ? "confirmation"
+        : "schedule_update");
+    return sendEvaluationFirmScheduleEmail({
+      kind,
       to: params.to,
       firmName: params.firmName,
+      evaluationStartsAt: params.configurationStartsAt,
       evaluationEndsAt: params.evaluationEndsAt,
-      configurationStartsAt: params.configurationStartsAt,
-      invitedByName: params.invitedByName,
     });
   }
 
@@ -3040,6 +3046,38 @@ function governedEvaluationHelpSectionHtml(baseUrl: string): string {
   `;
 }
 
+export type EvaluationFirmEmailKind = "confirmation" | "schedule_update";
+
+/** Same templates used by Save schedule and Email update admin actions. */
+export async function sendEvaluationFirmScheduleEmail(params: {
+  kind: EvaluationFirmEmailKind;
+  to: string;
+  firmName: string;
+  evaluationStartsAt?: Date | null;
+  evaluationEndsAt?: Date | null;
+}): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  if (params.kind === "confirmation") {
+    if (!params.evaluationStartsAt || !params.evaluationEndsAt) {
+      return {
+        success: false,
+        error: "Both configuration (start) and end dates are required for confirmation emails.",
+      };
+    }
+    return sendGovernedEvaluationConfirmedEmail({
+      to: params.to,
+      firmName: params.firmName,
+      evaluationStartsAt: params.evaluationStartsAt,
+      evaluationEndsAt: params.evaluationEndsAt,
+    });
+  }
+  return sendGovernedEvaluationDatesUpdatedEmail({
+    to: params.to,
+    firmName: params.firmName,
+    evaluationEndsAt: params.evaluationEndsAt,
+    configurationStartsAt: params.evaluationStartsAt,
+  });
+}
+
 /**
  * Positive confirmation when a governed evaluation schedule is first configured.
  */
@@ -3105,7 +3143,6 @@ export async function sendGovernedEvaluationDatesUpdatedEmail(params: {
   firmName: string;
   evaluationEndsAt?: Date | null;
   configurationStartsAt?: Date | null;
-  invitedByName?: string | null;
 }): Promise<{ success: boolean; messageId?: string; error?: string }> {
   const baseUrl = getLegalNoteEmailBaseUrl();
   const loginUrl = `${baseUrl}/login`;
@@ -3122,23 +3159,26 @@ export async function sendGovernedEvaluationDatesUpdatedEmail(params: {
   }
   if (params.evaluationEndsAt) {
     detailLines.push(
-      `<p style="margin:0"><strong>Evaluation ends:</strong> ${escapeHtmlEmail(formatEvaluationCalendarDate(params.evaluationEndsAt, "end"))}</p>`,
+      `<p style="margin:0 0 8px"><strong>Evaluation ends:</strong> ${escapeHtmlEmail(formatEvaluationCalendarDate(params.evaluationEndsAt, "end"))}</p>`,
     );
   }
+  detailLines.push(`<p style="margin:0"><strong>Sign-in email:</strong> ${safeTo}</p>`);
 
   const emailHtml = wrapLegalNoteBrandedEmail({
-    eyebrow: 'Evaluation schedule update',
-    footerNote: `This email was sent to ${safeTo}. Contact support@legalnote.ai if you have questions.`,
+    eyebrow: "Evaluation schedule update",
+    footerNote: `This email was sent to ${safeTo}. For questions, contact support@legalnote.ai.`,
     bodyHtml: `
       <h2>Your evaluation schedule has been updated</h2>
       <p>The governed evaluation schedule for <strong>${safeFirm}</strong> has been updated.</p>
       <p>Your existing LegalNote account, firm details, and any matters you have already set up are <strong>unchanged</strong>. No further onboarding is required — continue using the same sign-in email as before.</p>
       <div class="meta">
-        ${detailLines.join('\n        ')}
+        ${detailLines.join("\n        ")}
       </div>
-      <p style="text-align:center;margin:28px 0;">
+      <p>Your evaluation period runs from the <strong>configuration date</strong> shown above, in line with your Governed Evaluation Agreement.</p>
+      <p style="text-align:center;margin:28px 0 0;">
         <a href="${loginUrl}" class="cta-btn">Open LegalNote</a>
       </p>
+      ${governedEvaluationHelpSectionHtml(baseUrl)}
       <p class="url-fallback">If the button does not work, copy and paste this link into your browser:<br>${loginUrl}</p>
       <p style="margin-top:28px;">Kind regards,<br><strong>LegalNote</strong></p>
     `,
@@ -3146,10 +3186,10 @@ export async function sendGovernedEvaluationDatesUpdatedEmail(params: {
 
   try {
     const result = await sendEmail({
-      from: 'LegalNote\u2122 <noreply@legalnote.ai>',
+      from: "LegalNote\u2122 <noreply@legalnote.ai>",
       to: params.to,
-      replyTo: 'support@legalnote.ai',
-      subject: 'LegalNote evaluation — schedule update',
+      replyTo: "support@legalnote.ai",
+      subject: "LegalNote evaluation — schedule update",
       html: emailHtml,
     });
     if (!result.success) {
