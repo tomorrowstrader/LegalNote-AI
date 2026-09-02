@@ -71,9 +71,11 @@ import { isClientMatterKind, normalizeMatterKind, requiresParticipantConsent, re
 import { CONSENT_DISCLAIMER_TEXT, CONSENT_DISCLAIMER_VERSION } from "@shared/consent";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { isFeatureVisible } from "@/lib/features";
+import { useFeatureVisibility } from "@/hooks/useFeatureVisibility";
+import { DraftTimeEntryBanner } from "@/components/DraftTimeEntryBanner";
+import type { TimeEntry } from "@shared/schema";
 
 const amlComplianceVisible = isFeatureVisible("amlCompliance");
-const sraReadinessVisible = isFeatureVisible("sraReadiness");
 const supervisionVisible = isFeatureVisible("supervision");
 const externalReferencesVisible = isFeatureVisible("externalReferences");
 const caseHandoverVisible = isFeatureVisible("caseHandover");
@@ -296,6 +298,7 @@ function SessionDetails({ sessionId, caseId, onOpenAttendanceNote, litigationHol
 }
 
 export default function CaseDetail() {
+  const sraReadinessVisible = useFeatureVisibility("sraReadiness");
   const [, setLocation] = useLocation();
   const params = useParams();
   const search = useSearch();
@@ -458,11 +461,13 @@ export default function CaseDetail() {
   });
   const pendingObligationsCount = actionItems.filter(a => a.status === 'draft').length;
 
-  const { data: timeEntries = [] } = useQuery<Array<{ id: string; duration: number }>>({
+  const { data: timeEntries = [] } = useQuery<TimeEntry[]>({
     queryKey: [`/api/cases/${caseId}/time-entries`],
     enabled: !!caseId,
   });
-  const totalTimeMinutes = timeEntries.reduce((sum: number, t: any) => sum + (t.duration || 0), 0);
+  const totalTimeMinutes = timeEntries
+    .filter((t) => t.status === "confirmed")
+    .reduce((sum, t) => sum + (t.durationMinutes || 0), 0);
   const totalTimeLabel = totalTimeMinutes > 0
     ? totalTimeMinutes >= 60
       ? `${Math.floor(totalTimeMinutes / 60)}h ${totalTimeMinutes % 60}m`
@@ -1832,6 +1837,8 @@ export default function CaseDetail() {
               </div>
             </div>
           )}
+
+          <DraftTimeEntryBanner caseId={caseId!} entries={timeEntries} />
 
           {/* GDPR / Consent alert — client or non-client with external attendees */}
           {requiresConsentGate && caseData.sourceType === 'audio' && !consentLoading && !hasValidConsent && (

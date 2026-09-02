@@ -1243,3 +1243,366 @@ nav.sticky {
     animation: none !important;
   }
 }
+
+/* ── Campaign funnel (Perspective-style scroll experience) ── */
+
+.funnel-root {
+  position: relative;
+  min-height: 100dvh;
+  scroll-snap-type: y mandatory;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: hsl(var(--background));
+}
+
+.funnel-grain {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.funnel-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: max(0.75rem, env(safe-area-inset-top)) 1.25rem 0.75rem;
+  background: linear-gradient(
+    to bottom,
+    hsl(var(--background) / 0.92) 0%,
+    hsl(var(--background) / 0.75) 70%,
+    transparent 100%
+  );
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.funnel-progress {
+  position: fixed;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 55;
+  display: none;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+@media (min-width: 1024px) {
+  .funnel-progress {
+    display: flex;
+  }
+}
+
+.funnel-progress-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: hsl(var(--foreground) / 0.12);
+  transition: all 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  padding: 0;
+  border: none;
+  cursor: pointer;
+}
+
+.funnel-progress-dot:hover {
+  background: hsl(var(--foreground) / 0.3);
+}
+
+.funnel-progress-dot-active {
+  height: 1.5rem;
+  background: hsl(18 70% 42%);
+}
+
+.funnel-section {
+  position: relative;
+  min-height: 100dvh;
+  min-height: 100svh;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 5.5rem 1.25rem 4.5rem;
+}
+
+@media (min-width: 640px) {
+  .funnel-section {
+    padding: 6rem 2rem 5rem;
+  }
+}
+
+.funnel-section-inner {
+  width: 100%;
+  max-width: 72rem;
+  margin: 0 auto;
+}
+
+.funnel-section-alt {
+  background: hsl(36 22% 94% / 0.65);
+}
+
+.dark .funnel-section-alt {
+  background: hsl(var(--muted) / 0.35);
+}
+
+.funnel-section-dark {
+  background: hsl(20 28% 8%);
+}
+
+.funnel-section-dark .funnel-scroll-hint span,
+.funnel-section-dark .funnel-scroll-hint svg {
+  color: hsl(0 0% 100% / 0.35);
+}
+
+.funnel-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.875rem;
+  border-radius: 9999px;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: hsl(18 70% 38%);
+  background: hsl(18 70% 42% / 0.08);
+  border: 1px solid hsl(18 70% 42% / 0.15);
+}
+
+.funnel-headline {
+  font-size: clamp(2rem, 6vw, 3.5rem);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.08;
+  color: hsl(var(--foreground));
+}
+
+.funnel-accent-text {
+  color: hsl(18 70% 42%);
+  font-style: italic;
+}
+
+.funnel-subhead {
+  font-size: clamp(1rem, 2.5vw, 1.125rem);
+  line-height: 1.65;
+  color: hsl(var(--muted-foreground));
+}
+
+.funnel-eyebrow {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: hsl(18 70% 42%);
+  margin-bottom: 1rem;
+}
+
+.funnel-section-title {
+  font-size: clamp(1.625rem, 4.5vw, 2.5rem);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.15;
+  color: hsl(var(--foreground));
+}
+
+.funnel-cta-primary {
+  background: hsl(18 70% 42%) !important;
+  color: white !important;
+  border: none;
+  box-shadow: 0 1px 2px hsl(18 70% 20% / 0.2), 0 8px 24px hsl(18 70% 42% / 0.22);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.funnel-cta-primary:hover {
+  background: hsl(18 65% 38%) !important;
+  box-shadow: 0 1px 2px hsl(18 70% 20% / 0.25), 0 12px 32px hsl(18 70% 42% / 0.28);
+  transform: translateY(-1px);
+}
+
+.funnel-cta-gold {
+  background: hsl(45 85% 55%) !important;
+  color: hsl(20 28% 8%) !important;
+  font-weight: 600;
+  border: none;
+  box-shadow: 0 8px 28px hsl(45 85% 55% / 0.25);
+}
+
+.funnel-cta-gold:hover {
+  background: hsl(45 80% 50%) !important;
+}
+
+.funnel-scroll-hint {
+  position: absolute;
+  bottom: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.5rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.funnel-fear-scroll {
+  display: flex;
+  gap: 1rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding: 0.25rem 0 1rem;
+  margin: 0 -1.25rem;
+  padding-left: 1.25rem;
+  padding-right: 1.25rem;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.funnel-fear-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .funnel-fear-scroll {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    overflow: visible;
+    margin: 0;
+    padding: 0;
+  }
+}
+
+.funnel-fear-card {
+  flex: 0 0 min(85vw, 320px);
+  scroll-snap-align: center;
+  padding: 1.75rem;
+  border-radius: 1.25rem;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  box-shadow: 0 4px 24px hsl(20 20% 10% / 0.04);
+}
+
+@media (min-width: 768px) {
+  .funnel-fear-card {
+    flex: none;
+  }
+}
+
+.funnel-scenario-tab {
+  display: flex;
+  align-items: flex-start;
+  padding: 0.875rem 1rem;
+  border-radius: 0.75rem;
+  border: 1px solid transparent;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  transition: all 0.25s ease;
+  cursor: pointer;
+  text-align: left;
+}
+
+.funnel-scenario-tab:hover {
+  background: hsl(var(--foreground) / 0.03);
+  color: hsl(var(--foreground));
+}
+
+.funnel-scenario-tab-active {
+  background: hsl(18 70% 42% / 0.06);
+  border-color: hsl(18 70% 42% / 0.15);
+  color: hsl(var(--foreground));
+}
+
+.funnel-trust-card {
+  padding: 1.5rem;
+  border-radius: 1rem;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+}
+
+.funnel-trust-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.75rem;
+  background: hsl(18 70% 42% / 0.1);
+  color: hsl(18 70% 42%);
+  margin-bottom: 1rem;
+}
+
+.funnel-glass-card {
+  border-radius: 1.25rem;
+  background: hsl(var(--card) / 0.8);
+  border: 1px solid hsl(var(--border));
+  backdrop-filter: blur(16px);
+  box-shadow: 0 8px 40px hsl(20 20% 10% / 0.06);
+}
+
+.funnel-slider [role="slider"] {
+  background: hsl(18 70% 42%);
+}
+
+.funnel-phone-frame {
+  width: min(100%, 280px);
+  padding: 0.625rem;
+  border-radius: 2rem;
+  background: linear-gradient(145deg, hsl(25 15% 22%), hsl(20 20% 12%));
+  box-shadow:
+    0 0 0 1px hsl(0 0% 100% / 0.08),
+    0 24px 64px hsl(20 30% 5% / 0.45),
+    0 8px 24px hsl(20 30% 5% / 0.25);
+}
+
+.funnel-phone-notch {
+  width: 5rem;
+  height: 0.375rem;
+  margin: 0 auto 0.5rem;
+  border-radius: 9999px;
+  background: hsl(0 0% 0% / 0.5);
+}
+
+.funnel-phone-screen {
+  border-radius: 1.5rem;
+  overflow: hidden;
+  background: linear-gradient(180deg, hsl(22 22% 14%) 0%, hsl(20 25% 10%) 100%);
+  min-height: 340px;
+}
+
+.funnel-sticky-cta {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 65;
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
+  background: hsl(var(--background) / 0.92);
+  border-top: 1px solid hsl(var(--border));
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .funnel-root {
+    scroll-snap-type: none;
+  }
+
+  .funnel-section {
+    scroll-snap-stop: normal;
+  }
+
+  .funnel-scroll-hint svg {
+    animation: none !important;
+  }
+}

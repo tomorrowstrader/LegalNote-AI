@@ -39,6 +39,7 @@ import SupportPage from "@/pages/SupportPage";
 import FirmOverview from "@/pages/FirmOverview";
 import SecurityFeatures from "@/pages/SecurityFeatures";
 import Landing from "@/pages/Landing";
+import CampaignFunnel from "@/pages/CampaignFunnel";
 import Pricing from "@/pages/Pricing";
 import ShareLinkView from "@/pages/ShareLinkView";
 import BookMeetingPage from "@/pages/BookMeetingPage";
@@ -131,6 +132,7 @@ function Router() {
       <Route path="/oauth/callback" component={OAuthCallback} />
       <Route path="/calendar-sync-confirmation" component={CalendarSyncConfirmation} />
       <Route path="/landing-preview" component={Landing} />
+      <Route path="/start" component={CampaignFunnel} />
       <Route path="/pricing" component={Pricing} />
       <Route path="/security" component={SecurityPage} />
       <Route path="/privacy" component={PrivacyPage} />
