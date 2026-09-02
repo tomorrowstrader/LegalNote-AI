@@ -18,6 +18,7 @@ import { ensureEvaluationOnboardingSetupsTable } from "./evaluationOnboardingMig
 import { ensureMeetingImportsConsentColumns } from "./meetingImportsConsentMigration";
 import { ensureMeetingBookingTables } from "./meetingBookingMigration";
 import { ensureMatterKindColumn } from "./matterKindMigration";
+import { ensureEvaluationStartsAtColumn } from "./evaluationStartsAtMigration";
 import { ensureSupportTicketsTable } from "./supportTicketsMigration";
 import { getStripeSync } from "./stripeClient";
 import { WebhookHandlers } from "./webhookHandlers";
@@ -276,6 +277,8 @@ app.use((req, res, next) => {
 
   // Ensure cases.matter_kind for internal / firm meetings (idempotent)
   await ensureMatterKindColumn();
+
+  await ensureEvaluationStartsAtColumn();
 
   await ensureSupportTicketsTable();
 
