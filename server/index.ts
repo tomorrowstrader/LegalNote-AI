@@ -19,6 +19,7 @@ import { ensureMeetingImportsConsentColumns } from "./meetingImportsConsentMigra
 import { ensureMeetingBookingTables } from "./meetingBookingMigration";
 import { ensureMatterKindColumn } from "./matterKindMigration";
 import { ensureEvaluationStartsAtColumn } from "./evaluationStartsAtMigration";
+import { ensureScheduledEmailsTable } from "./scheduledEmailsMigration";
 import { ensureSupportTicketsTable } from "./supportTicketsMigration";
 import { getStripeSync } from "./stripeClient";
 import { WebhookHandlers } from "./webhookHandlers";
@@ -279,6 +280,8 @@ app.use((req, res, next) => {
   await ensureMatterKindColumn();
 
   await ensureEvaluationStartsAtColumn();
+
+  await ensureScheduledEmailsTable();
 
   await ensureSupportTicketsTable();
 

@@ -6,6 +6,7 @@ import { runGlobalDataRetentionCleanup } from './services/dataRetentionCleanup';
 import { cleanupSessionTracking } from './services/securityMonitor';
 import { meetingSchedulerService } from './services/meetingSchedulerService';
 import { checkLiveImports } from './services/recallProcessing';
+import { processDueScheduledEmails } from './services/scheduledEmailService';
 import { logAuditEvent } from './auditMiddleware';
 
 /**
@@ -287,6 +288,21 @@ function scheduleMaintenanceTasks() {
     timezone: 'Europe/London'
   });
 
+  // Send due scheduled admin emails (evaluation confirmations, etc.)
+  cron.schedule('* * * * *', async () => {
+    try {
+      const sent = await processDueScheduledEmails();
+      if (sent > 0) {
+        console.log(`[CRON] Sent ${sent} scheduled email(s)`);
+      }
+    } catch (error) {
+      console.error('[CRON] Scheduled email processing failed:', error);
+    }
+  }, {
+    scheduled: true,
+    timezone: 'Europe/London'
+  });
+
   // Weekly risk digest cron — DISABLED pending firm-scoped isolation fix
   // (was: Mondays 7:00 AM Europe/London → getFirmRiskDigest + sendRiskDigestEmail)
 
@@ -295,6 +311,7 @@ function scheduleMaintenanceTasks() {
   console.log('  - Session tracking cleanup: Hourly at minute :00 (Europe/London)');
   console.log('  - Meeting scheduler: Every 5 minutes (Europe/London)');
   console.log('  - Live bot import check: Every 2 minutes (Europe/London)');
+  console.log('  - Scheduled emails: Every minute (Europe/London)');
   console.log('  - Weekly risk digest: DISABLED');
 }
 

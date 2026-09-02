@@ -40,6 +40,12 @@ type EvaluationFirm = {
   evaluationEndsAt: string | null;
   createdAt: string;
   wasUpdate?: boolean;
+  pendingScheduledEmail?: {
+    id: string;
+    emailType: string;
+    sendAt: string;
+    toEmail: string;
+  } | null;
 };
 
 type LoginInviteResult = {
@@ -58,6 +64,17 @@ function toDateInputValue(iso: string | null | undefined): string {
   return d.toISOString().slice(0, 10);
 }
 
+function toDatetimeLocalValue(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function defaultSendInHours(hours: number): string {
+  const d = new Date();
+  d.setHours(d.getHours() + hours);
+  return toDatetimeLocalValue(d);
+}
+
 type EvaluationEmailNotification = "none" | "confirmation" | "schedule_update";
 
 export default function AdminProvisionFirmPage() {
@@ -74,6 +91,7 @@ export default function AdminProvisionFirmPage() {
   const [startDateEdits, setStartDateEdits] = useState<Record<string, string>>({});
   const [endDateEdits, setEndDateEdits] = useState<Record<string, string>>({});
   const [emailOnSave, setEmailOnSave] = useState<Record<string, EvaluationEmailNotification>>({});
+  const [emailSendAtEdits, setEmailSendAtEdits] = useState<Record<string, string>>({});
 
   const { isLoading: accessLoading, error: accessError, data: firms = [] } = useQuery<EvaluationFirm[]>({
     queryKey: ["/api/admin/evaluation-firms"],
@@ -146,28 +164,41 @@ export default function AdminProvisionFirmPage() {
       evaluationStartsAt: string | null;
       evaluationEndsAt: string | null;
       emailNotification: EvaluationEmailNotification;
+      emailSendAt?: string | null;
     }) => {
-      return apiRequest<EvaluationFirm>(
+      return apiRequest<EvaluationFirm & { scheduledEmail?: { sendAt: string } | null }>(
         "PATCH",
         `/api/admin/evaluation-firms/${payload.firmId}`,
         {
           evaluationStartsAt: payload.evaluationStartsAt,
           evaluationEndsAt: payload.evaluationEndsAt,
           emailNotification: payload.emailNotification,
+          emailSendAt: payload.emailSendAt ?? undefined,
         },
       );
     },
-    onSuccess: (_firm, variables) => {
+    onSuccess: (firm, variables) => {
       setSavingFirmId(null);
+      const scheduledAt = firm.scheduledEmail?.sendAt
+        ? format(new Date(firm.scheduledEmail.sendAt), "dd MMM yyyy HH:mm")
+        : null;
       const descriptions: Record<EvaluationEmailNotification, string> = {
         none: "Schedule saved. No email was sent.",
-        confirmation:
-          "Evaluation confirmation emailed from LegalNote support (configuration + end dates).",
-        schedule_update: "End-date schedule update emailed from LegalNote support.",
+        confirmation: scheduledAt
+          ? `Evaluation confirmation scheduled for ${scheduledAt}.`
+          : "Evaluation confirmation emailed from LegalNote support (configuration + end dates).",
+        schedule_update: scheduledAt
+          ? `Schedule update email queued for ${scheduledAt}.`
+          : "End-date schedule update emailed from LegalNote support.",
       };
       toast({
         title: "Evaluation schedule saved",
         description: descriptions[variables.emailNotification],
+      });
+      setEmailSendAtEdits((prev) => {
+        const next = { ...prev };
+        delete next[variables.firmId];
+        return next;
       });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/evaluation-firms"] });
     },
@@ -200,12 +231,18 @@ export default function AdminProvisionFirmPage() {
   };
 
   const saveSchedule = (firm: EvaluationFirm) => {
+    const emailNotification = emailOnSave[firm.id] ?? "none";
+    const sendAtLocal = emailSendAtEdits[firm.id];
     setSavingFirmId(firm.id);
     updateScheduleMutation.mutate({
       firmId: firm.id,
       evaluationStartsAt: startDateForFirm(firm) || null,
       evaluationEndsAt: endDateForFirm(firm) || null,
-      emailNotification: emailOnSave[firm.id] ?? "none",
+      emailNotification,
+      emailSendAt:
+        emailNotification !== "none" && sendAtLocal
+          ? new Date(sendAtLocal).toISOString()
+          : null,
     });
   };
 
@@ -511,6 +548,50 @@ export default function AdminProvisionFirmPage() {
                             />
                             Send end-date update only
                           </label>
+                          {(emailOnSave[firm.id] ?? "none") !== "none" && (
+                            <div className="space-y-1 pt-1">
+                              <Label className="text-xs text-muted-foreground">
+                                Send at (optional)
+                              </Label>
+                              <Input
+                                type="datetime-local"
+                                value={emailSendAtEdits[firm.id] ?? ""}
+                                onChange={(e) =>
+                                  setEmailSendAtEdits((prev) => ({
+                                    ...prev,
+                                    [firm.id]: e.target.value,
+                                  }))
+                                }
+                                data-testid={`input-email-send-at-${firm.id}`}
+                              />
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 px-2 text-xs"
+                                onClick={() =>
+                                  setEmailSendAtEdits((prev) => ({
+                                    ...prev,
+                                    [firm.id]: defaultSendInHours(5),
+                                  }))
+                                }
+                              >
+                                In 5 hours
+                              </Button>
+                              <p className="text-[10px] text-muted-foreground leading-snug">
+                                Leave blank to send immediately. Your local time is used.
+                              </p>
+                            </div>
+                          )}
+                          {firm.pendingScheduledEmail && (
+                            <p className="text-[10px] text-amber-700 dark:text-amber-400 leading-snug">
+                              Queued for{" "}
+                              {format(
+                                new Date(firm.pendingScheduledEmail.sendAt),
+                                "dd MMM yyyy HH:mm",
+                              )}
+                            </p>
+                          )}
                           <Button
                             size="sm"
                             variant="secondary"

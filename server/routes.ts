@@ -8782,7 +8782,24 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
   app.get("/api/admin/evaluation-firms", isAuthenticated, isAdmin, async (_req, res, next) => {
     try {
       const firmsList = await storage.listEvaluationFirms();
-      res.json(firmsList);
+      const { getPendingScheduledEmailsForFirms } = await import("./services/scheduledEmailService");
+      const pendingByFirm = await getPendingScheduledEmailsForFirms(firmsList.map((f) => f.id));
+      res.json(
+        firmsList.map((firm) => {
+          const pending = pendingByFirm.get(firm.id);
+          return pending
+            ? {
+                ...firm,
+                pendingScheduledEmail: {
+                  id: pending.id,
+                  emailType: pending.emailType,
+                  sendAt: pending.sendAt,
+                  toEmail: pending.toEmail,
+                },
+              }
+            : firm;
+        }),
+      );
     } catch (error) {
       next(error);
     }
@@ -8797,6 +8814,8 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         /** @deprecated use emailNotification */
         notifyLead: z.boolean().optional(),
         emailNotification: z.enum(["none", "confirmation", "schedule_update"]).optional(),
+        /** ISO datetime — if in the future, queues the email instead of sending immediately. */
+        emailSendAt: z.string().datetime().optional().nullable(),
       });
       const parsed = schema.safeParse(req.body);
       if (!parsed.success) {
@@ -8811,44 +8830,71 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         return res.status(404).json({ message: "Evaluation firm not found." });
       }
 
-      const updates: {
-        evaluationStartsAt?: Date | null;
-        evaluationEndsAt?: Date | null;
-      } = {};
-
-      if (parsed.data.evaluationStartsAt !== undefined) {
-        const parsedStarts = parseAdminEvaluationStartsAt(parsed.data.evaluationStartsAt ?? "");
-        if (!parsedStarts.ok) {
-          return res.status(400).json({ message: parsedStarts.message });
-        }
-        updates.evaluationStartsAt = parsedStarts.value;
-      }
-
-      if (parsed.data.evaluationEndsAt !== undefined) {
-        const parsedEnds = parseAdminEvaluationEndsAt(parsed.data.evaluationEndsAt ?? "");
-        if (!parsedEnds.ok) {
-          return res.status(400).json({ message: parsedEnds.message });
-        }
-        updates.evaluationEndsAt = parsedEnds.value;
-      }
-
       if (
         parsed.data.evaluationStartsAt === undefined &&
         parsed.data.evaluationEndsAt === undefined
       ) {
-        return res.status(400).json({ message: "Provide a start date, end date, or both." });
+        const emailNotification =
+          parsed.data.emailNotification ??
+          (parsed.data.notifyLead ? "schedule_update" : "none");
+        if (emailNotification === "none") {
+          return res.status(400).json({ message: "Provide a start date, end date, or both." });
+        }
       }
 
-      const updated = await storage.updateFirm(firm.id, updates);
-      if (!updated) {
-        return res.status(500).json({ message: "Failed to update evaluation firm." });
+      let updated = firm;
+      if (
+        parsed.data.evaluationStartsAt !== undefined ||
+        parsed.data.evaluationEndsAt !== undefined
+      ) {
+        const updates: {
+          evaluationStartsAt?: Date | null;
+          evaluationEndsAt?: Date | null;
+        } = {};
+
+        if (parsed.data.evaluationStartsAt !== undefined) {
+          const parsedStarts = parseAdminEvaluationStartsAt(parsed.data.evaluationStartsAt ?? "");
+          if (!parsedStarts.ok) {
+            return res.status(400).json({ message: parsedStarts.message });
+          }
+          updates.evaluationStartsAt = parsedStarts.value;
+        }
+
+        if (parsed.data.evaluationEndsAt !== undefined) {
+          const parsedEnds = parseAdminEvaluationEndsAt(parsed.data.evaluationEndsAt ?? "");
+          if (!parsedEnds.ok) {
+            return res.status(400).json({ message: parsedEnds.message });
+          }
+          updates.evaluationEndsAt = parsedEnds.value;
+        }
+
+        const saved = await storage.updateFirm(firm.id, updates);
+        if (!saved) {
+          return res.status(500).json({ message: "Failed to update evaluation firm." });
+        }
+        updated = saved;
       }
 
       const emailNotification =
         parsed.data.emailNotification ??
         (parsed.data.notifyLead ? "schedule_update" : "none");
 
+      let scheduledEmail: {
+        id: string;
+        emailType: string;
+        sendAt: Date;
+        toEmail: string;
+      } | null = null;
+
       if (emailNotification !== "none" && updated.provisionedLeadEmail) {
+        const {
+          scheduleEvaluationEmail,
+          shouldScheduleEmail,
+        } = await import("./services/scheduledEmailService");
+
+        const sendAt = parsed.data.emailSendAt ? new Date(parsed.data.emailSendAt) : null;
+        const scheduleForLater = sendAt && shouldScheduleEmail(sendAt);
+
         if (emailNotification === "confirmation") {
           if (!updated.evaluationStartsAt || !updated.evaluationEndsAt) {
             return res.status(400).json({
@@ -8856,30 +8902,72 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
                 "Both configuration (start) and end dates are required to send the evaluation confirmation email.",
             });
           }
-          const emailResult = await sendGovernedEvaluationConfirmedEmail({
-            to: updated.provisionedLeadEmail,
-            firmName: updated.name,
-            evaluationStartsAt: updated.evaluationStartsAt,
-            evaluationEndsAt: updated.evaluationEndsAt,
-          });
-          if (!emailResult.success) {
-            return res.status(502).json({
-              message: emailResult.error || "Failed to send evaluation confirmation email",
-              ...updated,
+          if (scheduleForLater && sendAt) {
+            const queued = await scheduleEvaluationEmail({
+              emailType: "evaluation_confirmation",
+              firmId: updated.id,
+              toEmail: updated.provisionedLeadEmail,
+              sendAt,
+              createdBy: req.user.claims.sub,
+              payload: {
+                firmName: updated.name,
+                evaluationStartsAt: updated.evaluationStartsAt.toISOString(),
+                evaluationEndsAt: updated.evaluationEndsAt.toISOString(),
+              },
             });
+            scheduledEmail = {
+              id: queued.id,
+              emailType: queued.emailType,
+              sendAt: queued.sendAt,
+              toEmail: queued.toEmail,
+            };
+          } else {
+            const emailResult = await sendGovernedEvaluationConfirmedEmail({
+              to: updated.provisionedLeadEmail,
+              firmName: updated.name,
+              evaluationStartsAt: updated.evaluationStartsAt,
+              evaluationEndsAt: updated.evaluationEndsAt,
+            });
+            if (!emailResult.success) {
+              return res.status(502).json({
+                message: emailResult.error || "Failed to send evaluation confirmation email",
+                ...updated,
+              });
+            }
           }
         } else if (emailNotification === "schedule_update") {
-          const emailResult = await sendGovernedEvaluationDatesUpdatedEmail({
-            to: updated.provisionedLeadEmail,
-            firmName: updated.name,
-            evaluationEndsAt: updated.evaluationEndsAt,
-            configurationStartsAt: updated.evaluationStartsAt,
-          });
-          if (!emailResult.success) {
-            return res.status(502).json({
-              message: emailResult.error || "Failed to send schedule update email",
-              ...updated,
+          if (scheduleForLater && sendAt) {
+            const queued = await scheduleEvaluationEmail({
+              emailType: "evaluation_schedule_update",
+              firmId: updated.id,
+              toEmail: updated.provisionedLeadEmail,
+              sendAt,
+              createdBy: req.user.claims.sub,
+              payload: {
+                firmName: updated.name,
+                evaluationStartsAt: updated.evaluationStartsAt?.toISOString() ?? null,
+                evaluationEndsAt: updated.evaluationEndsAt?.toISOString() ?? null,
+              },
             });
+            scheduledEmail = {
+              id: queued.id,
+              emailType: queued.emailType,
+              sendAt: queued.sendAt,
+              toEmail: queued.toEmail,
+            };
+          } else {
+            const emailResult = await sendGovernedEvaluationDatesUpdatedEmail({
+              to: updated.provisionedLeadEmail,
+              firmName: updated.name,
+              evaluationEndsAt: updated.evaluationEndsAt,
+              configurationStartsAt: updated.evaluationStartsAt,
+            });
+            if (!emailResult.success) {
+              return res.status(502).json({
+                message: emailResult.error || "Failed to send schedule update email",
+                ...updated,
+              });
+            }
           }
         }
       }
@@ -8887,8 +8975,12 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       await storage.createAuditLog({
         eventType:
           emailNotification === "confirmation"
-            ? "evaluation_firm_confirmation_sent"
-            : "evaluation_firm_schedule_updated",
+            ? scheduledEmail
+              ? "evaluation_firm_confirmation_scheduled"
+              : "evaluation_firm_confirmation_sent"
+            : scheduledEmail
+              ? "evaluation_firm_schedule_update_scheduled"
+              : "evaluation_firm_schedule_updated",
         userId: req.user.claims.sub,
         severity: "info",
         metadata: {
@@ -8898,10 +8990,14 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
           evaluationStartsAt: updated.evaluationStartsAt,
           evaluationEndsAt: updated.evaluationEndsAt,
           emailNotification,
+          scheduledEmail,
         },
       }).catch(() => {});
 
-      return res.json(updated);
+      return res.json({
+        ...updated,
+        scheduledEmail,
+      });
     } catch (error) {
       next(error);
     }
