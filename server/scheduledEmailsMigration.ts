@@ -11,7 +11,7 @@ export async function ensureScheduledEmailsTable(): Promise<void> {
         firm_id varchar NOT NULL REFERENCES firms(id),
         to_email text NOT NULL,
         payload jsonb NOT NULL DEFAULT '{}'::jsonb,
-        send_at timestamp NOT NULL,
+        send_at timestamptz NOT NULL,
         status text NOT NULL DEFAULT 'pending',
         sent_at timestamp,
         last_error text,
@@ -29,6 +29,11 @@ export async function ensureScheduledEmailsTable(): Promise<void> {
       ON scheduled_emails (firm_id)
       WHERE status = 'pending'
     `);
+    await db.execute(sql`
+      ALTER TABLE scheduled_emails
+      ALTER COLUMN send_at TYPE timestamptz
+      USING send_at AT TIME ZONE 'UTC'
+    `).catch(() => {});
     console.log("[SCHEDULED_EMAILS] Table ready");
   } catch (error) {
     console.error("[SCHEDULED_EMAILS] Failed to ensure table:", error);

@@ -64,17 +64,6 @@ function toDateInputValue(iso: string | null | undefined): string {
   return d.toISOString().slice(0, 10);
 }
 
-function toDatetimeLocalValue(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
-function defaultSendInHours(hours: number): string {
-  const d = new Date();
-  d.setHours(d.getHours() + hours);
-  return toDatetimeLocalValue(d);
-}
-
 type EvaluationEmailNotification = "none" | "confirmation" | "schedule_update";
 
 export default function AdminProvisionFirmPage() {
@@ -551,7 +540,7 @@ export default function AdminProvisionFirmPage() {
                           {(emailOnSave[firm.id] ?? "none") !== "none" && (
                             <div className="space-y-1 pt-1">
                               <Label className="text-xs text-muted-foreground">
-                                Send at (optional)
+                                Send on (date &amp; time)
                               </Label>
                               <Input
                                 type="datetime-local"
@@ -564,22 +553,8 @@ export default function AdminProvisionFirmPage() {
                                 }
                                 data-testid={`input-email-send-at-${firm.id}`}
                               />
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="ghost"
-                                className="h-7 px-2 text-xs"
-                                onClick={() =>
-                                  setEmailSendAtEdits((prev) => ({
-                                    ...prev,
-                                    [firm.id]: defaultSendInHours(5),
-                                  }))
-                                }
-                              >
-                                In 5 hours
-                              </Button>
                               <p className="text-[10px] text-muted-foreground leading-snug">
-                                Leave blank to send immediately. Your local time is used.
+                                Leave blank to send immediately when you save.
                               </p>
                             </div>
                           )}

@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { format } from "date-fns";
 import { AlertTriangle, Clock } from "lucide-react";
+import { formatEvaluationCalendarDate } from "@shared/evaluationAccess";
 import { useAuth } from "@/hooks/useAuth";
 
 type FirmEvaluationStatus = {
@@ -20,7 +20,7 @@ export default function EvaluationPeriodBanner() {
     return null;
   }
 
-  const endsLabel = format(new Date(firm.evaluationEndsAt), "d MMMM yyyy");
+  const endsLabel = formatEvaluationCalendarDate(firm.evaluationEndsAt, "end");
 
   if (firm.evaluationExpired) {
     return (

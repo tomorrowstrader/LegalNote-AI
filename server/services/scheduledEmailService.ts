@@ -23,7 +23,8 @@ export type ScheduledEmailRecord = {
   createdAt: Date;
 };
 
-const SCHEDULE_LEAD_MS = 60_000;
+/** Minimum lead before sendAt — anything further in the future is queued, not sent immediately. */
+const SCHEDULE_LEAD_MS = 2_000;
 
 function mapRow(row: Record<string, unknown>): ScheduledEmailRecord {
   return {
@@ -81,7 +82,7 @@ export async function scheduleEvaluationEmail(params: {
       ${params.firmId},
       ${params.toEmail},
       ${JSON.stringify(params.payload)}::jsonb,
-      ${params.sendAt.toISOString()}::timestamp,
+      ${params.sendAt.toISOString()}::timestamptz,
       ${params.createdBy ?? null}
     )
     RETURNING *

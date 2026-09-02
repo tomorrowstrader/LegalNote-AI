@@ -1,6 +1,7 @@
 import { Resend } from 'resend';
 import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
 import { MATTER_KIND_PARTY_LABELS } from '@shared/matterKinds';
+import { formatEvaluationCalendarDate } from '@shared/evaluationAccess';
 import type { FirmRiskDigest } from './storage';
 import type { SupportTicket } from '@shared/schema';
 
@@ -3053,9 +3054,6 @@ export async function sendGovernedEvaluationConfirmedEmail(params: {
   const safeTo = escapeHtmlEmail(params.to);
   const safeFirm = escapeHtmlEmail(params.firmName);
 
-  const formatDate = (d: Date) =>
-    d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
-
   const emailHtml = wrapLegalNoteBrandedEmail({
     eyebrow: "Evaluation confirmation",
     footerNote: `This email was sent to ${safeTo}. For questions, contact support@legalnote.ai.`,
@@ -3064,8 +3062,8 @@ export async function sendGovernedEvaluationConfirmedEmail(params: {
       <p>LegalNote has configured the governed evaluation for <strong>${safeFirm}</strong>. Your evaluation period is confirmed below.</p>
       <div class="meta">
         <p style="margin:0 0 8px"><strong>Firm:</strong> ${safeFirm}</p>
-        <p style="margin:0 0 8px"><strong>Configuration date:</strong> ${escapeHtmlEmail(formatDate(params.evaluationStartsAt))}</p>
-        <p style="margin:0 0 8px"><strong>Evaluation ends:</strong> ${escapeHtmlEmail(formatDate(params.evaluationEndsAt))}</p>
+        <p style="margin:0 0 8px"><strong>Configuration date:</strong> ${escapeHtmlEmail(formatEvaluationCalendarDate(params.evaluationStartsAt, "start"))}</p>
+        <p style="margin:0 0 8px"><strong>Evaluation ends:</strong> ${escapeHtmlEmail(formatEvaluationCalendarDate(params.evaluationEndsAt, "end"))}</p>
         <p style="margin:0"><strong>Sign-in email:</strong> ${safeTo}</p>
       </div>
       <p>Your evaluation period runs from the <strong>configuration date</strong> shown above, in line with your Governed Evaluation Agreement. Your existing account, firm details, and any matters you have already set up are <strong>unchanged</strong> — no further onboarding is required.</p>
@@ -3114,20 +3112,17 @@ export async function sendGovernedEvaluationDatesUpdatedEmail(params: {
   const safeTo = escapeHtmlEmail(params.to);
   const safeFirm = escapeHtmlEmail(params.firmName);
 
-  const formatDate = (d: Date) =>
-    d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-
   const detailLines: string[] = [
     `<p style="margin:0 0 8px"><strong>Firm:</strong> ${safeFirm}</p>`,
   ];
   if (params.configurationStartsAt) {
     detailLines.push(
-      `<p style="margin:0 0 8px"><strong>Configuration date:</strong> ${escapeHtmlEmail(formatDate(params.configurationStartsAt))}</p>`,
+      `<p style="margin:0 0 8px"><strong>Configuration date:</strong> ${escapeHtmlEmail(formatEvaluationCalendarDate(params.configurationStartsAt, "start"))}</p>`,
     );
   }
   if (params.evaluationEndsAt) {
     detailLines.push(
-      `<p style="margin:0"><strong>Evaluation ends:</strong> ${escapeHtmlEmail(formatDate(params.evaluationEndsAt))}</p>`,
+      `<p style="margin:0"><strong>Evaluation ends:</strong> ${escapeHtmlEmail(formatEvaluationCalendarDate(params.evaluationEndsAt, "end"))}</p>`,
     );
   }
 
