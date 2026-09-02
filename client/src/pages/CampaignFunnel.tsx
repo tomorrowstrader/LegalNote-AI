@@ -6,9 +6,8 @@ import {
   ChevronDown,
   Calendar,
   Shield,
-  FileCheck,
-  Lock,
-  MapPin,
+  Users,
+  TrendingUp,
   Sparkles,
 } from "lucide-react";
 import Logo from "@/components/Logo";
@@ -32,42 +31,48 @@ const FUNNEL_SECTIONS = [
 ] as const;
 
 const SCENARIO_STEPS: { id: ScenarioStep; label: string; headline: string }[] = [
-  { id: "inception", label: "01", headline: "The first meeting — reasoning captured from day one" },
-  { id: "meeting", label: "02", headline: "Every conference — documented as it happened" },
-  { id: "mlro", label: "03", headline: "Escalations — decisions signed and traceable" },
-  { id: "timeline", label: "04", headline: "The complete file — ready when they ask" },
+  { id: "inception", label: "01", headline: "Client meeting captured — attendance note on the matter in minutes" },
+  { id: "meeting", label: "02", headline: "Partner reviews the timeline — gaps visible in week two, not at completion" },
+  { id: "mlro", label: "03", headline: "Required conversation happens early — while client trust is intact" },
+  { id: "timeline", label: "04", headline: "Six months of meetings, one place — referral-ready from day one" },
 ];
 
-const FEAR_CARDS = [
+const STACK_LAYERS = [
+  { label: "CRM", role: "Pipeline & relationships" },
+  { label: "PMS", role: "Matter admin & billing" },
+  { label: "LegalNote", role: "Client meetings → matter file", highlight: true },
+];
+
+const GROWTH_PAIN_CARDS = [
   {
-    quote: "We'd be reconstructing two years of decisions from memory and sparse notes.",
+    quote: "We're hiring, but I can't be in every meeting. How do I know the notes are up to our standard?",
     role: "Managing Partner",
   },
   {
-    quote: "The attendance note was typed six hours after the meeting. The date was wrong.",
-    role: "COLP",
+    quote: "Attendance notes eat three hours every Friday. That's time I'm not with clients or winning work.",
+    role: "Senior Partner",
   },
   {
-    quote: "Our AML reasoning lives in people's heads — not on the file.",
-    role: "MLRO",
+    quote: "When we grow, quality slips. Clients notice before we do — and referrals dry up.",
+    role: "Founder, 5 fee earners",
   },
 ];
 
 const TRUST_PILLARS = [
   {
-    icon: MapPin,
-    title: "EU-only processing",
-    body: "Privileged client data stays in EU regions. Built for UK solicitors' data obligations.",
+    icon: Users,
+    title: "Same standard, every fee earner",
+    body: "Structured attendance notes from every client meeting — whether it's you, a new starter, or your third hire.",
   },
   {
-    icon: Lock,
-    title: "Tamper-evident audit trail",
-    body: "Cryptographic verification on every version. Prove what was said, when, and by whom.",
+    icon: TrendingUp,
+    title: "Catch gaps early, not at completion",
+    body: "See what was — and wasn't — discussed in every meeting. Review the timeline before a matter reaches the cliff edge.",
   },
   {
-    icon: FileCheck,
-    title: "Governed evaluation",
-    body: "30-day structured pilot with your COLP. No annual commitment until you're confident.",
+    icon: Shield,
+    title: "Defensible when it matters",
+    body: "Structured attendance notes, EU-only processing, tamper-evident audit trail. Premium quality that's also audit-ready.",
   },
 ];
 
@@ -194,8 +199,8 @@ export default function CampaignFunnel() {
             custom={1}
             className="funnel-headline text-balance"
           >
-            When the regulator asks to see the file — is your documentation{" "}
-            <span className="funnel-accent-text">defensible</span>?
+            Grow your firm without the{" "}
+            <span className="funnel-accent-text">quality slipping.</span>
           </motion.h1>
 
           <motion.p
@@ -203,8 +208,8 @@ export default function CampaignFunnel() {
             custom={2}
             className="funnel-subhead mt-6 max-w-xl text-balance"
           >
-            For UK firms with 4–8 fee earners. Every client meeting captured,
-            formatted, and audit-ready — as your solicitors already work.
+            Your Meeting-to-Matter system — every client conference captured, documented,
+            and on the file. So you grow the team without losing sight of what happened in the room.
           </motion.p>
 
           <motion.div variants={fadeUp} custom={3} className="mt-10 flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
@@ -229,7 +234,7 @@ export default function CampaignFunnel() {
           </motion.div>
 
           <motion.p variants={fadeUp} custom={4} className="mt-6 text-xs text-muted-foreground">
-            No annual commitment · 30-day structured pilot · Built for SRA-regulated firms
+            For UK firms turning £750k–£1.5m · 30-day governed evaluation · No annual commitment
           </motion.p>
         </motion.div>
 
@@ -245,14 +250,35 @@ export default function CampaignFunnel() {
           transition={{ duration: 0.6 }}
           className="max-w-2xl mx-auto text-center mb-10 sm:mb-14"
         >
-          <p className="funnel-eyebrow">The gap you already feel</p>
+          <p className="funnel-eyebrow">When visibility comes too late</p>
           <h2 className="funnel-section-title text-balance">
-            Boutique firms don't fail audits on purpose. They fail on documentation.
+            Six months of meetings. One conversation missed. Matter lost at the final review.
           </h2>
         </motion.div>
 
+        <motion.article
+          initial={{ opacity: 0, y: 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.5 }}
+          className="funnel-story-card max-w-3xl mx-auto mb-10 sm:mb-12"
+        >
+          <p className="text-base sm:text-lg leading-relaxed text-foreground/90">
+            A partner told me about a deal that ran six months through three people. At the final check,
+            he found a required client conversation had never happened. He called the client to explain —
+            at the most sensitive point in the matter. The client hadn't understood. They pulled out.
+          </p>
+          <p className="mt-4 text-sm sm:text-base leading-relaxed text-muted-foreground">
+            The problem wasn't negligence. Nobody could see what happened in the meetings until the end.
+            If it had been visible in week two, the conversation would have happened while trust was still intact.
+          </p>
+          <p className="mt-6 text-xs uppercase tracking-widest text-[hsl(18,70%,42%)]">
+            The same pattern plays out on every long matter — in every growing firm.
+          </p>
+        </motion.article>
+
         <div className="funnel-fear-scroll">
-          {FEAR_CARDS.map((card, i) => (
+          {GROWTH_PAIN_CARDS.map((card, i) => (
             <motion.article
               key={card.role}
               initial={{ opacity: 0, y: 24 }}
@@ -283,16 +309,39 @@ export default function CampaignFunnel() {
           transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
           className="text-center max-w-3xl mx-auto"
         >
-          <p className="text-xs uppercase tracking-[0.25em] text-amber-400/70 mb-6">The LegalNote difference</p>
+          <p className="text-xs uppercase tracking-[0.25em] text-amber-400/70 mb-6">Meeting-to-Matter™</p>
           <h2 className="text-4xl sm:text-5xl md:text-6xl font-semibold tracking-tight text-white leading-[1.08]">
-            Defensible
+            Your system for
             <br />
-            <span className="text-amber-400/95">by design.</span>
+            <span className="text-amber-400/95">client meetings.</span>
           </h2>
           <p className="mt-8 text-base sm:text-lg text-white/60 max-w-lg mx-auto leading-relaxed">
-            Not because your solicitors worked harder. Because the documentation
-            built itself — meeting by meeting — into a file you can hand over with confidence.
+            You have a system for your pipeline. A system for your matters.
+            LegalNote is the system for what happens when your solicitors sit down with clients —
+            captured, documented, and on the matter from day one.
           </p>
+
+          <div className="mt-10 flex flex-col sm:flex-row gap-3 justify-center max-w-2xl mx-auto">
+            {STACK_LAYERS.map((layer) => (
+              <div
+                key={layer.label}
+                className={cn(
+                  "flex-1 rounded-xl px-4 py-3 border text-left",
+                  layer.highlight
+                    ? "border-amber-400/40 bg-amber-400/10"
+                    : "border-white/10 bg-white/[0.04]",
+                )}
+              >
+                <p className={cn(
+                  "text-sm font-semibold",
+                  layer.highlight ? "text-amber-300" : "text-white/70",
+                )}>
+                  {layer.label}
+                </p>
+                <p className="text-xs text-white/45 mt-0.5">{layer.role}</p>
+              </div>
+            ))}
+          </div>
         </motion.div>
 
         <ScrollHint onClick={scrollToNext} />
@@ -302,9 +351,9 @@ export default function CampaignFunnel() {
       <SectionShell id="funnel-scenario">
         <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center max-w-5xl mx-auto w-full">
           <div>
-            <p className="funnel-eyebrow">The morning the SRA calls</p>
+            <p className="funnel-eyebrow">Meeting-to-Matter in practice</p>
             <h2 className="funnel-section-title mb-8">
-              See what you hand to the auditor — in four steps.
+              Catch what wasn't said — in week two, not at completion.
             </h2>
 
             <div className="space-y-2 mb-8">
@@ -326,8 +375,8 @@ export default function CampaignFunnel() {
             </div>
 
             <p className="text-sm text-muted-foreground leading-relaxed hidden sm:block">
-              Six minutes of additional work across months of client relationship — captured automatically.
-              Compare that to reconstructing the same picture two years later.
+              Attendance notes are the most meticulous output — but the value is the full meeting record
+              on the matter. Every fee earner, every conference, visible before it becomes a problem.
             </p>
           </div>
 
@@ -367,9 +416,9 @@ export default function CampaignFunnel() {
       {/* ── 5. Trust ── */}
       <SectionShell id="funnel-trust" className="funnel-section-alt">
         <div className="max-w-2xl mx-auto text-center mb-12">
-          <p className="funnel-eyebrow">Built for regulated practice</p>
+          <p className="funnel-eyebrow">Built for growing firms</p>
           <h2 className="funnel-section-title">
-            Protection your PI insurer expects. Infrastructure your COLP can approve.
+            Scale your team. Keep your standard. Win the referrals.
           </h2>
         </div>
 
@@ -400,10 +449,10 @@ export default function CampaignFunnel() {
         <div className="max-w-2xl mx-auto text-center mb-10">
           <p className="funnel-eyebrow">The numbers</p>
           <h2 className="funnel-section-title text-balance">
-            What's incomplete documentation costing your practice?
+            How much time are attendance notes costing your growth?
           </h2>
           <p className="mt-4 text-muted-foreground text-sm sm:text-base">
-            Drag the sliders. Most firms at £200/hr recover the £199/seat investment in under two weeks.
+            Every hour on documentation is an hour not spent with clients, training your team, or winning new work.
           </p>
         </div>
 
@@ -422,16 +471,16 @@ export default function CampaignFunnel() {
           className="text-center max-w-2xl mx-auto"
         >
           <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-400/10 px-4 py-1.5 text-xs text-amber-300/90 mb-8">
-            <Shield className="h-3.5 w-3.5" />
+            <TrendingUp className="h-3.5 w-3.5" />
             5 founding firm slots before v2.0 launch
           </div>
 
           <h2 className="text-3xl sm:text-4xl md:text-5xl font-semibold text-white tracking-tight leading-tight">
-            Ready to see your file the way a regulator would?
+            Ready to grow without sacrificing the standard your clients expect?
           </h2>
           <p className="mt-6 text-white/55 text-base sm:text-lg leading-relaxed">
             Book a 15-minute discovery call — or start a governed 30-day evaluation with your team.
-            We'll walk through the Patterson scenario on your own matters.
+            We'll show you how LegalNote fits between your meetings and your matter files.
           </p>
 
           <div className="mt-10 flex flex-col sm:flex-row gap-3 justify-center">

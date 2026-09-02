@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { CheckCircle2, FileText, Shield, Clock } from "lucide-react";
+import { CheckCircle2, FileText, Users, Clock, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type ScenarioStep = "inception" | "meeting" | "mlro" | "timeline";
@@ -9,39 +9,39 @@ const STEP_CONTENT: Record<
   { title: string; subtitle: string; items: { icon: typeof FileText; text: string }[] }
 > = {
   inception: {
-    title: "Matter inception",
-    subtitle: "First client meeting · 14 Mar 2026",
+    title: "Week two — client conference",
+    subtitle: "Employment matter · month 2 of 6",
     items: [
-      { icon: Shield, text: "Source of funds discussed and reasoned" },
-      { icon: FileText, text: "Risk assessment in solicitor's own words" },
-      { icon: CheckCircle2, text: "Signed, dated, tamper-evident record" },
+      { icon: Clock, text: "Meeting captured — solicitor stays present with the client" },
+      { icon: FileText, text: "Attendance note on the matter within minutes" },
+      { icon: CheckCircle2, text: "Required topics documented as the conversation happens" },
     ],
   },
   meeting: {
-    title: "Mid-matter meeting",
-    subtitle: "Client conference · 2 Jun 2026",
+    title: "Partner review — same week",
+    subtitle: "Managing partner · file check",
     items: [
-      { icon: FileText, text: "Attendance note from verbatim transcript" },
-      { icon: Shield, text: "AML prompt surfaced — monitoring note added" },
-      { icon: Clock, text: "Captured as work happened, not reconstructed" },
+      { icon: Users, text: "Timeline shows every meeting — not just the latest note" },
+      { icon: AlertCircle, text: "Gap visible: a required discussion not yet on the file" },
+      { icon: CheckCircle2, text: "Raised in week two — not at matter completion" },
     ],
   },
   mlro: {
-    title: "MLRO review",
-    subtitle: "Escalation · 9 Jun 2026",
+    title: "Fee earner follows up",
+    subtitle: "Before the sensitive stage",
     items: [
-      { icon: Shield, text: "Fee earner flagged concern with reasoning" },
-      { icon: CheckCircle2, text: "MLRO decision documented and signed" },
-      { icon: Clock, text: "Full chain visible on the matter file" },
+      { icon: FileText, text: "Client conversation happens while trust is still intact" },
+      { icon: CheckCircle2, text: "Explanation documented on the matter — same standard" },
+      { icon: Clock, text: "Matter stays on track; no cliff-edge surprises" },
     ],
   },
   timeline: {
-    title: "Complete file picture",
-    subtitle: "What you hand to the regulator",
+    title: "Complete matter picture",
+    subtitle: "Every meeting · one place",
     items: [
-      { icon: FileText, text: "Every meeting linked on one timeline" },
-      { icon: Shield, text: "AML decisions traceable from day one" },
-      { icon: CheckCircle2, text: "Nothing missing. Nothing reconstructed." },
+      { icon: FileText, text: "Six months of client interactions on one timeline" },
+      { icon: Users, text: "Every fee earner — same workflow, same quality" },
+      { icon: CheckCircle2, text: "Referral-ready service that scales with your firm" },
     ],
   },
 };
@@ -60,7 +60,7 @@ export function FunnelProductFrame({ step, className }: FunnelProductFrameProps)
       <div className="funnel-phone-screen">
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
           <span className="text-[10px] uppercase tracking-widest text-white/40">Patterson matter</span>
-          <span className="text-[10px] text-emerald-400/90 font-medium">Audit ready</span>
+          <span className="text-[10px] text-emerald-400/90 font-medium">On the matter</span>
         </div>
 
         <AnimatePresence mode="wait">
