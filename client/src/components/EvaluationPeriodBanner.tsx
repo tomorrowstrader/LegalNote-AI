@@ -25,7 +25,7 @@ export default function EvaluationPeriodBanner() {
   if (firm.evaluationExpired) {
     return (
       <div
-        className="fixed top-16 left-0 right-0 z-40 border-b border-destructive/30 bg-destructive/10 px-4 py-3"
+        className="w-full border-b border-destructive/30 bg-destructive/10 px-4 py-3"
         data-testid="banner-evaluation-expired"
       >
         <div className="mx-auto flex max-w-6xl items-start gap-3 text-sm">
@@ -52,7 +52,7 @@ export default function EvaluationPeriodBanner() {
 
   return (
     <div
-      className={`fixed top-16 left-0 right-0 z-40 border-b px-4 py-2.5 ${
+      className={`w-full border-b px-4 py-2.5 ${
         urgent
           ? "border-amber-500/40 bg-amber-500/10"
           : "border-border bg-muted/60"
@@ -73,12 +73,4 @@ export default function EvaluationPeriodBanner() {
       </div>
     </div>
   );
-}
-
-export function useEvaluationBannerOffset(): boolean {
-  const { isAdmin } = useAuth();
-  const { data: firm } = useQuery<FirmEvaluationStatus>({
-    queryKey: ["/api/firm"],
-  });
-  return Boolean(!isAdmin && firm?.isEvaluation && firm.evaluationEndsAt);
 }

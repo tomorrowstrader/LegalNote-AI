@@ -16,7 +16,7 @@ import { useQuickRecordShortcut } from "@/hooks/useQuickRecordShortcut";
 import TopNavigation from "@/components/TopNavigation";
 import MobileBottomNav from "@/components/MobileBottomNav";
 import FirmSetupPrompt from "@/components/FirmSetupPrompt";
-import EvaluationPeriodBanner, { useEvaluationBannerOffset } from "@/components/EvaluationPeriodBanner";
+import EvaluationPeriodBanner from "@/components/EvaluationPeriodBanner";
 import DisplayNameOnboarding from "@/components/DisplayNameOnboarding";
 import IntegrationsOnboarding from "@/components/IntegrationsOnboarding";
 import OnboardingTour from "@/components/OnboardingTour";
@@ -216,8 +216,6 @@ function AuthenticatedAppContent() {
   const { showVideoBotRecovery, setShowVideoBotRecovery } = useVideoBotRecovery(
     !isLoading && hasAppAccess && !showRecoveryModal,
   );
-  const hasEvaluationBanner = useEvaluationBannerOffset();
-
   useCaptureShortcut();
   useQuickRecordShortcut();
 
@@ -239,6 +237,7 @@ function AuthenticatedAppContent() {
   const isOAuthPopup = isCalendarOAuthPopupWindow();
   const hideAppChrome = isPublicDemoRoute || isNotesPopout || isFocusMode || isOAuthPopup;
   const recoveryBlocking = showRecoveryModal || showVideoBotRecovery;
+  const showAppChrome = !isLoading && hasAppAccess && !hideAppChrome;
 
   // Stray OAuth popup that landed on a full app route (e.g. Settings after
   // opener was severed) — close it so onboarding cannot run in the wrong window.
@@ -281,24 +280,30 @@ function AuthenticatedAppContent() {
 
   return (
     <div
-      className={`min-h-screen bg-background ${
-        !isLoading && hasAppAccess && !hideAppChrome
-          ? hasEvaluationBanner
-            ? "pt-[calc(7rem+env(safe-area-inset-top,0px))] pb-[calc(4rem+env(safe-area-inset-bottom,0px))] lg:pt-[calc(7rem+env(safe-area-inset-top,0px))] lg:pb-0"
-            : "pt-[env(safe-area-inset-top,0px)] pb-[calc(4rem+env(safe-area-inset-bottom,0px))] lg:pt-[calc(4rem+env(safe-area-inset-top,0px))] lg:pb-0"
-          : ""
-      }`}
+      className={`bg-background ${showAppChrome ? "flex min-h-[100dvh] flex-col" : "min-h-screen"}`}
     >
-      {!isLoading && hasAppAccess && !hideAppChrome && <TopNavigation onRestartTour={handleRestartTour} />}
-      {!isLoading && hasAppAccess && !hideAppChrome && <EvaluationPeriodBanner />}
-      {!isLoading && hasAppAccess && !hideAppChrome && (
-        <MobileBottomNav onRestartTour={handleRestartTour} />
+      {showAppChrome && (
+        <header className="shrink-0 z-40 max-lg:pt-[env(safe-area-inset-top,0px)]">
+          <TopNavigation onRestartTour={handleRestartTour} />
+          <EvaluationPeriodBanner />
+        </header>
       )}
-      {!isLoading && hasAppAccess && !hideAppChrome && <FirmSetupPrompt />}
-      {!isLoading && hasAppAccess && !hideAppChrome && <DisplayNameOnboarding />}
-      {!isLoading && hasAppAccess && !hideAppChrome && <IntegrationsOnboarding />}
-      {!isLoading && hasAppAccess && !hideAppChrome && <OnboardingTour restartTrigger={restartTourTrigger} />}
-      {!isLoading && hasAppAccess && !hideAppChrome && (
+      <main
+        className={
+          showAppChrome
+            ? "min-h-0 flex-1 overflow-y-auto pb-[calc(4rem+env(safe-area-inset-bottom,0px))] lg:pb-0"
+            : undefined
+        }
+      >
+        {!isNotesPopout && <ScrollToTop />}
+        <Router />
+      </main>
+      {showAppChrome && <MobileBottomNav onRestartTour={handleRestartTour} />}
+      {showAppChrome && <FirmSetupPrompt />}
+      {showAppChrome && <DisplayNameOnboarding />}
+      {showAppChrome && <IntegrationsOnboarding />}
+      {showAppChrome && <OnboardingTour restartTrigger={restartTourTrigger} />}
+      {showAppChrome && (
         <UpcomingMeetingPrompt blocked={recoveryBlocking} />
       )}
       {!isLoading && hasAppAccess && !isPublicDemoRoute && !isNotesPopout && (
@@ -314,9 +319,7 @@ function AuthenticatedAppContent() {
         />
       )}
       {!isLoading && hasAppAccess && !isPublicDemoRoute && !isNotesPopout && <LiveBotSessionIndicator />}
-      {!isLoading && hasAppAccess && !hideAppChrome && <VoiceCommandTrigger />}
-      {!isNotesPopout && <ScrollToTop />}
-      <Router />
+      {showAppChrome && <VoiceCommandTrigger />}
     </div>
   );
 }

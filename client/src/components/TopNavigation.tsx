@@ -16,9 +16,7 @@ import ThemeToggle from "@/components/ThemeToggle";
 import { NotificationsPanel } from "@/components/NotificationsPanel";
 import { useAuth } from "@/hooks/useAuth";
 import AdminQuickAccess from "@/components/AdminQuickAccess";
-import { isFeatureVisible } from "@/lib/features";
-
-const firmComplianceDashboardVisible = isFeatureVisible("firmComplianceDashboard");
+import { useFeatureVisibility } from "@/hooks/useFeatureVisibility";
 
 interface TopNavigationProps {
   onRestartTour: () => void;
@@ -47,10 +45,11 @@ const moreNavLinks: NavLinkItem[] = [
 export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
   const [location, setLocation] = useLocation();
   const { user, isAdmin, isFirmAdmin, canAccessFirmCompliance } = useAuth();
+  const firmComplianceDashboardVisible = useFeatureVisibility("firmComplianceDashboard");
   const visibleMoreNavLinks = moreNavLinks;
 
   return (
-    <nav className="hidden lg:block fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-primary via-black to-primary dark:from-transparent dark:via-transparent dark:to-transparent border-b border-primary-border shadow-lg legalnote-nav pt-[env(safe-area-inset-top,0px)]">
+    <nav className="hidden lg:block relative w-full z-50 bg-gradient-to-r from-primary via-black to-primary dark:from-transparent dark:via-transparent dark:to-transparent border-b border-primary-border shadow-lg legalnote-nav pt-[env(safe-area-inset-top,0px)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center h-16 gap-2">
           <Link href="/" data-testid="link-home">
