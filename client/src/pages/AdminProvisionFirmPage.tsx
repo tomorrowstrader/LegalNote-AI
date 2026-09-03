@@ -77,6 +77,7 @@ export default function AdminProvisionFirmPage() {
   const [inviteEndsAt, setInviteEndsAt] = useState("");
   const [sendingFirmId, setSendingFirmId] = useState<string | null>(null);
   const [savingFirmId, setSavingFirmId] = useState<string | null>(null);
+  const [convertingFirmId, setConvertingFirmId] = useState<string | null>(null);
   const [startDateEdits, setStartDateEdits] = useState<Record<string, string>>({});
   const [endDateEdits, setEndDateEdits] = useState<Record<string, string>>({});
   const [emailOnSave, setEmailOnSave] = useState<Record<string, EvaluationEmailNotification>>({});
@@ -144,6 +145,32 @@ export default function AdminProvisionFirmPage() {
       toast({
         title: "Invite failed",
         description: getApiErrorMessage(error, "Could not send login invite."),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const convertPaidMutation = useMutation({
+    mutationFn: async (payload: { firmId: string; seatQuantity?: number }) => {
+      return apiRequest<EvaluationFirm>(
+        "POST",
+        `/api/admin/evaluation-firms/${payload.firmId}/convert-paid`,
+        { seatQuantity: payload.seatQuantity },
+      );
+    },
+    onSuccess: (firm) => {
+      setConvertingFirmId(null);
+      toast({
+        title: "Firm marked as paid",
+        description: `${firm.name} is now on Boutique. Evaluation restrictions are cleared.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/evaluation-firms"] });
+    },
+    onError: (error) => {
+      setConvertingFirmId(null);
+      toast({
+        title: "Convert failed",
+        description: getApiErrorMessage(error),
         variant: "destructive",
       });
     },
@@ -628,25 +655,53 @@ export default function AdminProvisionFirmPage() {
                           : "—"}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={!firm.provisionedLeadEmail || inviteMutation.isPending}
-                          onClick={() =>
-                            firm.provisionedLeadUserId
-                              ? sendEmailUpdate(firm)
-                              : sendInvite({ firmId: firm.id }, firm.id)
-                          }
-                          data-testid={`button-invite-firm-${firm.id}`}
-                        >
-                          {sendingFirmId === firm.id && inviteMutation.isPending ? (
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                          ) : firm.provisionedLeadUserId ? (
-                            "Email update"
-                          ) : (
-                            "Send invite"
-                          )}
-                        </Button>
+                        <div className="flex flex-col items-end gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={!firm.provisionedLeadEmail || inviteMutation.isPending}
+                            onClick={() =>
+                              firm.provisionedLeadUserId
+                                ? sendEmailUpdate(firm)
+                                : sendInvite({ firmId: firm.id }, firm.id)
+                            }
+                            data-testid={`button-invite-firm-${firm.id}`}
+                          >
+                            {sendingFirmId === firm.id && inviteMutation.isPending ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : firm.provisionedLeadUserId ? (
+                              "Email update"
+                            ) : (
+                              "Send invite"
+                            )}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            disabled={convertPaidMutation.isPending}
+                            onClick={() => {
+                              if (
+                                !window.confirm(
+                                  `Mark ${firm.name} as Boutique paid (invoice / offline)? This clears evaluation restrictions.`,
+                                )
+                              ) {
+                                return;
+                              }
+                              setConvertingFirmId(firm.id);
+                              convertPaidMutation.mutate({
+                                firmId: firm.id,
+                                seatQuantity: firm.seatLimit ?? undefined,
+                              });
+                            }}
+                            data-testid={`button-convert-paid-${firm.id}`}
+                          >
+                            {convertingFirmId === firm.id && convertPaidMutation.isPending ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              "Mark paid"
+                            )}
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

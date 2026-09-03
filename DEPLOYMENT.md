@@ -134,3 +134,4 @@ Run these on Neon when deploying schema changes that are not applied by `drizzle
 - `scripts/integrations-onboarding-pref.sql` — integrations onboarding preference flag
 - `scripts/meeting-reminder-columns.sql` — adds `scheduled_meetings.reminder_30m_sent_at` / `reminder_10m_sent_at` (required after meeting-reminder deploy; without these, Upcoming Meetings fails to load)
 - `scripts/evaluation-starts-at.sql` — adds `firms.evaluation_starts_at` for governed evaluation configuration date
+- `scripts/firm-billing.sql` — firm Stripe subscription columns for Boutique conversion

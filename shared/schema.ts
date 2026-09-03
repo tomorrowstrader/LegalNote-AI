@@ -48,6 +48,17 @@ export const firms = pgTable("firms", {
   /** Configuration / evaluation start date (written confirmation to firm). */
   evaluationStartsAt: timestamp("evaluation_starts_at"),
   evaluationEndsAt: timestamp("evaluation_ends_at"),
+  /** Stripe customer for firm-level billing (Boutique / paid conversion). */
+  stripeCustomerId: varchar("stripe_customer_id"),
+  stripeSubscriptionId: varchar("stripe_subscription_id"),
+  /** active | trialing | past_due | canceled | unpaid | incomplete … */
+  subscriptionStatus: varchar("subscription_status"),
+  /** e.g. boutique */
+  subscriptionPlan: varchar("subscription_plan"),
+  /** Paid seat quantity on the active subscription. */
+  subscriptionSeatQuantity: integer("subscription_seat_quantity"),
+  /** When the firm first converted from evaluation (or went paid). */
+  convertedAt: timestamp("converted_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -1952,6 +1963,12 @@ export const insertFirmSchema = createInsertSchema(firms).omit({
   provisionedAt: z.date().optional().nullable(),
   evaluationStartsAt: z.date().optional().nullable(),
   evaluationEndsAt: z.date().optional().nullable(),
+  stripeCustomerId: z.string().optional().nullable(),
+  stripeSubscriptionId: z.string().optional().nullable(),
+  subscriptionStatus: z.string().optional().nullable(),
+  subscriptionPlan: z.string().optional().nullable(),
+  subscriptionSeatQuantity: z.number().int().min(1).max(500).optional().nullable(),
+  convertedAt: z.date().optional().nullable(),
 });
 
 export type InsertFirm = z.infer<typeof insertFirmSchema>;

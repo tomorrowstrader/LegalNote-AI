@@ -20,6 +20,7 @@ import { ensureMeetingImportsConsentColumns } from "./meetingImportsConsentMigra
 import { ensureMeetingBookingTables } from "./meetingBookingMigration";
 import { ensureMatterKindColumn } from "./matterKindMigration";
 import { ensureEvaluationStartsAtColumn } from "./evaluationStartsAtMigration";
+import { ensureFirmBillingColumns } from "./firmBillingMigration";
 import { ensureScheduledEmailsTable } from "./scheduledEmailsMigration";
 import { ensureSupportTicketsTable } from "./supportTicketsMigration";
 import { getStripeSync } from "./stripeClient";
@@ -281,6 +282,8 @@ app.use((req, res, next) => {
   await ensureMatterKindColumn();
 
   await ensureEvaluationStartsAtColumn();
+
+  await ensureFirmBillingColumns();
 
   await ensureScheduledEmailsTable();
 

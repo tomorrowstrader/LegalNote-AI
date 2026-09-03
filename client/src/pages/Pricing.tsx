@@ -60,8 +60,8 @@ const pricingTiers: PricingTier[] = [
   {
     name: "Boutique",
     description: "For growing firms with 3-9 fee earners",
-    monthlyPrice: 59,
-    annualPrice: 49,
+    monthlyPrice: 199,
+    annualPrice: 179,
     priceUnit: "/user/month",
     bundledHours: 20,
     overageRate: 2.5,

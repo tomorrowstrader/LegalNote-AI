@@ -41,6 +41,7 @@ import SecurityFeatures from "@/pages/SecurityFeatures";
 import Landing from "@/pages/Landing";
 import CampaignFunnel from "@/pages/CampaignFunnel";
 import Pricing from "@/pages/Pricing";
+import SubscribePage from "@/pages/SubscribePage";
 import ShareLinkView from "@/pages/ShareLinkView";
 import BookMeetingPage from "@/pages/BookMeetingPage";
 import OAuthCallback from "@/pages/OAuthCallback";
@@ -194,6 +195,7 @@ function Router() {
           <Route path="/undertakings" component={UndertakingsDashboard} />
           {isFirmAdmin && <Route path="/team" component={TeamManagement} />}
           {isFirmAdmin && <Route path="/firm" component={FirmOverview} />}
+          <Route path="/subscribe" component={SubscribePage} />
           {canAccessFirmCompliance && firmComplianceDashboardVisible && <Route path="/compliance" component={FirmCompliance} />}
           <Route path="/waitlist" component={WaitlistPage} />
         </>

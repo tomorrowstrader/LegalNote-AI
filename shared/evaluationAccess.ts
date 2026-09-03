@@ -4,6 +4,16 @@ import { DateTime } from "luxon";
 
 export const EVALUATION_TIMEZONE = "Europe/London";
 
+const PAID_SUBSCRIPTION_STATUSES = new Set(["active", "trialing"]);
+
+/** True when the firm has an active (or trialing) paid subscription. */
+export function firmHasPaidAccess(firm: {
+  subscriptionStatus?: string | null;
+}): boolean {
+  const status = String(firm.subscriptionStatus || "").toLowerCase();
+  return PAID_SUBSCRIPTION_STATUSES.has(status);
+}
+
 /** Legacy admin dates were stored as YYYY-MM-DDT23:59:59.000Z (UTC), which displays a day late in the UK. */
 function isLegacyUtcEndOfDay(iso: string): boolean {
   return /^\d{4}-\d{2}-\d{2}T23:59:59\.000Z$/.test(iso);
@@ -110,20 +120,33 @@ export function getEvaluationDaysRemaining(
 }
 
 export function enrichFirmEvaluationStatus<
-  T extends { isEvaluation?: boolean; evaluationEndsAt?: Date | string | null },
+  T extends {
+    isEvaluation?: boolean;
+    evaluationEndsAt?: Date | string | null;
+    subscriptionStatus?: string | null;
+    subscriptionPlan?: string | null;
+    subscriptionSeatQuantity?: number | null;
+  },
 >(firm: T, now: Date = new Date()) {
+  const paid = firmHasPaidAccess(firm);
+  const evalExpired =
+    Boolean(firm.isEvaluation) &&
+    Boolean(firm.evaluationEndsAt) &&
+    isEvaluationExpired(firm.evaluationEndsAt, now) &&
+    !paid;
   const active =
     Boolean(firm.isEvaluation) &&
     Boolean(firm.evaluationEndsAt) &&
-    !isEvaluationExpired(firm.evaluationEndsAt, now);
+    !isEvaluationExpired(firm.evaluationEndsAt, now) &&
+    !paid;
   return {
     ...firm,
-    evaluationExpired: Boolean(
-      firm.isEvaluation && firm.evaluationEndsAt && isEvaluationExpired(firm.evaluationEndsAt, now),
-    ),
-    evaluationDaysRemaining: firm.isEvaluation
-      ? getEvaluationDaysRemaining(firm.evaluationEndsAt ?? null, now)
-      : null,
+    hasPaidAccess: paid,
+    evaluationExpired: evalExpired,
+    evaluationDaysRemaining:
+      firm.isEvaluation && !paid
+        ? getEvaluationDaysRemaining(firm.evaluationEndsAt ?? null, now)
+        : null,
     evaluationActive: active,
   };
 }

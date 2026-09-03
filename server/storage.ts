@@ -839,6 +839,7 @@ export interface IStorage {
   }): Promise<Firm>;
   listEvaluationFirms(): Promise<Firm[]>;
   getFirmByProvisionedLeadEmail(email: string): Promise<Firm | undefined>;
+  getFirmByStripeCustomerId(customerId: string): Promise<Firm | undefined>;
   /** Attach user as firm admin when their email matches a pending evaluation provision. */
   claimEvaluationFirmLead(userId: string, email: string | null | undefined): Promise<User | undefined>;
   countFirmSeatUsage(firmId: string): Promise<{ members: number; pendingInvites: number; used: number; limit: number | null }>;
@@ -2975,6 +2976,7 @@ export class MemStorage implements IStorage {
   }): Promise<Firm> { throw new Error("Not implemented in MemStorage"); }
   async listEvaluationFirms(): Promise<Firm[]> { return []; }
   async getFirmByProvisionedLeadEmail(_email: string): Promise<Firm | undefined> { return undefined; }
+  async getFirmByStripeCustomerId(_customerId: string): Promise<Firm | undefined> { return undefined; }
   async claimEvaluationFirmLead(_userId: string, _email: string | null | undefined): Promise<User | undefined> { return undefined; }
   async countFirmSeatUsage(_firmId: string): Promise<{ members: number; pendingInvites: number; used: number; limit: number | null }> {
     return { members: 0, pendingInvites: 0, used: 0, limit: null };
@@ -7112,6 +7114,16 @@ export class DbStorage implements IStorage {
       .select()
       .from(firms)
       .where(sql`lower(${firms.provisionedLeadEmail}) = ${normalized}`)
+      .limit(1);
+    return result[0];
+  }
+
+  async getFirmByStripeCustomerId(customerId: string): Promise<Firm | undefined> {
+    if (!customerId) return undefined;
+    const result = await db
+      .select()
+      .from(firms)
+      .where(eq(firms.stripeCustomerId, customerId))
       .limit(1);
     return result[0];
   }

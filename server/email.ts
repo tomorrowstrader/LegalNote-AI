@@ -3540,3 +3540,60 @@ export async function sendInternalSystemAlertEmail(params: {
   }
 }
 
+/** Firm requested Boutique subscription via invoice instead of card. */
+export async function sendBoutiqueInvoiceRequestEmail(params: {
+  firmName: string;
+  firmId: string;
+  seatQuantity: number;
+  unitAmountPence: number;
+  currency: string;
+  requesterName: string | null;
+  requesterEmail: string;
+  notes?: string | null;
+  promotionCode?: string | null;
+}): Promise<{ success: boolean; error?: string }> {
+  const amount = (params.unitAmountPence / 100).toLocaleString('en-GB', {
+    style: 'currency',
+    currency: params.currency.toUpperCase() || 'GBP',
+  });
+  const monthlyTotal = (
+    (params.unitAmountPence * params.seatQuantity) / 100
+  ).toLocaleString('en-GB', {
+    style: 'currency',
+    currency: params.currency.toUpperCase() || 'GBP',
+  });
+
+  const emailHtml = wrapLegalNoteBrandedEmail({
+    eyebrow: 'Invoice request',
+    footerNote: 'Evaluation → paid conversion.',
+    bodyHtml: `
+      <h2>Boutique invoice requested</h2>
+      <p><strong>${escapeHtmlEmail(params.firmName)}</strong> has asked to continue on Boutique via invoice rather than card.</p>
+      <div class="meta">
+        <p style="margin:0 0 8px"><strong>Firm ID:</strong> ${escapeHtmlEmail(params.firmId)}</p>
+        <p style="margin:0 0 8px"><strong>From:</strong> ${escapeHtmlEmail(params.requesterName || 'Firm admin')} &lt;${escapeHtmlEmail(params.requesterEmail)}&gt;</p>
+        <p style="margin:0 0 8px"><strong>Seats:</strong> ${params.seatQuantity}</p>
+        <p style="margin:0 0 8px"><strong>Rate:</strong> ${escapeHtmlEmail(amount)} / seat / month</p>
+        <p style="margin:0 0 8px"><strong>Estimated monthly:</strong> ${escapeHtmlEmail(monthlyTotal)}</p>
+        ${params.promotionCode ? `<p style="margin:0 0 8px"><strong>Promotion code:</strong> ${escapeHtmlEmail(params.promotionCode)}</p>` : ''}
+      </div>
+      ${params.notes ? `<p><strong>Notes:</strong></p><p style="white-space:pre-wrap">${escapeHtmlEmail(params.notes)}</p>` : ''}
+      <p>Please raise a Stripe invoice (or offline invoice) and mark the firm as paid once settled — or reply to the requester with next steps.</p>
+    `,
+  });
+
+  try {
+    return await sendEmail({
+      from: 'LegalNote\u2122 <noreply@legalnote.ai>',
+      to: ['jazz.dennis@legalnote.ai', 'support@legalnote.ai'],
+      replyTo: params.requesterEmail,
+      subject: `Invoice request — ${params.firmName} (${params.seatQuantity} × Boutique)`,
+      html: emailHtml,
+    });
+  } catch (error: any) {
+    console.error('[EMAIL] Exception sending boutique invoice request:', error);
+    return { success: false, error: error.message || 'Unknown error' };
+  }
+}
+
+

@@ -115,7 +115,7 @@ import { chunkedUploadService } from "./services/chunkedUploadService";
 import { setupAuth, isAuthenticated, resolveUserAccessAllowed, getAdminUserId } from "./replitAuth";
 import { evaluationAccessGate } from "./services/evaluationAccessGate";
 import { parseAdminEvaluationEndsAt, parseAdminEvaluationStartsAt } from "./services/evaluationAdmin";
-import { enrichFirmEvaluationStatus } from "@shared/evaluationAccess";
+import { enrichFirmEvaluationStatus, firmHasPaidAccess } from "@shared/evaluationAccess";
 import { MAX_AUDIO_SIZE_BYTES } from "./uploadSecurity";
 import {
   generalApiLimiter,
@@ -146,7 +146,13 @@ import { askMatterQuestion, compareMatterNote } from "./services/matterAskServic
 import { synthesizeVoiceReply, VOICE_TTS_MAX_CHARS } from "./services/voiceTtsService";
 import { privilegedComplete } from "./services/llm/privilegedComplete";
 import { AssemblyAIService } from "./services/assemblyAIService";
-import { sendCaseEmail, sendRecordingConfirmationEmail, sendConsentResponseNotification, sendAcknowledgementRequestEmail, sendInvitationEmail, sendDpaConfirmationEmail, sendDpaAcceptanceInviteEmail, sendLegalAgreementAcceptedEmail, sendEvaluationSetupEmail, sendEvaluationSetupSubmittedAdminEmail, sendGovernedEvaluationLoginInviteEmail, sendEvaluationFirmScheduleEmail, sendShareVerificationCodeEmail, sendSupportTicketAdminNotification, sendSupportTicketReceivedEmail, sendSupportTicketStatusEmail, sendDemoMatterShareEmail, sendDemoColleagueLinkEmail } from "./email";
+import { sendCaseEmail, sendRecordingConfirmationEmail, sendConsentResponseNotification, sendAcknowledgementRequestEmail, sendInvitationEmail, sendDpaConfirmationEmail, sendDpaAcceptanceInviteEmail, sendLegalAgreementAcceptedEmail, sendEvaluationSetupEmail, sendEvaluationSetupSubmittedAdminEmail, sendGovernedEvaluationLoginInviteEmail, sendEvaluationFirmScheduleEmail, sendShareVerificationCodeEmail, sendSupportTicketAdminNotification, sendSupportTicketReceivedEmail, sendSupportTicketStatusEmail, sendDemoMatterShareEmail, sendDemoColleagueLinkEmail, sendBoutiqueInvoiceRequestEmail } from "./email";
+import {
+  ensureFirmStripeCustomer,
+  getBoutiqueMonthlyPrice,
+  resolvePromotionCodeId,
+  BOUTIQUE_UNIT_AMOUNT_PENCE,
+} from "./services/firmBillingService";
 import {
   polishSupportTicketWithAi,
   createSupportTicketRecord,
@@ -9005,6 +9011,62 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
     }
   });
 
+  /** Mark an evaluation firm as Boutique-paid (invoice / offline settlement). */
+  app.post(
+    "/api/admin/evaluation-firms/:firmId/convert-paid",
+    isAuthenticated,
+    isAdmin,
+    async (req: any, res, next) => {
+      try {
+        const schema = z.object({
+          seatQuantity: z.number().int().min(1).max(500).optional(),
+          notes: z.string().max(2000).optional(),
+        });
+        const parsed = schema.safeParse(req.body ?? {});
+        if (!parsed.success) {
+          return res.status(400).json({ message: "Invalid convert request" });
+        }
+
+        const firm = await storage.getFirm(req.params.firmId);
+        if (!firm) {
+          return res.status(404).json({ message: "Firm not found." });
+        }
+
+        const seats =
+          parsed.data.seatQuantity ??
+          firm.subscriptionSeatQuantity ??
+          firm.seatLimit ??
+          1;
+
+        const updated = await storage.updateFirm(firm.id, {
+          isEvaluation: false,
+          subscriptionStatus: "active",
+          subscriptionPlan: "boutique",
+          subscriptionSeatQuantity: seats,
+          seatLimit: seats,
+          convertedAt: firm.convertedAt ?? new Date(),
+        });
+
+        await storage.createAuditLog({
+          eventType: "evaluation_firm_converted_paid",
+          userId: req.user.claims.sub,
+          severity: "info",
+          metadata: {
+            firmId: firm.id,
+            firmName: firm.name,
+            seatQuantity: seats,
+            notes: parsed.data.notes ?? null,
+            method: "admin_invoice",
+          },
+        }).catch(() => {});
+
+        return res.json(updated);
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+
   // Email a provisioned governed-evaluation lead their first-login invite
   app.post("/api/admin/evaluation-firms/send-login-invite", isAuthenticated, isAdmin, async (req: any, res, next) => {
     try {
@@ -15214,6 +15276,151 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
     }
   });
 
+  // ==================== FIRM BILLING (Boutique conversion) ====================
+
+  app.get("/api/billing/boutique", isAuthenticated, requireFirmAdmin, async (req: any, res, next) => {
+    try {
+      const user = req.firmAdminUser;
+      const firm = await storage.getFirm(user.firmId);
+      if (!firm) return res.status(404).json({ message: "Firm not found" });
+
+      const price = await getBoutiqueMonthlyPrice();
+      const seats = await storage.countFirmSeatUsage(firm.id);
+      const suggestedSeats = Math.max(1, seats.used || firm.seatLimit || 1);
+
+      res.json({
+        plan: "boutique",
+        priceId: price.priceId,
+        productId: price.productId,
+        unitAmount: price.unitAmount,
+        currency: price.currency,
+        interval: price.interval,
+        seatUsage: seats,
+        suggestedSeats,
+        hasPaidAccess: firmHasPaidAccess(firm),
+        subscriptionStatus: firm.subscriptionStatus ?? null,
+        subscriptionSeatQuantity: firm.subscriptionSeatQuantity ?? null,
+        allowPromotionCodes: true,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/billing/checkout", isAuthenticated, requireFirmAdmin, async (req: any, res, next) => {
+    try {
+      const user = req.firmAdminUser;
+      const firm = await storage.getFirm(user.firmId);
+      if (!firm) return res.status(404).json({ message: "Firm not found" });
+
+      if (firmHasPaidAccess(firm)) {
+        return res.status(400).json({ message: "This firm already has an active subscription." });
+      }
+
+      const rawSeats = Number(req.body?.seatQuantity);
+      const seats = await storage.countFirmSeatUsage(firm.id);
+      const seatQuantity = Number.isFinite(rawSeats)
+        ? Math.min(500, Math.max(1, Math.floor(rawSeats)))
+        : Math.max(1, seats.used || firm.seatLimit || 1);
+
+      const promotionCodeRaw =
+        typeof req.body?.promotionCode === "string" ? req.body.promotionCode.trim() : "";
+      let promotionCodeId: string | undefined;
+      if (promotionCodeRaw) {
+        const resolved = await resolvePromotionCodeId(promotionCodeRaw);
+        if (!resolved) {
+          return res.status(400).json({
+            message: "That promotion code is not valid or is no longer active.",
+            code: "INVALID_PROMOTION_CODE",
+          });
+        }
+        promotionCodeId = resolved.promotionCodeId;
+      }
+
+      const price = await getBoutiqueMonthlyPrice();
+      const customerId = await ensureFirmStripeCustomer({
+        firmId: firm.id,
+        email: user.email || req.user.claims.email,
+        name: firm.name,
+        userId: user.id,
+      });
+
+      const baseUrl = `${req.protocol}://${req.get("host")}`;
+      const metadata = {
+        firmId: firm.id,
+        plan: "boutique",
+        seatQuantity: String(seatQuantity),
+        convertedByUserId: user.id,
+      };
+
+      const session = await stripeService.createCheckoutSession({
+        customerId,
+        priceId: price.priceId,
+        successUrl: `${baseUrl}/subscribe?checkout=success`,
+        cancelUrl: `${baseUrl}/subscribe?checkout=cancel`,
+        trialDays: 0,
+        quantity: seatQuantity,
+        metadata,
+        subscriptionMetadata: metadata,
+        allowPromotionCodes: !promotionCodeId,
+        promotionCodeId,
+      });
+
+      res.json({ url: session.url });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/billing/invoice-request", isAuthenticated, requireFirmAdmin, async (req: any, res, next) => {
+    try {
+      const user = req.firmAdminUser;
+      const firm = await storage.getFirm(user.firmId);
+      if (!firm) return res.status(404).json({ message: "Firm not found" });
+
+      if (firmHasPaidAccess(firm)) {
+        return res.status(400).json({ message: "This firm already has an active subscription." });
+      }
+
+      const rawSeats = Number(req.body?.seatQuantity);
+      const seats = await storage.countFirmSeatUsage(firm.id);
+      const seatQuantity = Number.isFinite(rawSeats)
+        ? Math.min(500, Math.max(1, Math.floor(rawSeats)))
+        : Math.max(1, seats.used || firm.seatLimit || 1);
+      const notes =
+        typeof req.body?.notes === "string" ? req.body.notes.trim().slice(0, 2000) : "";
+      const promotionCode =
+        typeof req.body?.promotionCode === "string"
+          ? req.body.promotionCode.trim().slice(0, 64)
+          : "";
+
+      const price = await getBoutiqueMonthlyPrice().catch(() => null);
+      const unitAmount = price?.unitAmount ?? BOUTIQUE_UNIT_AMOUNT_PENCE;
+      const currency = price?.currency ?? "gbp";
+
+      const result = await sendBoutiqueInvoiceRequestEmail({
+        firmName: firm.name,
+        firmId: firm.id,
+        seatQuantity,
+        unitAmountPence: unitAmount,
+        currency,
+        requesterName: [user.firstName, user.lastName].filter(Boolean).join(" ") || null,
+        requesterEmail: user.email || req.user.claims.email,
+        notes: notes || null,
+        promotionCode: promotionCode || null,
+      });
+
+      if (!result.success) {
+        return res.status(500).json({ message: result.error || "Failed to send invoice request" });
+      }
+
+      res.json({ ok: true });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // ==================== END FIRM BILLING ====================
   // Firm evaluation / team value stats (firm admin only)
   app.get("/api/firm/evaluation-stats", isAuthenticated, requireFirmAdmin, async (req: any, res) => {
     try {
