@@ -70,8 +70,9 @@ import {
 } from "./accessAllowlist";
 
 /**
- * Full invite-only check: static allowlist, waitlist-approved, or firm member.
- * Firm membership covers team invites without editing Railway env for every hire.
+ * Full invite-only check: static allowlist, waitlist-approved, or intentional firm membership.
+ * Firm membership only counts for evaluation/paid/provisioned firms, or users who were invited
+ * onto a firm (invitedBy set). Auto-created personal firms alone must not bypass the allowlist.
  */
 export async function resolveUserAccessAllowed(
   userId: string,
@@ -81,14 +82,48 @@ export async function resolveUserAccessAllowed(
   if (isUserOnStaticAllowlist(userId, email)) return true;
 
   const dbUser = await storage.getUser(userId);
-  if (dbUser?.firmId) return true;
+  if (dbUser?.inviteStatus === "suspended") return false;
+
+  if (dbUser?.firmId) {
+    const firm = await storage.getFirm(dbUser.firmId);
+    if (firm && isIntentionalFirmAccess(firm, dbUser)) {
+      return true;
+    }
+  }
 
   const emailToCheck = (email ?? dbUser?.email)?.trim().toLowerCase();
   if (emailToCheck) {
     const waitlistEntry = await storage.getWaitlistEntryByEmail(emailToCheck);
-    if (waitlistEntry?.status === "approved") return true;
+    // Schema statuses: pending | invited | active | declined — treat invited/active as granted.
+    if (
+      waitlistEntry?.status === "approved" ||
+      waitlistEntry?.status === "invited" ||
+      waitlistEntry?.status === "active"
+    ) {
+      return true;
+    }
   }
 
+  return false;
+}
+
+/** Firm membership that intentionally grants product access (not auto-created personal shells). */
+function isIntentionalFirmAccess(
+  firm: {
+    isEvaluation?: boolean | null;
+    provisionedLeadEmail?: string | null;
+    subscriptionStatus?: string | null;
+    convertedAt?: Date | string | null;
+  },
+  user: { invitedBy?: string | null },
+): boolean {
+  if (firm.isEvaluation) return true;
+  if (firm.provisionedLeadEmail) return true;
+  if (firm.convertedAt) return true;
+  const status = String(firm.subscriptionStatus || "").toLowerCase();
+  if (status === "active" || status === "trialing") return true;
+  // Team invite: firm admin invited this user — do not require env allowlist edits per hire.
+  if (user.invitedBy) return true;
   return false;
 }
 
@@ -364,7 +399,10 @@ export async function setupAuth(app: Express) {
       return res.redirect("/login?error=auth_failed");
     }
     startOAuthWithReturnTo(req, res, next, (req, res, next) => {
-      passport.authenticate("microsoft")(req, res, next);
+      // Force account picker so a laptop SSO session cannot silently sign someone else in.
+      passport.authenticate("microsoft", {
+        prompt: "select_account",
+      })(req, res, next);
     });
   });
 

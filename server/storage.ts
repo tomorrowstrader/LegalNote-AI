@@ -7032,6 +7032,9 @@ export class DbStorage implements IStorage {
       const firm = await this.getFirm(claimed.firmId);
       if (firm) return firm;
     }
+    // Personal firm shells are only created for callers who already passed isAuthenticated
+    // (allowlist / intentional firm). They must NOT alone grant allowlist bypass — see
+    // resolveUserAccessAllowed / isIntentionalFirmAccess.
     const displayName = u.firstName && u.lastName
       ? `${u.firstName} ${u.lastName}'s Firm`
       : u.email

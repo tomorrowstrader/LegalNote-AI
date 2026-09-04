@@ -41,6 +41,13 @@ For production deployment, ensure these are set in Deployment secrets:
 - `SESSION_SECRET` - Strong random string (32+ characters)
 - `DEFAULT_OBJECT_STORAGE_BUCKET_ID` - Object storage bucket ID
 
+### Access control (invite-only)
+- `ACCESS_ALLOWLIST_ENFORCE=true` — fail-closed; required in production
+- `ACCESS_ALLOWLIST` — comma-separated emails (preferred) and/or user IDs who may use the product
+- `ADMIN_USER_ID` — platform admin `users.id`
+
+Microsoft login uses Azure tenant `common`, so any Microsoft account can complete OAuth. Non-allowlisted accounts must only reach **Access pending** (no product APIs). Do not put personal/shared emails on `ACCESS_ALLOWLIST` unless they should have full access.
+
 ### Required for document production (Meeting-to-Matter™ / Bedrock):
 - `PRIVILEGED_LLM_PROVIDER` - Must be `bedrock` (privileged client data must not use other LLM providers)
 - `BEDROCK_PRIVILEGED_MODEL_ID` - EU inference profile ID, e.g. `eu.anthropic.claude-sonnet-4-6`

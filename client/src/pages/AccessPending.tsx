@@ -20,8 +20,9 @@ export default function AccessPending() {
               Access pending
             </h1>
             <p className="text-muted-foreground text-sm">
-              Your account signed in successfully. LegalNote is currently in limited early access —
-              your administrator will enable full access shortly.
+              This Microsoft or Google account is signed in, but it is not authorised for LegalNote.
+              Only invited firm members and allowlisted evaluation accounts can use the product.
+              If you signed in with the wrong account, sign out and choose the correct one.
             </p>
             {user?.email && (
               <p className="text-xs text-muted-foreground">
