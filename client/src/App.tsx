@@ -60,7 +60,6 @@ import DpaConfirmPage from "@/pages/DpaConfirmPage";
 import AcceptanceCertificatePage from "@/pages/AcceptanceCertificatePage";
 import EvaluationSetupPage from "@/pages/EvaluationSetupPage";
 import Features from "@/pages/Features";
-import Calculator from "@/pages/Calculator";
 import MyActions from "@/pages/MyActions";
 import Clients from "@/pages/Clients";
 import ClientProfile from "@/pages/ClientProfile";
@@ -147,7 +146,6 @@ function Router() {
       <Route path="/legal/acceptance/:id" component={AcceptanceCertificatePage} />
       <Route path="/evaluation/setup/:token" component={EvaluationSetupPage} />
       <Route path="/features" component={Features} />
-      <Route path="/calculator" component={Calculator} />
       <Route path="/login" component={Login} />
       <Route path="/support" component={SupportRoute} />
 

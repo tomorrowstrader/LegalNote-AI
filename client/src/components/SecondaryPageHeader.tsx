@@ -38,7 +38,6 @@ export function SecondaryPageHeader({ showThemeToggle = true }: SecondaryPageHea
   const navItems = [
     { href: "/features", label: "Features" },
     { href: "/security", label: "Security" },
-    { href: "/calculator", label: "ROI Calculator" },
   ];
 
   return (
