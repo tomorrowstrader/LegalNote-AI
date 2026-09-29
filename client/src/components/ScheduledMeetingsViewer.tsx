@@ -53,6 +53,8 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Label } from "@/components/ui/label";
 import { isFeatureVisible } from "@/lib/features";
+import { useFeatureVisibility } from "@/hooks/useFeatureVisibility";
+import { InMeetingConsentPanel } from "@/components/InMeetingConsentPanel";
 import { getSafeHttpsMeetingUrl } from "@/lib/meetingUrl";
 import { toTitleCase } from "@/lib/utils";
 import { LiveBotModal } from "@/components/LiveBotModal";
@@ -150,8 +152,6 @@ function useIsDesktop(breakpointPx = 768) {
 
   return isDesktop;
 }
-
-const calendarAutoRecordVisible = isFeatureVisible("calendarAutoRecord");
 
 function getConsentStatusBadge(status: string) {
   switch (status) {
@@ -655,6 +655,7 @@ function EditMeetingDialog({
 }
 
 function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdate: () => void }) {
+  const calendarAutoRecordVisible = useFeatureVisibility("calendarAutoRecord");
   const { toast } = useToast();
   const now = useNowTick();
   const [showCaseDialog, setShowCaseDialog] = useState(false);
@@ -829,12 +830,20 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Users className="w-4 h-4" />
                 <span>
-                  Consent recipient: {meeting.clientName || meeting.clientEmail}
+                  Client: {meeting.clientName || meeting.clientEmail}
                   {meeting.clientName && meeting.clientName !== meeting.clientEmail && (
                     <span className="text-xs"> ({meeting.clientEmail})</span>
                   )}
                 </span>
               </div>
+            )}
+
+            {meeting.autoRecordEnabled && meeting.meetingImportId && (joinNow || inProgress) && (
+              <InMeetingConsentPanel
+                importId={meeting.meetingImportId}
+                caseId={meeting.caseId}
+                compact
+              />
             )}
             
             {meeting.cancellationReason && meeting.status === 'cancelled' && (
@@ -924,7 +933,7 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
                     Edit Meeting
                   </Button>
                   
-                  {meeting.clientEmail && meeting.consentStatus === 'pending' && (
+                  {meeting.clientEmail && !meeting.autoRecordEnabled && meeting.consentStatus === 'pending' && (
                     <Button 
                       size="sm" 
                       variant="outline"
@@ -941,7 +950,7 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
                     </Button>
                   )}
                   
-                  {meeting.autoRecordEnabled && meeting.meetingUrl && meeting.consentStatus === 'approved' && !meeting.recallBotId && (
+                  {meeting.autoRecordEnabled && meeting.meetingUrl && !meeting.recallBotId && (
                     <Button 
                       size="sm"
                       onClick={() => deployBotMutation.mutate()}
@@ -999,7 +1008,7 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
                         <Pencil className="w-4 h-4 mr-2" />
                         Edit Meeting
                       </DropdownMenuItem>
-                      {meeting.clientEmail && meeting.consentStatus === 'pending' && (
+                      {meeting.clientEmail && !meeting.autoRecordEnabled && meeting.consentStatus === 'pending' && (
                         <DropdownMenuItem
                           onClick={() => sendConsentMutation.mutate()}
                           disabled={sendConsentMutation.isPending}
@@ -1009,7 +1018,7 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
                           Send Consent
                         </DropdownMenuItem>
                       )}
-                      {meeting.autoRecordEnabled && meeting.meetingUrl && meeting.consentStatus === 'approved' && !meeting.recallBotId && (
+                      {meeting.autoRecordEnabled && meeting.meetingUrl && !meeting.recallBotId && (
                         <DropdownMenuItem
                           onClick={() => deployBotMutation.mutate()}
                           disabled={deployBotMutation.isPending}

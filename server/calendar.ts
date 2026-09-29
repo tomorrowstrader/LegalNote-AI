@@ -392,13 +392,42 @@ function extractOutlookJoinUrl(event: {
   return event.onlineMeeting?.joinUrl || event.onlineMeetingUrl || undefined;
 }
 
+async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`)),
+          ms,
+        );
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+/**
+ * Create a meeting on the user's OAuth-connected Google Calendar.
+ *
+ * Important: do NOT block on Google `sendUpdates: 'all'` — inviting attendees via the
+ * Calendar API can hang past Cloudflare's proxy timeout and surface as a vague 502.
+ * We create the Meet event quickly (sendUpdates: none), then notify invitees in the
+ * background. LegalNote also sends its own confirmation email asynchronously.
+ */
 export async function createMeetingCalendarEvent(
   userId: string,
   data: MeetingEventData,
   storage: IStorage
 ): Promise<CalendarSyncResult> {
   try {
-    const { token } = await getValidAccessToken(userId, storage);
+    const { token } = await withTimeout(
+      getValidAccessToken(userId, storage),
+      10000,
+      'Google token refresh',
+    );
 
     const oauth2Client = new google.auth.OAuth2();
     oauth2Client.setCredentials({ access_token: token });
@@ -452,12 +481,18 @@ export async function createMeetingCalendarEvent(
       };
     }
 
-    const response = await calendar.events.insert({
-      calendarId: 'primary',
-      conferenceDataVersion: createConference ? 1 : undefined,
-      sendUpdates: hasAttendees ? 'all' : 'none',
-      requestBody: eventBody,
-    });
+    // sendUpdates: none keeps this under the proxy timeout; Google Calendar invites
+    // are dispatched below once the Meet URL is known.
+    const response = await withTimeout(
+      calendar.events.insert({
+        calendarId: 'primary',
+        conferenceDataVersion: createConference ? 1 : undefined,
+        sendUpdates: 'none',
+        requestBody: eventBody,
+      }),
+      15000,
+      'Google Meet calendar event create',
+    );
 
     const eventId = response.data.id || undefined;
     let meetingUrl: string | undefined = data.meetingUrl;
@@ -468,11 +503,15 @@ export async function createMeetingCalendarEvent(
 
       if (!meetingUrl && eventId) {
         try {
-          const fetched = await calendar.events.get({
-            calendarId: 'primary',
-            eventId,
-            conferenceDataVersion: 1,
-          });
+          const fetched = await withTimeout(
+            calendar.events.get({
+              calendarId: 'primary',
+              eventId,
+              conferenceDataVersion: 1,
+            }),
+            8000,
+            'Google Meet join URL fetch',
+          );
           meetingUrl = extractGoogleMeetUrl(fetched.data) || meetingUrl;
         } catch (fetchErr) {
           console.warn(
@@ -485,11 +524,15 @@ export async function createMeetingCalendarEvent(
       if (!meetingUrl) {
         if (eventId) {
           try {
-            await calendar.events.delete({
-              calendarId: 'primary',
-              eventId,
-              sendUpdates: 'none',
-            });
+            await withTimeout(
+              calendar.events.delete({
+                calendarId: 'primary',
+                eventId,
+                sendUpdates: 'none',
+              }),
+              8000,
+              'Google Meet-less event cleanup',
+            );
           } catch (cleanupErr) {
             console.warn(
               '[CALENDAR] Failed to clean up Meet-less event:',
@@ -508,16 +551,19 @@ export async function createMeetingCalendarEvent(
       meetingPlatform = 'meet';
 
       try {
-        await calendar.events.patch({
-          calendarId: 'primary',
-          eventId: eventId!,
-          // Avoid a second attendee mail blast; Meet join is already on the conference.
-          sendUpdates: 'none',
-          requestBody: {
-            description: formatMeetingDescription(data.title, data.description, meetingUrl),
-            location: meetingUrl,
-          },
-        });
+        await withTimeout(
+          calendar.events.patch({
+            calendarId: 'primary',
+            eventId: eventId!,
+            sendUpdates: 'none',
+            requestBody: {
+              description: formatMeetingDescription(data.title, data.description, meetingUrl),
+              location: meetingUrl,
+            },
+          }),
+          8000,
+          'Google Meet join URL patch',
+        );
       } catch (patchErr) {
         console.warn(
           '[CALENDAR] Failed to patch Meet join URL onto event (invite may still include conference):',
@@ -526,6 +572,29 @@ export async function createMeetingCalendarEvent(
       }
     } else if (meetingUrl?.includes('meet.google.com')) {
       meetingPlatform = 'meet';
+    }
+
+    // Notify Google Calendar invitees without blocking the HTTP response.
+    if (hasAttendees && eventId) {
+      void withTimeout(
+        calendar.events.patch({
+          calendarId: 'primary',
+          eventId,
+          sendUpdates: 'all',
+          requestBody: {
+            // Touch description so Google emits updates with the final Meet link.
+            description: formatMeetingDescription(data.title, data.description, meetingUrl),
+            ...(meetingUrl ? { location: meetingUrl } : {}),
+          },
+        }),
+        20000,
+        'Google Calendar invite send',
+      ).catch((inviteErr) => {
+        console.warn(
+          '[CALENDAR] Background Google invite notification failed:',
+          inviteErr instanceof Error ? inviteErr.message : inviteErr,
+        );
+      });
     }
 
     return {
@@ -538,28 +607,14 @@ export async function createMeetingCalendarEvent(
   } catch (error: unknown) {
     const err = error instanceof Error ? error : new Error(String(error));
     console.error('[CALENDAR] Meeting event creation failed:', err.message);
+    const timedOut = /timed out/i.test(err.message);
     return {
       success: false,
       provider: 'google',
-      error: err.message || 'Failed to create meeting calendar event',
+      error: timedOut
+        ? 'Google Calendar timed out while creating a Meet link. Please try again, or paste a meeting URL instead.'
+        : err.message || 'Failed to create meeting calendar event',
     };
-  }
-}
-
-async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    return await Promise.race([
-      promise,
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(
-          () => reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`)),
-          ms,
-        );
-      }),
-    ]);
-  } finally {
-    if (timer) clearTimeout(timer);
   }
 }
 

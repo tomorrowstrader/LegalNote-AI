@@ -2384,6 +2384,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         clientName: String(parsed.clientName ?? ""),
         clientId: parsed.clientId as string | undefined,
         matterKind: normalizeMatterKind(parsed.matterKind),
+        hasExternalAttendees: Boolean(parsed.hasExternalAttendees),
         matterReference: parsed.matterReference as string | undefined,
         status: parsed.status as InsertCase["status"],
         priority: parsed.priority as InsertCase["priority"],
@@ -12897,8 +12898,16 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
           storage,
         );
         if (!googleResult.success || !googleResult.eventId) {
-          return res.status(502).json({
-            message: `Failed to create Google calendar event: ${googleResult.error || "Unknown error"}`,
+          const detail = googleResult.error || "Unknown error";
+          // Client-actionable Google/Meet failures should not look like infrastructure 502s.
+          const clientFault =
+            /timed out|Google Meet|Meet link|Google Calendar|paste a meeting|not connected|not enabled/i.test(
+              detail,
+            );
+          return res.status(clientFault ? 400 : 502).json({
+            message: clientFault
+              ? detail
+              : `Failed to create Google calendar event: ${detail}`,
           });
         }
         calendarEventId = googleResult.eventId;
@@ -13612,7 +13621,16 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
             if (newCalResult.meetingUrl) replacementMeetingUrl = newCalResult.meetingUrl;
             if (newCalResult.meetingPlatform) replacementPlatform = newCalResult.meetingPlatform;
           } else {
-            return res.status(502).json({ message: `Failed to create replacement calendar event: ${newCalResult.error}` });
+            const detail = newCalResult.error || "Unknown error";
+            const clientFault =
+              /timed out|Google Meet|Meet link|Google Calendar|paste a meeting|not connected|not enabled/i.test(
+                detail,
+              );
+            return res.status(clientFault ? 400 : 502).json({
+              message: clientFault
+                ? detail
+                : `Failed to create replacement calendar event: ${detail}`,
+            });
           }
         }
       } catch (calErr) {

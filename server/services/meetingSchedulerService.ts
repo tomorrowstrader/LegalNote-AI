@@ -3,7 +3,7 @@ import { Client } from '@microsoft/microsoft-graph-client';
 import { storage } from '../storage';
 import type { ScheduledMeeting, InsertScheduledMeeting, CalendarIntegration } from '@shared/schema';
 import { recallService } from './recallService';
-import { sendPreConsentEmail, sendMeetingReminderEmail, publicFacingDisplayName } from '../email';
+import { sendPreConsentEmail, sendMeetingReminderEmail, sendClientMeetingReminderEmail, publicFacingDisplayName } from '../email';
 import { ensureFreshOutlookToken } from '../oauth';
 import { randomBytes } from 'crypto';
 import {
@@ -550,14 +550,45 @@ export class MeetingSchedulerService {
       await storage.updateScheduledMeeting(meeting.id, { botStatus: 'waiting' });
 
       const bot = await recallService.createBot(meeting.meetingUrl, 'LegalNote');
+      const platform = recallService.detectMeetingPlatform(meeting.meetingUrl);
+
+      // Verbal-primary: live import with in_meeting consent (same chain as LiveBot).
+      const meetingImport = await storage.createMeetingImport({
+        userId: meeting.userId,
+        caseId: meeting.caseId || undefined,
+        recallBotId: bot.id,
+        meetingPlatform: platform || 'teams',
+        meetingUrl: meeting.meetingUrl,
+        meetingTitle: meeting.title,
+        status: 'live',
+        botStatus: recallService.getBotStatusCode(bot) || 'joining',
+        consentConfirmed: false,
+        consentMode: 'in_meeting',
+      });
 
       await storage.updateScheduledMeeting(meeting.id, {
         recallBotId: bot.id,
         botStatus: 'joining',
+        meetingImportId: meetingImport.id,
+      });
+
+      await storage.createAuditLog({
+        eventType: 'live_bot_deployed',
+        userId: meeting.userId,
+        caseId: meeting.caseId || undefined,
+        ipAddress: 'server-process',
+        metadata: {
+          botId: bot.id,
+          meetingId: meeting.id,
+          importId: meetingImport.id,
+          source: 'scheduled_auto_record',
+          consentMode: 'in_meeting',
+        },
+        severity: 'info',
       });
 
       console.log(
-        `[MEETING_SCHEDULER] Deployed bot ${bot.id} for meeting ${meeting.id}${isRetry ? ' (retry)' : ''}`,
+        `[MEETING_SCHEDULER] Deployed bot ${bot.id} for meeting ${meeting.id}${isRetry ? ' (retry)' : ''} — verbal consent mode`,
       );
       return true;
     } catch (error) {
@@ -580,12 +611,23 @@ export class MeetingSchedulerService {
     reason: string,
   ): Promise<boolean> {
     if (!meeting.autoRecordEnabled) return false;
-    if (meeting.meetingImportId) return false;
     if (!isWithinBotDeployWindow(new Date(meeting.startTime))) return false;
+
+    if (meeting.meetingImportId) {
+      try {
+        await storage.updateMeetingImport(meeting.meetingImportId, {
+          status: 'failed',
+          errorMessage: reason,
+        });
+      } catch (err) {
+        console.warn('[MEETING_SCHEDULER] Failed to mark import failed on retry reset:', err);
+      }
+    }
 
     await storage.updateScheduledMeeting(meeting.id, {
       recallBotId: null,
       botStatus: null,
+      meetingImportId: null,
     });
     console.log(
       `[MEETING_SCHEDULER] Cleared bot for retry on meeting ${meeting.id}: ${reason}`,
@@ -700,14 +742,15 @@ export class MeetingSchedulerService {
       return;
     }
 
+    // Legacy path: imports created only after bot completion (pre-verbal-primary).
     console.log(`[MEETING_SCHEDULER] Auto-filing recording from meeting ${meeting.id} to case ${meeting.caseId}`);
 
     const existingImport = await recallService.startMeetingImport(
       meeting.userId,
       meeting.recallBotId,
       meeting.caseId,
-      meeting.consentStatus === 'approved',
-      meeting.preConsentEmailId || undefined
+      false,
+      meeting.preConsentEmailId || undefined,
     );
 
     await storage.updateScheduledMeeting(meeting.id, {
@@ -757,6 +800,79 @@ export class MeetingSchedulerService {
         }
       }
     }
+
+    for (const kind of ['10m', 'start'] as const) {
+      const meetings = await storage.getMeetingsNeedingClientReminders(kind);
+      for (const meeting of meetings) {
+        try {
+          await this.sendClientMeetingReminder(meeting, kind);
+        } catch (error) {
+          console.error(
+            `[MEETING_SCHEDULER] Failed client ${kind} reminder for meeting ${meeting.id}:`,
+            error,
+          );
+        }
+      }
+    }
+  }
+
+  private async sendClientMeetingReminder(
+    meeting: ScheduledMeeting,
+    kind: '10m' | 'start',
+  ): Promise<void> {
+    if (!meeting.clientEmail || !meeting.meetingUrl) return;
+
+    const user = await storage.getUser(meeting.userId);
+    let firmName: string | null = null;
+    let firmLogoUrl: string | null = null;
+    if (user?.firmId) {
+      const firmProfile = await storage.getFirmProfile(user.firmId);
+      firmName = firmProfile?.firmName?.trim() || null;
+      firmLogoUrl = firmProfile?.logoUrl?.trim() || null;
+    }
+
+    const emailResult = await sendClientMeetingReminderEmail({
+      to: meeting.clientEmail,
+      clientName: meeting.clientName || undefined,
+      meetingTitle: meeting.title,
+      startTime: new Date(meeting.startTime),
+      kind,
+      meetingUrl: meeting.meetingUrl,
+      meetingPlatform: meeting.meetingPlatform || undefined,
+      firmName,
+      firmLogoUrl,
+    });
+
+    if (!emailResult.success) {
+      console.error(
+        `[MEETING_SCHEDULER] Client ${kind} reminder email failed for meeting ${meeting.id}:`,
+        emailResult.error,
+      );
+      return;
+    }
+
+    const now = new Date();
+    await storage.updateScheduledMeeting(meeting.id, {
+      ...(kind === '10m'
+        ? { clientReminder10mSentAt: now }
+        : { clientReminderStartSentAt: now }),
+    });
+
+    await storage.createAuditLog({
+      eventType: 'client_meeting_reminder',
+      userId: meeting.userId,
+      caseId: meeting.caseId || undefined,
+      severity: 'info',
+      metadata: {
+        meetingId: meeting.id,
+        kind,
+        clientEmail: meeting.clientEmail,
+      },
+    });
+
+    console.log(
+      `[MEETING_SCHEDULER] Sent client ${kind} reminder for meeting ${meeting.id} to ${meeting.clientEmail}`,
+    );
   }
 
   private async sendMeetingReminder(

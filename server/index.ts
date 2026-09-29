@@ -23,6 +23,7 @@ import { ensureEvaluationStartsAtColumn } from "./evaluationStartsAtMigration";
 import { ensureFirmBillingColumns } from "./firmBillingMigration";
 import { ensureScheduledEmailsTable } from "./scheduledEmailsMigration";
 import { ensureSupportTicketsTable } from "./supportTicketsMigration";
+import { ensureScheduledMeetingClientReminderColumns } from "./scheduledMeetingClientRemindersMigration";
 import { getStripeSync } from "./stripeClient";
 import { WebhookHandlers } from "./webhookHandlers";
 import "./envValidation"; // Validate environment on startup
@@ -288,6 +289,9 @@ app.use((req, res, next) => {
   await ensureScheduledEmailsTable();
 
   await ensureSupportTicketsTable();
+
+  // Ensure client meeting reminder dedupe columns (idempotent)
+  await ensureScheduledMeetingClientReminderColumns();
 
   // Remove calendar-scraped consent recipients (solicitor must choose explicitly)
   await clearScheduledMeetingGuessedRecipients();

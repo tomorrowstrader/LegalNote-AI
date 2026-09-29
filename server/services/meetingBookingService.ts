@@ -22,6 +22,7 @@ import {
   sendMeetingInviteConfirmationEmail,
   sendMeetingBookingResponseNotification,
 } from "../email";
+import { shouldDefaultAutoRecordEnabled } from "./featureAccessService";
 
 const MIN_SLOTS = 2;
 const MAX_SLOTS = 5;
@@ -160,6 +161,8 @@ export async function createMeetingBookingProposal(
     ? await storage.getFirmProfile(organiserUser.firmId)
     : await storage.getFirmProfile();
   const organiserName = organiserFirm?.firmName?.trim() || null;
+  const firmName = organiserFirm?.firmName?.trim() || null;
+  const firmLogoUrl = organiserFirm?.logoUrl?.trim() || null;
 
   try {
     const emailResult = await sendMeetingBookingProposalEmail({
@@ -169,6 +172,8 @@ export async function createMeetingBookingProposal(
       slots: insertedSlots.map((s) => ({ startsAt: s.startsAt, endsAt: s.endsAt })),
       durationMinutes: proposal.durationMinutes,
       organiserName,
+      firmName,
+      firmLogoUrl,
     });
 
     await db
@@ -426,6 +431,8 @@ export async function updateMeetingBookingProposalSlots(
       ? await storage.getFirmProfile(organiserUser.firmId)
       : await storage.getFirmProfile();
     const organiserName = organiserFirm?.firmName?.trim() || null;
+    const firmName = organiserFirm?.firmName?.trim() || null;
+    const firmLogoUrl = organiserFirm?.logoUrl?.trim() || null;
 
     try {
       const emailResult = await sendMeetingBookingProposalUpdatedEmail({
@@ -435,6 +442,8 @@ export async function updateMeetingBookingProposalSlots(
         slots: availableForClient.map((s) => ({ startsAt: s.startsAt, endsAt: s.endsAt })),
         durationMinutes: proposal.durationMinutes,
         organiserName,
+        firmName,
+        firmLogoUrl,
       });
       notifyEmailStatus = emailResult.success ? "sent" : "failed";
     } catch (err) {
@@ -591,7 +600,12 @@ export async function getPublicBookingProposal(token: string) {
     /** Firm name only when configured — never a “solicitor” role fallback. */
     organiserName: firm?.firmName?.trim() || null,
     firmProfile: firm
-      ? { firmName: firm.firmName, logoUrl: firm.logoUrl || null }
+      ? {
+          firmName: firm.firmName,
+          logoUrl: firm.logoUrl || null,
+          phone: firm.phone || null,
+          email: firm.email || null,
+        }
       : null,
   };
 }
@@ -725,6 +739,11 @@ export async function bookMeetingSlot(params: {
       throw new Error("Calendar event was created without a join link");
     }
 
+    const autoRecordEnabled = await shouldDefaultAutoRecordEnabled(
+      proposal.userId,
+      proposal.clientEmail,
+    );
+
     const meeting = await storage.createScheduledMeeting({
       userId: proposal.userId,
       caseId: proposal.caseId || undefined,
@@ -739,7 +758,7 @@ export async function bookMeetingSlot(params: {
       attendees,
       clientEmail: proposal.clientEmail,
       clientName: proposal.clientName || undefined,
-      autoRecordEnabled: false,
+      autoRecordEnabled,
       consentStatus: "pending",
       status: "scheduled",
     });
@@ -751,6 +770,10 @@ export async function bookMeetingSlot(params: {
 
     void (async () => {
       try {
+        const organiserUser = await storage.getUser(proposal.userId);
+        const organiserFirm = organiserUser?.firmId
+          ? await storage.getFirmProfile(organiserUser.firmId)
+          : await storage.getFirmProfile();
         await sendMeetingInviteConfirmationEmail({
           to: proposal.clientEmail,
           recipientName: proposal.clientName || undefined,
@@ -759,6 +782,8 @@ export async function bookMeetingSlot(params: {
           endTime: slot.endsAt,
           meetingUrl: meetingUrl!,
           meetingPlatform,
+          firmName: organiserFirm?.firmName?.trim() || null,
+          firmLogoUrl: organiserFirm?.logoUrl?.trim() || null,
         });
       } catch (emailErr) {
         console.warn("[MEETING_BOOKING] Confirmation email failed:", emailErr);

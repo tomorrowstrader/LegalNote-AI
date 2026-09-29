@@ -42,6 +42,7 @@ import type { Case, Client, MatterKind, ScheduledMeeting } from "@shared/schema"
 import { MATTER_KIND_LABELS } from "@shared/schema";
 import { isClientMatterKind } from "@shared/matterKinds";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { useFeatureVisibility } from "@/hooks/useFeatureVisibility";
 
 interface ScheduleMeetingModalProps {
   open: boolean;
@@ -142,6 +143,7 @@ export default function ScheduleMeetingModal({
   const clientSearchRef = useRef<HTMLDivElement>(null);
   const isClientMeeting = isClientMatterKind(matterKind);
   const isProposeMode = scheduleMode === "propose";
+  const calendarAutoRecordVisible = useFeatureVisibility("calendarAutoRecord");
 
   const { data: cases = [] } = useQuery<Case[]>({
     queryKey: ["/api/cases"],
@@ -805,6 +807,11 @@ export default function ScheduleMeetingModal({
                 ? "We’ll email them a link to pick one of the proposed times"
                 : "Separate emails with commas"}
             </p>
+            {calendarAutoRecordVisible && isClientMeeting && clientEmailReady && !isProposeMode && (
+              <p className="text-xs text-muted-foreground rounded-md border bg-muted/30 px-2.5 py-2">
+                Auto-record will be enabled for this client meeting. You’ll confirm verbal consent in the call.
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">
