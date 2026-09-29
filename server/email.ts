@@ -2473,7 +2473,7 @@ interface SendClientMeetingReminderEmailParams {
   clientName?: string;
   meetingTitle: string;
   startTime: Date;
-  kind: '10m' | 'start';
+  kind: 30 | 10;
   meetingUrl: string;
   meetingPlatform?: string;
   firmName?: string | null;
@@ -2508,18 +2508,9 @@ export async function sendClientMeetingReminderEmail(
     timeZone: 'Europe/London',
   });
 
-  const subject =
-    kind === 'start'
-      ? `Your meeting is starting now`
-      : `Your meeting starts in 10 minutes`;
-
-  const intro =
-    kind === 'start'
-      ? `<p>Your meeting is starting now. Use the button below to join.</p>`
-      : `<p>Your meeting starts in about 10 minutes.</p>`;
-
-  const joinLabel =
-    kind === 'start' ? 'Join now' : 'Join meeting';
+  const subject = `Your meeting starts in ${kind} minutes`;
+  const intro = `<p>Your meeting starts in about ${kind} minutes.</p>`;
+  const joinLabel = 'Join meeting';
 
   const emailHtml = `
     <!DOCTYPE html>
@@ -2529,7 +2520,8 @@ export async function sendClientMeetingReminderEmail(
       <div style="max-width: 600px; margin: 40px auto; background: #fff; border-radius: 8px; overflow: hidden;">
         ${firmBrandedEmailHeaderHtml({ firmName, logoUrl: firmLogoUrl })}
         <div style="padding: 28px 32px; border-bottom: 1px solid #e8e4df;">
-          <h1 style="margin: 0; font-size: 22px; color: #3d3028;">${kind === 'start' ? 'Starting now' : 'Reminder'}</h1>
+          <h1 style="margin: 0; font-size: 22px; color: #3d3028;">Reminder</h1>
+          <p style="margin: 8px 0 0; color: #8a7d72; font-size: 14px;">Starts in ${kind} minutes</p>
         </div>
         <div style="padding: 32px;">
           <p>Hi ${safeName},</p>

@@ -742,7 +742,7 @@ export interface IStorage {
   getMeetingsReadyForBot(userId: string): Promise<ScheduledMeeting[]>;
   getAllScheduledMeetingsWithAutoRecord(): Promise<ScheduledMeeting[]>;
   getMeetingsNeedingReminders(minutesBefore: 30 | 10): Promise<ScheduledMeeting[]>;
-  getMeetingsNeedingClientReminders(kind: '10m' | 'start'): Promise<ScheduledMeeting[]>;
+  getMeetingsNeedingClientReminders(minutesBefore: 30 | 10): Promise<ScheduledMeeting[]>;
   updateScheduledMeeting(id: string, updates: Partial<ScheduledMeeting>): Promise<ScheduledMeeting | undefined>;
   deleteScheduledMeeting(id: string): Promise<void>;
   
@@ -2732,7 +2732,7 @@ export class MemStorage implements IStorage {
     return [];
   }
 
-  async getMeetingsNeedingClientReminders(_kind: '10m' | 'start'): Promise<ScheduledMeeting[]> {
+  async getMeetingsNeedingClientReminders(_minutesBefore: 30 | 10): Promise<ScheduledMeeting[]> {
     return [];
   }
   
@@ -6240,6 +6240,8 @@ export class DbStorage implements IStorage {
           // If the event is rescheduled, re-arm reminders
           reminder30mSentAt: sql`CASE WHEN ${scheduledMeetings.startTime} IS DISTINCT FROM ${meetingData.startTime} THEN NULL ELSE ${scheduledMeetings.reminder30mSentAt} END`,
           reminder10mSentAt: sql`CASE WHEN ${scheduledMeetings.startTime} IS DISTINCT FROM ${meetingData.startTime} THEN NULL ELSE ${scheduledMeetings.reminder10mSentAt} END`,
+          clientReminder30mSentAt: sql`CASE WHEN ${scheduledMeetings.startTime} IS DISTINCT FROM ${meetingData.startTime} THEN NULL ELSE ${scheduledMeetings.clientReminder30mSentAt} END`,
+          clientReminder10mSentAt: sql`CASE WHEN ${scheduledMeetings.startTime} IS DISTINCT FROM ${meetingData.startTime} THEN NULL ELSE ${scheduledMeetings.clientReminder10mSentAt} END`,
           updatedAt: new Date(),
         },
       })
@@ -6420,34 +6422,18 @@ export class DbStorage implements IStorage {
   }
 
   /**
-   * Client-facing reminders: T-10 and at start. Requires clientEmail + meetingUrl.
-   * Windows sized for the 5-minute cron.
+   * Client-facing reminders at the same times as the solicitor: T-30 and T-10.
+   * Requires clientEmail + meetingUrl. Windows sized for the 5-minute cron.
    */
-  async getMeetingsNeedingClientReminders(kind: '10m' | 'start'): Promise<ScheduledMeeting[]> {
+  async getMeetingsNeedingClientReminders(minutesBefore: 30 | 10): Promise<ScheduledMeeting[]> {
     const now = new Date();
     const windowHalfMinutes = 5;
+    const windowStart = new Date(now.getTime() + (minutesBefore - windowHalfMinutes) * 60 * 1000);
+    const windowEnd = new Date(now.getTime() + (minutesBefore + windowHalfMinutes) * 60 * 1000);
+    const sentColumn = minutesBefore === 30
+      ? scheduledMeetings.clientReminder30mSentAt
+      : scheduledMeetings.clientReminder10mSentAt;
 
-    if (kind === '10m') {
-      const windowStart = new Date(now.getTime() + (10 - windowHalfMinutes) * 60 * 1000);
-      const windowEnd = new Date(now.getTime() + (10 + windowHalfMinutes) * 60 * 1000);
-      return await db
-        .select()
-        .from(scheduledMeetings)
-        .where(
-          and(
-            eq(scheduledMeetings.status, 'scheduled'),
-            isNotNull(scheduledMeetings.clientEmail),
-            isNotNull(scheduledMeetings.meetingUrl),
-            isNull(scheduledMeetings.clientReminder10mSentAt),
-            gte(scheduledMeetings.startTime, windowStart),
-            lte(scheduledMeetings.startTime, windowEnd),
-          ),
-        )
-        .orderBy(scheduledMeetings.startTime);
-    }
-
-    const windowStart = new Date(now.getTime() - windowHalfMinutes * 60 * 1000);
-    const windowEnd = new Date(now.getTime() + windowHalfMinutes * 60 * 1000);
     return await db
       .select()
       .from(scheduledMeetings)
@@ -6456,7 +6442,7 @@ export class DbStorage implements IStorage {
           eq(scheduledMeetings.status, 'scheduled'),
           isNotNull(scheduledMeetings.clientEmail),
           isNotNull(scheduledMeetings.meetingUrl),
-          isNull(scheduledMeetings.clientReminderStartSentAt),
+          isNull(sentColumn),
           gte(scheduledMeetings.startTime, windowStart),
           lte(scheduledMeetings.startTime, windowEnd),
         ),

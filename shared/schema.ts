@@ -777,6 +777,7 @@ export const scheduledMeetings = pgTable("scheduled_meetings", {
   cancellationReason: text("cancellation_reason"),
   reminder30mSentAt: timestamp("reminder_30m_sent_at"),
   reminder10mSentAt: timestamp("reminder_10m_sent_at"),
+  clientReminder30mSentAt: timestamp("client_reminder_30m_sent_at"),
   clientReminder10mSentAt: timestamp("client_reminder_10m_sent_at"),
   clientReminderStartSentAt: timestamp("client_reminder_start_sent_at"),
   lastPolledAt: timestamp("last_polled_at"),
@@ -1284,6 +1285,7 @@ export const insertScheduledMeetingSchema = createInsertSchema(scheduledMeetings
   updatedAt: true,
   reminder30mSentAt: true,
   reminder10mSentAt: true,
+  clientReminder30mSentAt: true,
   clientReminder10mSentAt: true,
   clientReminderStartSentAt: true,
 }).extend({

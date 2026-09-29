@@ -801,14 +801,14 @@ export class MeetingSchedulerService {
       }
     }
 
-    for (const kind of ['10m', 'start'] as const) {
-      const meetings = await storage.getMeetingsNeedingClientReminders(kind);
+    for (const minutesBefore of [30, 10] as const) {
+      const meetings = await storage.getMeetingsNeedingClientReminders(minutesBefore);
       for (const meeting of meetings) {
         try {
-          await this.sendClientMeetingReminder(meeting, kind);
+          await this.sendClientMeetingReminder(meeting, minutesBefore);
         } catch (error) {
           console.error(
-            `[MEETING_SCHEDULER] Failed client ${kind} reminder for meeting ${meeting.id}:`,
+            `[MEETING_SCHEDULER] Failed client ${minutesBefore}m reminder for meeting ${meeting.id}:`,
             error,
           );
         }
@@ -818,7 +818,7 @@ export class MeetingSchedulerService {
 
   private async sendClientMeetingReminder(
     meeting: ScheduledMeeting,
-    kind: '10m' | 'start',
+    minutesBefore: 30 | 10,
   ): Promise<void> {
     if (!meeting.clientEmail || !meeting.meetingUrl) return;
 
@@ -836,7 +836,7 @@ export class MeetingSchedulerService {
       clientName: meeting.clientName || undefined,
       meetingTitle: meeting.title,
       startTime: new Date(meeting.startTime),
-      kind,
+      kind: minutesBefore,
       meetingUrl: meeting.meetingUrl,
       meetingPlatform: meeting.meetingPlatform || undefined,
       firmName,
@@ -845,7 +845,7 @@ export class MeetingSchedulerService {
 
     if (!emailResult.success) {
       console.error(
-        `[MEETING_SCHEDULER] Client ${kind} reminder email failed for meeting ${meeting.id}:`,
+        `[MEETING_SCHEDULER] Client ${minutesBefore}m reminder email failed for meeting ${meeting.id}:`,
         emailResult.error,
       );
       return;
@@ -853,9 +853,9 @@ export class MeetingSchedulerService {
 
     const now = new Date();
     await storage.updateScheduledMeeting(meeting.id, {
-      ...(kind === '10m'
-        ? { clientReminder10mSentAt: now }
-        : { clientReminderStartSentAt: now }),
+      ...(minutesBefore === 30
+        ? { clientReminder30mSentAt: now }
+        : { clientReminder10mSentAt: now }),
     });
 
     await storage.createAuditLog({
@@ -865,13 +865,13 @@ export class MeetingSchedulerService {
       severity: 'info',
       metadata: {
         meetingId: meeting.id,
-        kind,
+        minutesBefore,
         clientEmail: meeting.clientEmail,
       },
     });
 
     console.log(
-      `[MEETING_SCHEDULER] Sent client ${kind} reminder for meeting ${meeting.id} to ${meeting.clientEmail}`,
+      `[MEETING_SCHEDULER] Sent client ${minutesBefore}m reminder for meeting ${meeting.id} to ${meeting.clientEmail}`,
     );
   }
 
