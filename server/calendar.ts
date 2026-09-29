@@ -409,6 +409,19 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): P
   }
 }
 
+function googleApiErrorMessage(error: unknown): string {
+  const err = error instanceof Error ? error : new Error(String(error));
+  const response = (error as { response?: { data?: unknown } })?.response;
+  const data = response?.data;
+  if (data && typeof data === 'object') {
+    const apiError = (data as { error?: { message?: string } }).error;
+    if (typeof apiError?.message === 'string' && apiError.message.trim()) {
+      return apiError.message.trim();
+    }
+  }
+  return err.message;
+}
+
 /**
  * Create a meeting on the user's OAuth-connected Google Calendar.
  *
@@ -416,6 +429,12 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): P
  * Calendar API can hang past Cloudflare's proxy timeout and surface as a vague 502.
  * We create the Meet event quickly (sendUpdates: none), then notify invitees in the
  * background. LegalNote also sends its own confirmation email asynchronously.
+ *
+ * Also: do NOT put guests on the same insert that mints a Meet link. Google Calendar
+ * rejects that combination — often with "Invalid conference type value" — when a guest
+ * uses a non-Google address such as hotmail.com, outlook.com, or live.com. Teams is
+ * unaffected because Microsoft Graph accepts those guests on the create call. Mint the
+ * Meet event first, then add guests.
  */
 export async function createMeetingCalendarEvent(
   userId: string,
@@ -440,6 +459,13 @@ export async function createMeetingCalendarEvent(
       (data.createConference !== false && !data.meetingUrl);
     const attendees = (data.attendees || []).filter((a) => a.email);
     const hasAttendees = attendees.length > 0;
+    const attendeePayload = attendees.map((a) => ({
+      email: a.email,
+      displayName: a.name,
+    }));
+    // Guests go on a follow-up patch when we are minting Meet. Any email domain is fine.
+    const addAttendeesAfterCreate = hasAttendees && createConference;
+    let guestsAttached = hasAttendees && !addAttendeesAfterCreate;
 
     const eventBody: Record<string, unknown> = {
       summary: data.title,
@@ -461,11 +487,8 @@ export async function createMeetingCalendarEvent(
       },
     };
 
-    if (hasAttendees) {
-      eventBody.attendees = attendees.map((a) => ({
-        email: a.email,
-        displayName: a.name,
-      }));
+    if (hasAttendees && !addAttendeesAfterCreate) {
+      eventBody.attendees = attendeePayload;
     }
 
     if (data.meetingUrl) {
@@ -550,14 +573,21 @@ export async function createMeetingCalendarEvent(
 
       meetingPlatform = 'meet';
 
+      const descriptionWithLink = formatMeetingDescription(
+        data.title,
+        data.description,
+        meetingUrl,
+      );
+
       try {
         await withTimeout(
           calendar.events.patch({
             calendarId: 'primary',
             eventId: eventId!,
+            conferenceDataVersion: 1,
             sendUpdates: 'none',
             requestBody: {
-              description: formatMeetingDescription(data.title, data.description, meetingUrl),
+              description: descriptionWithLink,
               location: meetingUrl,
             },
           }),
@@ -567,19 +597,45 @@ export async function createMeetingCalendarEvent(
       } catch (patchErr) {
         console.warn(
           '[CALENDAR] Failed to patch Meet join URL onto event (invite may still include conference):',
-          patchErr instanceof Error ? patchErr.message : patchErr,
+          googleApiErrorMessage(patchErr),
         );
+      }
+
+      if (addAttendeesAfterCreate && eventId) {
+        try {
+          await withTimeout(
+            calendar.events.patch({
+              calendarId: 'primary',
+              eventId,
+              conferenceDataVersion: 1,
+              sendUpdates: 'none',
+              requestBody: { attendees: attendeePayload },
+            }),
+            8000,
+            'Google Calendar attendee patch',
+          );
+          guestsAttached = true;
+        } catch (attendeeErr) {
+          // Meet already exists. A guest address must not fail the schedule;
+          // LegalNote still emails the join link.
+          console.warn(
+            '[CALENDAR] Google Meet was created, but guests could not be added to the calendar event:',
+            googleApiErrorMessage(attendeeErr),
+          );
+          guestsAttached = false;
+        }
       }
     } else if (meetingUrl?.includes('meet.google.com')) {
       meetingPlatform = 'meet';
     }
 
     // Notify Google Calendar invitees without blocking the HTTP response.
-    if (hasAttendees && eventId) {
+    if (guestsAttached && eventId) {
       void withTimeout(
         calendar.events.patch({
           calendarId: 'primary',
           eventId,
+          conferenceDataVersion: 1,
           sendUpdates: 'all',
           requestBody: {
             // Touch description so Google emits updates with the final Meet link.
@@ -605,15 +661,18 @@ export async function createMeetingCalendarEvent(
       meetingPlatform,
     };
   } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error(String(error));
-    console.error('[CALENDAR] Meeting event creation failed:', err.message);
-    const timedOut = /timed out/i.test(err.message);
+    const detail = googleApiErrorMessage(error);
+    console.error('[CALENDAR] Meeting event creation failed:', detail);
+    const timedOut = /timed out/i.test(detail);
+    const conferenceRejected = /invalid conference type/i.test(detail);
     return {
       success: false,
       provider: 'google',
       error: timedOut
         ? 'Google Calendar timed out while creating a Meet link. Please try again, or paste a meeting URL instead.'
-        : err.message || 'Failed to create meeting calendar event',
+        : conferenceRejected
+          ? 'Google Meet link was not created. Check that Google Meet is enabled for this Google account.'
+          : detail || 'Failed to create meeting calendar event',
     };
   }
 }
