@@ -52,20 +52,55 @@ interface ScheduleMeetingModalProps {
   onNeedsCalendarConnection?: () => void;
 }
 
-function parseAttendeeEmails(raw: string): Array<{ email: string }> {
-  const parts = raw
-    .split(/[,;\s]+/)
-    .map((p) => p.trim())
-    .filter(Boolean);
-  const emails: Array<{ email: string }> = [];
+type AttendeeDraft = {
+  id: string;
+  name: string;
+  email: string;
+};
+
+const ATTENDEE_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MAX_ATTENDEES = 10;
+
+function newAttendeeDraft(partial?: { name?: string; email?: string }): AttendeeDraft {
+  return {
+    id: `attendee-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    name: partial?.name ?? "",
+    email: partial?.email ?? "",
+  };
+}
+
+function filledAttendeeRows(rows: AttendeeDraft[]): AttendeeDraft[] {
+  return rows.filter((row) => row.name.trim() || row.email.trim());
+}
+
+/** Each filled row must have a name. Email is required when requireEmail is set. */
+function collectAttendees(
+  rows: AttendeeDraft[],
+  requireEmail: boolean,
+): Array<{ name: string; email: string }> {
+  const filled = filledAttendeeRows(rows);
   const seen = new Set<string>();
-  for (const part of parts) {
-    const email = part.toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || seen.has(email)) continue;
+  const attendees: Array<{ name: string; email: string }> = [];
+
+  for (const row of filled) {
+    const name = row.name.trim();
+    const email = row.email.trim().toLowerCase();
+    if (!name) {
+      throw new Error(email ? `Add a name for ${email}` : "Add a name for each attendee");
+    }
+    if (!email) {
+      if (requireEmail) throw new Error(`Add an email for ${name}`);
+      continue;
+    }
+    if (!ATTENDEE_EMAIL_RE.test(email)) {
+      throw new Error(`Enter a valid email for ${name}`);
+    }
+    if (seen.has(email)) continue;
     seen.add(email);
-    emails.push({ email });
+    attendees.push({ name, email });
   }
-  return emails;
+
+  return attendees;
 }
 
 const DURATION_OPTIONS = [15, 20, 25, 30, 45, 60, 90, 120] as const;
@@ -129,8 +164,7 @@ export default function ScheduleMeetingModal({
   const [durationMinutes, setDurationMinutes] = useState<number>(DEFAULT_DURATION_MINUTES);
   const [meetingUrl, setMeetingUrl] = useState("");
   const [showExistingLink, setShowExistingLink] = useState(false);
-  const [attendeesRaw, setAttendeesRaw] = useState("");
-  const [attendeeName, setAttendeeName] = useState("");
+  const [attendees, setAttendees] = useState<AttendeeDraft[]>(() => [newAttendeeDraft()]);
   const [description, setDescription] = useState("");
   const [caseId, setCaseId] = useState<string | null>(null);
   const [caseSearch, setCaseSearch] = useState("");
@@ -174,8 +208,7 @@ export default function ScheduleMeetingModal({
     setDurationMinutes(DEFAULT_DURATION_MINUTES);
     setMeetingUrl("");
     setShowExistingLink(false);
-    setAttendeesRaw("");
-    setAttendeeName("");
+    setAttendees([newAttendeeDraft()]);
     setDescription("");
     setCaseId(null);
     setCaseSearch("");
@@ -202,9 +235,22 @@ export default function ScheduleMeetingModal({
     setClientName(client.name);
     setShowClientDropdown(false);
     setClientSearchQuery("");
-    if (client.email?.trim() && !attendeesRaw.trim()) {
-      setAttendeesRaw(client.email.trim());
-    }
+    setAttendees((prev) => {
+      const [first, ...rest] = prev.length > 0 ? prev : [newAttendeeDraft()];
+      if (first.name.trim() || first.email.trim()) {
+        if (!first.name.trim()) {
+          return [{ ...first, name: client.name }, ...rest];
+        }
+        return prev;
+      }
+      return [
+        newAttendeeDraft({
+          name: client.name,
+          email: client.email?.trim() || "",
+        }),
+        ...rest,
+      ];
+    });
   };
 
   const handleClearClient = () => {
@@ -265,7 +311,7 @@ export default function ScheduleMeetingModal({
       if (isClientMeeting && !selectedClient) {
         throw new Error("Select an existing client or create a new one");
       }
-      if (!isClientMeeting && !attendeeName.trim()) {
+      if (!isClientMeeting && filledAttendeeRows(attendees).length === 0) {
         throw new Error("Enter the attendee's name");
       }
 
@@ -286,13 +332,10 @@ export default function ScheduleMeetingModal({
         safeUrl = normalized;
       }
 
-      const attendees = parseAttendeeEmails(attendeesRaw).map((a) => ({
-        ...a,
-        name: isClientMeeting ? selectedClient!.name : attendeeName.trim(),
-      }));
-      if (attendeesRaw.trim() && attendees.length === 0) {
-        throw new Error("Enter valid attendee email addresses");
-      }
+      const guestList = collectAttendees(attendees, false);
+      const primaryName = isClientMeeting
+        ? selectedClient!.name
+        : filledAttendeeRows(attendees)[0]?.name.trim() || guestList[0]?.name;
 
       return apiRequest<ScheduledMeeting>("POST", "/api/scheduled-meetings", {
         title: title.trim(),
@@ -303,9 +346,9 @@ export default function ScheduleMeetingModal({
         createConference: !safeUrl,
         caseId: caseId || undefined,
         provider: activeProvider,
-        attendees,
-        clientEmail: attendees[0]?.email,
-        clientName: isClientMeeting ? selectedClient!.name : attendeeName.trim(),
+        attendees: guestList,
+        clientEmail: guestList[0]?.email,
+        clientName: primaryName,
       });
     },
     onSuccess: (meeting) => {
@@ -352,16 +395,10 @@ export default function ScheduleMeetingModal({
       if (isClientMeeting && !selectedClient) {
         throw new Error("Select an existing client or create a new one");
       }
-      if (!isClientMeeting && !attendeeName.trim()) {
-        throw new Error("Enter the attendee's name");
-      }
 
-      const attendees = parseAttendeeEmails(attendeesRaw).map((a) => ({
-        ...a,
-        name: isClientMeeting ? selectedClient!.name : attendeeName.trim(),
-      }));
-      if (attendees.length === 0) {
-        throw new Error("Enter the client email so we can send the booking link");
+      const guestList = collectAttendees(attendees, true);
+      if (guestList.length === 0) {
+        throw new Error("Add the attendee's name and email so we can send the booking link");
       }
 
       const filled = proposedSlots.filter((s) => s.date && s.startTime);
@@ -390,8 +427,8 @@ export default function ScheduleMeetingModal({
         durationMinutes,
         caseId: caseId || undefined,
         provider: activeProvider,
-        clientEmail: attendees[0].email,
-        clientName: isClientMeeting ? selectedClient!.name : attendeeName.trim(),
+        clientEmail: guestList[0].email,
+        clientName: isClientMeeting ? selectedClient!.name : guestList[0].name,
         slots,
       });
     },
@@ -425,7 +462,10 @@ export default function ScheduleMeetingModal({
   });
 
   const isSubmitting = createMutation.isPending || proposeMutation.isPending;
-  const clientEmailReady = parseAttendeeEmails(attendeesRaw).length > 0;
+  const hasAttendeeName = attendees.some((row) => row.name.trim());
+  const hasValidAttendeeEmail = attendees.some((row) =>
+    ATTENDEE_EMAIL_RE.test(row.email.trim().toLowerCase()),
+  );
   const proposeSlotsReady =
     proposedSlots.filter((s) => s.date && s.startTime).length >= 2;
 
@@ -449,7 +489,13 @@ export default function ScheduleMeetingModal({
             <Label>How do you want to book?</Label>
             <RadioGroup
               value={scheduleMode}
-              onValueChange={(v) => setScheduleMode(v as ScheduleMode)}
+              onValueChange={(v) => {
+                const next = v as ScheduleMode;
+                setScheduleMode(next);
+                if (next === "propose") {
+                  setAttendees((prev) => [prev[0] ?? newAttendeeDraft()]);
+                }
+              }}
               className="grid grid-cols-2 gap-2"
             >
               <div className="flex items-center gap-2 rounded-md border px-3 py-2">
@@ -764,50 +810,102 @@ export default function ScheduleMeetingModal({
             </div>
           )}
 
-          {!isClientMeeting && (
-          <div className="space-y-2">
-            <Label htmlFor="schedule-attendee-name">
-              Attendee name <span className="text-accent">*</span>
-            </Label>
-            <Input
-              id="schedule-attendee-name"
-              value={attendeeName}
-              onChange={(e) => setAttendeeName(e.target.value)}
-              placeholder="e.g. Shake Smith"
-              data-testid="input-schedule-attendee-name"
-            />
-            <p className="text-xs text-muted-foreground">
-              Used in the booking email greeting — e.g. &quot;Hi Shake,&quot;
-            </p>
-          </div>
-          )}
-
-          <div className="space-y-2">
-            <Label htmlFor="schedule-attendees">
-              {isProposeMode ? (
-                <>
-                  {isClientMeeting ? "Client email" : "Attendee email"}{" "}
-                  <span className="text-accent">*</span>
-                </>
-              ) : (
-                "Attendees (optional)"
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <Label>
+                {isProposeMode ? (isClientMeeting ? "Client" : "Attendee") : "Attendees"}
+                {(isProposeMode || !isClientMeeting) && (
+                  <span className="text-accent"> *</span>
+                )}
+                {!isProposeMode && isClientMeeting && (
+                  <span className="font-normal text-muted-foreground"> (optional)</span>
+                )}
+              </Label>
+              {!isProposeMode && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={attendees.length >= MAX_ATTENDEES}
+                  onClick={() => setAttendees((prev) => [...prev, newAttendeeDraft()])}
+                  data-testid="button-add-schedule-attendee"
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1" />
+                  Add
+                </Button>
               )}
-            </Label>
-            <Input
-              id="schedule-attendees"
-              value={attendeesRaw}
-              onChange={(e) => setAttendeesRaw(e.target.value)}
-              placeholder={
-                isProposeMode ? "client@example.com" : "client@example.com, counsel@firm.com"
-              }
-              data-testid="input-schedule-attendees"
-            />
+            </div>
+            {attendees.map((row, index) => (
+              <div
+                key={row.id}
+                className="space-y-2 rounded-md border p-3"
+                data-testid={`row-schedule-attendee-${index}`}
+              >
+                {attendees.length > 1 && (
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-medium text-muted-foreground">
+                      Attendee {index + 1}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() =>
+                        setAttendees((prev) => prev.filter((item) => item.id !== row.id))
+                      }
+                      aria-label={`Remove attendee ${index + 1}`}
+                      data-testid={`button-remove-schedule-attendee-${index}`}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                )}
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground" htmlFor={`schedule-attendee-name-${row.id}`}>
+                    Name
+                  </Label>
+                  <Input
+                    id={`schedule-attendee-name-${row.id}`}
+                    value={row.name}
+                    onChange={(e) =>
+                      setAttendees((prev) =>
+                        prev.map((item) =>
+                          item.id === row.id ? { ...item, name: e.target.value } : item,
+                        ),
+                      )
+                    }
+                    placeholder="Shake Smith"
+                    data-testid={`input-schedule-attendee-name-${index}`}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground" htmlFor={`schedule-attendee-email-${row.id}`}>
+                    Email
+                  </Label>
+                  <Input
+                    id={`schedule-attendee-email-${row.id}`}
+                    type="email"
+                    value={row.email}
+                    onChange={(e) =>
+                      setAttendees((prev) =>
+                        prev.map((item) =>
+                          item.id === row.id ? { ...item, email: e.target.value } : item,
+                        ),
+                      )
+                    }
+                    placeholder="name@example.com"
+                    data-testid={`input-schedule-attendee-email-${index}`}
+                  />
+                </div>
+              </div>
+            ))}
             <p className="text-xs text-muted-foreground">
               {isProposeMode
-                ? "We’ll email them a link to pick one of the proposed times"
-                : "Separate emails with commas"}
+                ? "We’ll email this person a link to pick one of the proposed times."
+                : "Add each person with their own name. That name is used in their invitation."}
             </p>
-            {calendarAutoRecordVisible && isClientMeeting && clientEmailReady && !isProposeMode && (
+            {calendarAutoRecordVisible && isClientMeeting && hasValidAttendeeEmail && !isProposeMode && (
               <p className="text-xs text-muted-foreground rounded-md border bg-muted/30 px-2.5 py-2">
                 Auto-record will be enabled for this client meeting. You’ll confirm verbal consent in the call.
               </p>
@@ -965,9 +1063,9 @@ export default function ScheduleMeetingModal({
               isSubmitting ||
               !title.trim() ||
               (isClientMeeting && !selectedClient) ||
-              (!isClientMeeting && !attendeeName.trim()) ||
+              (!isClientMeeting && !hasAttendeeName) ||
               (isProposeMode
-                ? !clientEmailReady || !proposeSlotsReady
+                ? !hasAttendeeName || !hasValidAttendeeEmail || !proposeSlotsReady
                 : !date || !startTime)
             }
             data-testid={isProposeMode ? "button-confirm-propose" : "button-confirm-schedule"}
