@@ -29,6 +29,115 @@ export function attendanceNoteToPlain(markdown: string): string {
     .replace(/\r\n/g, "\n");
 }
 
+const FOLDED_PUNCTUATION: Record<string, string> = {
+  "\u2018": "'",
+  "\u2019": "'",
+  "\u201a": "'",
+  "\u201b": "'",
+  "\u2032": "'",
+  "\u201c": '"',
+  "\u201d": '"',
+  "\u201e": '"',
+  "\u2033": '"',
+  "\u2013": "-",
+  "\u2014": "-",
+  "\u00a0": " ",
+};
+
+function foldMatchChar(char: string): string {
+  const mapped = FOLDED_PUNCTUATION[char];
+  if (mapped) return mapped;
+  return /\s/.test(char) ? " " : char;
+}
+
+interface FoldedText {
+  text: string;
+  starts: number[];
+  ends: number[];
+}
+
+/** Collapse whitespace and curly quotes so a selection can be found in the note. */
+function foldText(value: string): FoldedText {
+  const chars: string[] = [];
+  const starts: number[] = [];
+  const ends: number[] = [];
+  let spaceAt = -1;
+  for (let i = 0; i < value.length; i++) {
+    const folded = foldMatchChar(value[i]);
+    if (folded === " ") {
+      if (chars.length > 0 && spaceAt < 0) spaceAt = i;
+      continue;
+    }
+    if (spaceAt >= 0) {
+      chars.push(" ");
+      starts.push(spaceAt);
+      ends.push(i);
+      spaceAt = -1;
+    }
+    chars.push(folded);
+    starts.push(i);
+    ends.push(i + 1);
+  }
+  return { text: chars.join(""), starts, ends };
+}
+
+function foldNeedle(value: string): string {
+  return foldText(value.trim()).text.trim();
+}
+
+/**
+ * Find needle in haystack after folding quotes, dashes, and whitespace.
+ * Indexes refer to the original haystack.
+ */
+export function findFoldedSpan(
+  haystack: string,
+  needle: string,
+  fromIndex = 0,
+): { start: number; end: number } | null {
+  const foldedNeedle = foldNeedle(needle);
+  if (!foldedNeedle) return null;
+  const folded = foldText(haystack);
+  let searchFrom = 0;
+  if (fromIndex > 0) {
+    searchFrom = folded.starts.findIndex((start) => start >= fromIndex);
+    if (searchFrom < 0) return null;
+  }
+  const at = folded.text.indexOf(foldedNeedle, searchFrom);
+  if (at < 0) return null;
+  return {
+    start: folded.starts[at],
+    end: folded.ends[at + foldedNeedle.length - 1],
+  };
+}
+
+/**
+ * The exact note wording for a passage the reader selected.
+ * Page chrome that is not in the note is left off either end.
+ */
+export function resolvePassage(plain: string, selected: string): string | null {
+  const sliceAt = (value: string): string | null => {
+    const span = findFoldedSpan(plain, value);
+    if (!span) return null;
+    const slice = plain.slice(span.start, span.end).trim();
+    return slice.length >= 8 ? slice : null;
+  };
+
+  const direct = sliceAt(selected);
+  if (direct) return direct;
+
+  const words = selected.trim().split(/\s+/).filter(Boolean);
+  if (words.length < 4) return null;
+  const windowWords = words.length > 50 ? words.slice(0, 50) : words;
+  const minWords = Math.max(4, Math.ceil(windowWords.length * 0.6));
+  for (let length = windowWords.length - 1; length >= minWords; length--) {
+    for (let start = 0; start + length <= windowWords.length; start++) {
+      const found = sliceAt(windowWords.slice(start, start + length).join(" "));
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
 /** Find needle in haystack, treating any run of whitespace as equal. */
 export function findFlexibleSpan(
   haystack: string,

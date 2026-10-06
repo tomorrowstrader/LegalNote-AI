@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   attendanceFeeEarnerLead,
+  attendanceTranscriptPresenceRule,
   emptyMeetingCast,
   formatMeetingCastInstructions,
   meetingCastError,
@@ -14,6 +15,8 @@ describe("meeting cast", () => {
     expect(meetingCastIsDefault(cast, "Tyanna Davey")).toBe(true);
     expect(formatMeetingCastInstructions(cast, { feeEarnerName: "Jazz Dennis", matterClientName: "Tyanna Davey" })).toBe("");
     expect(attendanceFeeEarnerLead("Jazz Dennis", cast, "Tyanna Davey")).toContain("YOU ARE THE FEE EARNER");
+    expect(attendanceTranscriptPresenceRule(cast, "Tyanna Davey")).toContain("READ THE CONVERSATION");
+    expect(attendanceTranscriptPresenceRule(cast, "Tyanna Davey")).toContain("instructions have not been taken");
   });
 
   it("names the adviser, the client, and the representative when the fee earner attended for an absent client", () => {
@@ -35,6 +38,7 @@ describe("meeting cast", () => {
     expect(block).toContain('Do not write it as "I advised"');
     expect(block).toContain("Do not treat Jazz Dennis as the client");
     expect(attendanceFeeEarnerLead("Jazz Dennis", cast, "Jazz Dennis")).not.toContain("YOU ARE THE FEE EARNER");
+    expect(attendanceTranscriptPresenceRule(cast, "Jazz Dennis")).toBe("");
   });
 
   it("requires the adviser's name and the representative's name when those roles are not the default", () => {

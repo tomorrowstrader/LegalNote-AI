@@ -3,6 +3,7 @@ import {
   attendanceNoteToPlain,
   keepPlaceableProposals,
   proposeNameReplacements,
+  resolvePassage,
 } from "./noteCorrections";
 
 const note = `The meeting was attended by Jaz Dennis on behalf of the client, Tyanna Davey.
@@ -53,6 +54,18 @@ describe("note corrections", () => {
     ]);
     expect(kept).toHaveLength(1);
     expect(kept[0]?.reason).toBe("Sentence");
+  });
+
+  it("matches a selected passage despite curly quotes and page chrome", () => {
+    const plain = "The client was not present. Her partner attended and spoke on her behalf.";
+    expect(resolvePassage(plain, "The client was not present.")).toBe("The client was not present.");
+    expect(
+      resolvePassage(plain, "The client was not present. Page 2"),
+    ).toBe("The client was not present.");
+    expect(
+      resolvePassage(plain, "Reasoning needed — The client was not present. Her partner attended"),
+    ).toContain("The client was not present.");
+    expect(resolvePassage(plain, "This sentence is not in the note at all.")).toBeNull();
   });
 
   it("strips emphasis so a quote can match the words on the page", () => {

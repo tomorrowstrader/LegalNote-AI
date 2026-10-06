@@ -4,6 +4,7 @@ import { ALL_RECORDING_TYPES } from '@shared/recordingTypes';
 import {
   attendanceFeeEarnerLead,
   attendanceSpeakerAttribution,
+  attendanceTranscriptPresenceRule,
   formatMeetingCastInstructions,
   type MeetingCast,
 } from '@shared/meetingCast';
@@ -1057,6 +1058,14 @@ CRITICAL: Extract only what was actually discussed. Where an area was not covere
           systemPrompt += `\n\n${paContext}`;
         }
       } catch {}
+    }
+
+    const presenceRule = attendanceTranscriptPresenceRule(
+      metadata.meetingCast,
+      metadata.matterClientName ?? metadata.clientName,
+    );
+    if (presenceRule) {
+      systemPrompt += `\n\n${presenceRule}`;
     }
 
     const userPrompt = appendRelationshipDurationFacts(

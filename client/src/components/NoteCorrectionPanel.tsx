@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,6 +37,10 @@ export function NoteCorrectionPanel({
   const [find, setFind] = useState("");
   const [replaceWith, setReplaceWith] = useState("");
   const [pending, setPending] = useState(false);
+
+  useEffect(() => {
+    if (selectedText.trim().length >= 8) setMode("selection");
+  }, [selectedText]);
 
   const submit = async () => {
     setPending(true);
@@ -112,7 +116,7 @@ export function NoteCorrectionPanel({
           </blockquote>
         ) : (
           <p className="text-sm text-muted-foreground" data-testid="text-correction-select-prompt">
-            Select a passage in the note, then choose Correct this.
+            Highlight a passage in the note, then ask for changes in the bar on the selection.
           </p>
         )
       )}
@@ -125,7 +129,7 @@ export function NoteCorrectionPanel({
               id="correction-find"
               value={find}
               onChange={(event) => setFind(event.target.value)}
-              placeholder="Jaz"
+              placeholder="Jon"
               data-testid="input-correction-find"
             />
           </div>
@@ -135,7 +139,7 @@ export function NoteCorrectionPanel({
               id="correction-replace"
               value={replaceWith}
               onChange={(event) => setReplaceWith(event.target.value)}
-              placeholder="Jazz"
+              placeholder="John"
               data-testid="input-correction-replace"
             />
           </div>
@@ -150,8 +154,8 @@ export function NoteCorrectionPanel({
             value={instruction}
             onChange={(event) => setInstruction(event.target.value)}
             placeholder={mode === "selection"
-              ? "I was present at the delivery. My partner was absent afterwards, in the neonatal unit, because she was recovering from the general anaesthetic."
-              : "Tyanna Davey is the client. I attended for her. I am not the client. Jen gave the advice."}
+              ? "Record that the person who attended was speaking for the client, who was not at the meeting."
+              : "The client was not present. The person who attended spoke on their behalf and is not the client."}
             className="min-h-[88px]"
             data-testid="input-correction-instruction"
           />

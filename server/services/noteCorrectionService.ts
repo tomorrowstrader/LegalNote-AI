@@ -5,6 +5,7 @@ import {
   findFlexibleSpan,
   keepPlaceableProposals,
   proposeNameReplacements,
+  resolvePassage,
   type NoteProposal,
 } from "@shared/noteCorrections";
 import {
@@ -163,10 +164,11 @@ export async function proposeNoteCorrection(
   if (input.mode === "selection") {
     const selected = input.selectedText?.trim() ?? "";
     const instruction = input.instruction?.trim() ?? "";
-    if (!findFlexibleSpan(plain, selected)) {
+    const passage = resolvePassage(plain, selected);
+    if (!passage) {
       throw new NoteCorrectionError("That passage is not in the note.", 400);
     }
-    const kept = await rewriteSelection(plain, selected, instruction, complete);
+    const kept = await rewriteSelection(plain, passage, instruction, complete);
     return { proposals: withIds(kept), unplacedCount: 0 };
   }
 

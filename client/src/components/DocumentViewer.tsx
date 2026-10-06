@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileDown, FileSearch, FileText, CheckCircle, Lock, Unlock, AlertCircle, Edit, Save, CloudUpload, Shield, ZoomIn, ZoomOut, Maximize2, Minimize2, Printer, MessageSquare, MessageSquarePlus, Check, Eye, EyeOff, X, GitCompareArrows, ChevronDown, ChevronUp, Mail, MailCheck, BookOpen, Pencil, AlertTriangle, PenLine, Share2, Quote, Play, MoreHorizontal, Clock } from "lucide-react";
+import { FileDown, FileSearch, FileText, CheckCircle, Lock, Unlock, AlertCircle, Edit, Save, CloudUpload, Shield, ZoomIn, ZoomOut, Maximize2, Minimize2, Printer, MessageSquare, MessageSquarePlus, Check, Eye, EyeOff, X, GitCompareArrows, ChevronDown, ChevronUp, Mail, MailCheck, BookOpen, Pencil, AlertTriangle, PenLine, Share2, Quote, Play, MoreHorizontal, Clock, ArrowUp } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -48,6 +48,7 @@ import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 import { RichTextEditor, type SeededReplacement, type TrackedChange, type TrackChangeAuditRecord } from "@/components/RichTextEditor";
 import { NoteCorrectionPanel, type CorrectionProposal } from "@/components/NoteCorrectionPanel";
+import { attendanceNoteToPlain, resolvePassage } from "@shared/noteCorrections";
 import { PageView } from "@/components/PageView";
 import DiarizedTranscriptViewer, { type SpeakerUtterance, type Redaction } from "@/components/DiarizedTranscriptViewer";
 import {
@@ -65,6 +66,16 @@ import {
   findLegacyAttendanceBodyStart,
   normalizeAttendanceSectionLabels,
 } from "@shared/attendanceNoteFormat";
+
+const SELECTION_CHROME =
+  "[data-page-view-measure], .page-view-page-separator, [data-reasoning-gap-index], [data-gap-citation], .reasoning-gap-citation";
+
+function visibleSelectionText(selection: Selection): string {
+  if (selection.rangeCount === 0 || selection.isCollapsed) return "";
+  const fragment = selection.getRangeAt(0).cloneContents();
+  fragment.querySelectorAll(SELECTION_CHROME).forEach((node) => node.remove());
+  return (fragment.textContent ?? "").replace(/\s+/g, " ").trim();
+}
 
 function markdownToPlainText(md: string): string {
   if (!md) return '';
@@ -1670,6 +1681,8 @@ export default function DocumentViewer({
   const [trackChangesEnabled, setTrackChangesEnabled] = useState(false);
   const [correctionTarget, setCorrectionTarget] = useState<{ documentId: string; selectedText: string } | null>(null);
   const [selectionOffer, setSelectionOffer] = useState<{ documentId: string; text: string; top: number; left: number } | null>(null);
+  const [selectionInstruction, setSelectionInstruction] = useState("");
+  const [selectionPending, setSelectionPending] = useState(false);
   const [correctionSeeds, setCorrectionSeeds] = useState<{ documentId: string; items: SeededReplacement[] } | null>(null);
   
   const [showVersionDiff, setShowVersionDiff] = useState<string | null>(null);
@@ -2537,11 +2550,17 @@ export default function DocumentViewer({
         title: "Some changes could not be placed",
         description: `${result.missed} ${result.missed === 1 ? "change was" : "changes were"} left out. Review the ones that are marked.`,
       });
+      requestAnimationFrame(() => {
+        document.querySelector("[data-track-change]")?.scrollIntoView({ block: "center", behavior: "smooth" });
+      });
       return;
     }
     toast({
       title: "Changes ready to review",
       description: "Accept the ones that are right. The rest of the note is unchanged.",
+    });
+    requestAnimationFrame(() => {
+      document.querySelector("[data-track-change]")?.scrollIntoView({ block: "center", behavior: "smooth" });
     });
   }, [toast]);
 
@@ -2565,41 +2584,82 @@ export default function DocumentViewer({
     }
   };
 
+  const proposeSelection = async () => {
+    if (!selectionOffer) return;
+    const instruction = selectionInstruction.trim();
+    if (instruction.length < 8) return;
+    const source = documents.find((item) => item.id === selectionOffer.documentId);
+    if (!source) return;
+    setSelectionPending(true);
+    try {
+      const result = await apiRequest<{ proposals: CorrectionProposal[]; unplacedCount: number }>(
+        "POST",
+        `/api/cases/${caseId}/documents/${source.id}/note-corrections`,
+        {
+          mode: "selection",
+          instruction,
+          selectedText: selectionOffer.text,
+        },
+      );
+      if (!result.proposals.length) {
+        toast({
+          title: "No change to make",
+          description: "The note already says that, or the passage could not be revised on its own.",
+        });
+        return;
+      }
+      beginCorrection(source, result.proposals, result.unplacedCount);
+      setSelectionInstruction("");
+    } catch (error) {
+      toast({
+        title: "Could not propose the correction",
+        description: getApiErrorMessage(error, "Try again."),
+        variant: "destructive",
+      });
+    } finally {
+      setSelectionPending(false);
+    }
+  };
+
   useEffect(() => {
     const onMouseUp = (event: MouseEvent) => {
       const target = event.target instanceof Element ? event.target : null;
-      if (target?.closest("[data-testid='button-correct-selection']")) return;
+      if (target?.closest("[data-testid='selection-correction']")) return;
       const selection = window.getSelection();
-      const text = selection?.toString().replace(/\s+/g, " ").trim() ?? "";
+      const text = selection ? visibleSelectionText(selection) : "";
       if (!selection || selection.isCollapsed || text.length < 8 || editingDocIdRef.current) {
         setSelectionOffer(null);
         return;
       }
       const node = selection.anchorNode;
       const element = node instanceof Element ? node : node?.parentElement;
+      if (element?.closest("[data-page-view-measure]")) {
+        setSelectionOffer(null);
+        return;
+      }
       const card = element?.closest("[data-correction-document-id]");
       const documentId = card?.getAttribute("data-correction-document-id");
-      if (!documentId) {
+      const source = documents.find((item) => item.id === documentId);
+      const passage = source ? resolvePassage(attendanceNoteToPlain(source.content), text.slice(0, 2000)) : null;
+      if (!documentId || !passage) {
         setSelectionOffer(null);
         return;
       }
-      const passage = text.slice(0, 2000);
-      if (correctionTarget?.documentId === documentId) {
-        setCorrectionTarget({ documentId, selectedText: passage });
-        setSelectionOffer(null);
-        return;
-      }
-      const rect = selection.getRangeAt(0).getBoundingClientRect();
+      const range = selection.getRangeAt(0);
+      const line = range.getClientRects()[0] ?? range.getBoundingClientRect();
+      const barHeight = 44;
+      const above = line.top - barHeight - 6;
+      setSelectionInstruction("");
       setSelectionOffer({
         documentId,
         text: passage,
-        top: Math.min(rect.bottom + 8, window.innerHeight - 48),
-        left: Math.min(Math.max(8, rect.left), window.innerWidth - 140),
+        top: above >= 8 ? above : Math.min(line.bottom + 6, window.innerHeight - barHeight - 8),
+        left: Math.min(Math.max(8, line.left), window.innerWidth - 300),
       });
     };
     document.addEventListener("mouseup", onMouseUp);
     return () => document.removeEventListener("mouseup", onMouseUp);
-  }, [correctionTarget]);
+  }, [documents]);
 
   const handleTrackChangeAction = useCallback((action: 'accept' | 'reject' | 'accept_all' | 'reject_all', changes: TrackChangeAuditRecord[]) => {
     if (!changes.length) return;
@@ -3381,19 +3441,35 @@ export default function DocumentViewer({
       style={{ '--doc-header-height': `${headerHeight}px` } as CSSProperties}
     >
       {selectionOffer && !editingDocId && (
-        <button
-          type="button"
-          className="fixed z-50 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground shadow-md"
+        <form
+          data-testid="selection-correction"
+          className="fixed z-50 flex h-10 items-center gap-0.5 rounded-md border border-border bg-popover px-1 shadow-md"
           style={{ top: selectionOffer.top, left: selectionOffer.left }}
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => {
-            setCorrectionTarget({ documentId: selectionOffer.documentId, selectedText: selectionOffer.text });
-            setSelectionOffer(null);
+          onSubmit={(event) => {
+            event.preventDefault();
+            void proposeSelection();
           }}
-          data-testid="button-correct-selection"
         >
-          Correct this
-        </button>
+          <Pencil className="ml-2 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <input
+            value={selectionInstruction}
+            onChange={(event) => setSelectionInstruction(event.target.value)}
+            placeholder="Ask for changes"
+            className="h-8 w-52 bg-transparent px-2 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+            data-testid="input-selection-correction"
+          />
+          <Button
+            type="submit"
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7"
+            disabled={selectionPending || selectionInstruction.trim().length < 8}
+            data-testid="button-correct-selection"
+            aria-label="Ask for changes"
+          >
+            <ArrowUp className="h-3.5 w-3.5" />
+          </Button>
+        </form>
       )}
       {focusMode && (
         <div className="fixed top-4 right-4 z-[110] print:hidden">
