@@ -1,12 +1,15 @@
 import crypto from "crypto";
 import {
+  assembleRoleProposals,
   attendanceNoteToPlain,
   collapseWhitespace,
   findFlexibleSpan,
   keepPlaceableProposals,
+  noteRoleError,
   proposeNameReplacements,
   resolvePassage,
   type NoteProposal,
+  type NoteRole,
 } from "@shared/noteCorrections";
 import {
   privilegedComplete,
@@ -18,7 +21,7 @@ export interface NoteCorrectionProposal extends NoteProposal {
   id: string;
 }
 
-export type NoteCorrectionMode = "selection" | "fact" | "replace";
+export type NoteCorrectionMode = "selection" | "fact" | "replace" | "role";
 
 export class NoteCorrectionError extends Error {
   constructor(
@@ -143,6 +146,76 @@ ${instruction}`,
   return keepPlaceableProposals(plain, proposals);
 }
 
+function roleSentenceRules(role: NoteRole): string {
+  const client = role.clientName.trim() || "the person the note is about";
+  const representative = role.representativeName.trim();
+  const rules = [
+    "Change a sentence only when it still does one of these:",
+  ];
+  if (!role.clientPresent && representative) {
+    rules.push(`- treats ${representative} as the client`);
+    rules.push(`- records what ${representative} said as instructions from ${client}`);
+  }
+  if (!role.instructionsTaken) {
+    rules.push("- records that instructions have been taken, or that the firm has been retained");
+  }
+  if (!role.adviserIsFeeEarner && role.adviserName.trim()) {
+    rules.push(`- attributes the advice to someone other than ${role.adviserName.trim()}`);
+  }
+  if (rules.length === 1) {
+    rules.push("- records the wrong person as the client, or the wrong person as having given the advice");
+  }
+  return rules.join("\n");
+}
+
+async function proposeRoleSentences(
+  plain: string,
+  role: NoteRole,
+  complete: CompleteFn,
+): Promise<NoteProposal[]> {
+  const note = plain.length > 80000 ? `${plain.slice(0, 80000)}\n\n[Note truncated for length]` : plain;
+  const client = role.clientName.trim() || "not named";
+  const adviser = role.adviserIsFeeEarner ? "the fee earner who prepared the note" : role.adviserName.trim();
+  const result = await complete({
+    systemPrompt: `You propose the smallest set of exact sentence replacements so an attendance note matches who the note is about. You do not rewrite the note. You do not add an opening sentence. You do not replace the words "the client" with "the prospective client"; that replacement is done separately.
+
+${roleSentenceRules(role)}
+
+Rules:
+- original must be copied from the note, usually one sentence, and must appear in the note.
+- Quote the shortest span that makes the correction true.
+- Do not quote more than 500 characters.
+- Leave a sentence out when it is already right.
+- replacement is the corrected sentence only.
+
+Return JSON only: {"proposals":[{"original":"...","replacement":"...","reason":"..."}]}`,
+    userPrompt: `WHO THIS NOTE IS ABOUT:
+Person the note is about: ${client}
+Instructions taken: ${role.instructionsTaken ? "yes" : "no. They are the prospective client."}
+Present at the meeting: ${role.clientPresent ? "yes" : "no"}
+${role.clientPresent ? "" : `Attended and spoke on their behalf: ${role.representativeName.trim()}\n`}Adviser: ${adviser}
+${role.attendees.trim() ? `Also present: ${role.attendees.trim()}\n` : ""}
+NOTE:
+${note}`,
+    maxTokens: 4000,
+    temperature: 0,
+    responseFormat: "json_object",
+  });
+
+  const parsed = parseJsonObject(result.content);
+  const raw = Array.isArray(parsed?.proposals) ? parsed.proposals : [];
+  return raw.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const record = item as Record<string, unknown>;
+    if (typeof record.original !== "string" || typeof record.replacement !== "string") return [];
+    return [{
+      original: record.original,
+      replacement: record.replacement,
+      reason: typeof record.reason === "string" ? record.reason : "Who this note is about",
+    }];
+  });
+}
+
 export async function proposeNoteCorrection(
   input: {
     mode: NoteCorrectionMode;
@@ -151,6 +224,7 @@ export async function proposeNoteCorrection(
     selectedText?: string;
     find?: string;
     replaceWith?: string;
+    role?: NoteRole;
   },
   complete: CompleteFn = privilegedComplete,
 ): Promise<{ proposals: NoteCorrectionProposal[]; unplacedCount: number }> {
@@ -170,6 +244,21 @@ export async function proposeNoteCorrection(
     }
     const kept = await rewriteSelection(plain, passage, instruction, complete);
     return { proposals: withIds(kept), unplacedCount: 0 };
+  }
+
+  if (input.mode === "role") {
+    const role = input.role;
+    if (!role) throw new NoteCorrectionError("Say who this note is about.", 400);
+    const roleError = noteRoleError(role);
+    if (roleError) throw new NoteCorrectionError(roleError, 400);
+    let modelSentences: NoteProposal[] = [];
+    try {
+      modelSentences = await proposeRoleSentences(plain, role, complete);
+    } catch (modelError) {
+      console.error("[NOTE_CORRECTION] Role sentences were not proposed", modelError);
+    }
+    const { kept, unplaced } = assembleRoleProposals(plain, role, modelSentences);
+    return { proposals: withIds(kept), unplacedCount: unplaced.length };
   }
 
   const { kept, unplaced } = await proposeFacts(plain, input.instruction?.trim() ?? "", complete);

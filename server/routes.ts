@@ -129,6 +129,7 @@ import {
 } from "./rateLimiting";
 import { logAuditEvent, auditMiddleware } from "./auditMiddleware";
 import { normalizeMeetingCastInput } from "@shared/meetingCast";
+import { parseNoteRole } from "@shared/noteCorrections";
 import { SYSTEM_USER_ID } from "./systemUser";
 import {
   deleteCaseAudioRecording,
@@ -4175,14 +4176,15 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       const userId = req.user.claims.sub;
       const { caseId, documentId } = req.params;
       const mode = req.body?.mode;
-      if (mode !== "selection" && mode !== "fact" && mode !== "replace") {
-        return res.status(400).json({ message: "Choose a passage, a fact, or a name." });
+      if (mode !== "selection" && mode !== "fact" && mode !== "replace" && mode !== "role") {
+        return res.status(400).json({ message: "Choose a passage, a fact, a name, or who the note is about." });
       }
 
       const instruction = typeof req.body?.instruction === "string" ? req.body.instruction.trim() : "";
       const selectedText = typeof req.body?.selectedText === "string" ? req.body.selectedText.trim() : "";
       const find = typeof req.body?.find === "string" ? req.body.find.trim() : "";
       const replaceWith = typeof req.body?.replaceWith === "string" ? req.body.replaceWith.trim() : "";
+      const role = mode === "role" ? parseNoteRole(req.body?.role) : null;
 
       if (mode === "selection") {
         if (selectedText.length < 8 || selectedText.length > 2000) {
@@ -4194,6 +4196,10 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       } else if (mode === "fact") {
         if (instruction.length < 12 || instruction.length > 2000) {
           return res.status(400).json({ message: "State the correction in a sentence or two." });
+        }
+      } else if (mode === "role") {
+        if (!role) {
+          return res.status(400).json({ message: "Say who this note is about." });
         }
       } else if (find.length < 2 || find.length > 80 || replaceWith.length < 1 || replaceWith.length > 200) {
         return res.status(400).json({ message: "Enter the name to find and the name to use." });
@@ -4222,6 +4228,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         selectedText,
         find,
         replaceWith,
+        role: role ?? undefined,
       });
 
       await logAuditEvent(userId, "note_correction_proposed", {

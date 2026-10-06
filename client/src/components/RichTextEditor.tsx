@@ -712,6 +712,8 @@ export interface SeededReplacement {
   id: string;
   original: string;
   replacement: string;
+  /** "before" inserts ahead of the matched text and leaves that text in place. */
+  placement?: "replace" | "before";
 }
 
 function buildDocTextMap(doc: any): { text: string; pos: Array<number | null> } {
@@ -1261,21 +1263,22 @@ export function RichTextEditor({
     if (appliedSeedKeyRef.current === key) return;
     appliedSeedKeyRef.current = key;
     const occupied: Array<{ from: number; to: number }> = [];
-    const placements: Array<{ from: number; to: number; replacement: string; id: string }> = [];
+    const placements: Array<{ from: number; to: number; replacement: string; id: string; placement: "replace" | "before" }> = [];
     let missed = 0;
 
     for (const seed of seedReplacements) {
       let fromIndex = 0;
       let placed = false;
+      const placement = seed.placement === "before" ? "before" : "replace";
       while (fromIndex < map.text.length) {
         const span = findFlexibleSpan(map.text, seed.original, fromIndex);
         if (!span) break;
         const docSpan = spanToDoc(map.pos, span.start, span.end);
         if (!docSpan) break;
         const overlaps = occupied.some((range) => docSpan.from < range.to && docSpan.to > range.from);
-        if (!overlaps) {
-          occupied.push(docSpan);
-          placements.push({ ...docSpan, replacement: seed.replacement, id: seed.id });
+        if (!overlaps || placement === "before") {
+          if (placement !== "before") occupied.push(docSpan);
+          placements.push({ ...docSpan, replacement: seed.replacement, id: seed.id, placement });
           placed = true;
           break;
         }
@@ -1289,25 +1292,36 @@ export function RichTextEditor({
       return;
     }
 
-    placements.sort((a, b) => b.from - a.from);
+    placements.sort((a, b) => {
+      if (a.from !== b.from) return b.from - a.from;
+      if (a.placement === "before" && b.placement !== "before") return 1;
+      if (b.placement === "before" && a.placement !== "before") return -1;
+      return 0;
+    });
     isUpdatingRef.current = true;
     const tr = editor.state.tr;
     tr.setMeta("trackChangesApply", true);
     const userName = userNameRef.current;
     const timestamp = new Date().toISOString();
     for (const placement of placements) {
-      const deletion = editor.schema.marks.deletion?.create({
-        user: userName,
-        timestamp,
-        changeId: placement.id,
-      });
       const insertion = editor.schema.marks.insertion?.create({
         user: userName,
         timestamp,
         changeId: `${placement.id}-ins`,
       });
-      if (deletion) tr.addMark(placement.from, placement.to, deletion);
       const flat = placement.replacement.replace(/\s*\n\s*/g, " ").trim();
+      if (placement.placement === "before") {
+        if (flat && insertion) {
+          tr.insert(placement.from, editor.schema.text(`${flat} `, [insertion]));
+        }
+        continue;
+      }
+      const deletion = editor.schema.marks.deletion?.create({
+        user: userName,
+        timestamp,
+        changeId: placement.id,
+      });
+      if (deletion) tr.addMark(placement.from, placement.to, deletion);
       if (flat && insertion) {
         tr.insert(placement.to, editor.schema.text(flat, [insertion]));
       }

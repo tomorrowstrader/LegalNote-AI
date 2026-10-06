@@ -12,6 +12,12 @@ interface MeetingCastFieldsProps {
   onChange: (next: MeetingCast) => void;
   matterClientName?: string;
   disabled?: boolean;
+  hideIntro?: boolean;
+  idPrefix?: string;
+  clientLabel?: string;
+  clientPlaceholder?: string;
+  presentLabel?: string;
+  representativeLabel?: string;
 }
 
 export function meetingCastFromUnknown(value: unknown): MeetingCast {
@@ -23,25 +29,34 @@ export function MeetingCastFields({
   onChange,
   matterClientName,
   disabled,
+  hideIntro,
+  idPrefix = "",
+  clientLabel = "Client",
+  clientPlaceholder,
+  presentLabel = "The client was present",
+  representativeLabel = "Who attended for the client",
 }: MeetingCastFieldsProps) {
   const patch = (partial: Partial<MeetingCast>) => onChange({ ...value, ...partial });
+  const fieldId = (name: string) => `${idPrefix}${name}`;
 
   return (
-    <div className="space-y-3" data-testid="meeting-cast-fields">
-      <div>
-        <p className="text-sm font-medium">Who was in this meeting</p>
-        <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-          The note is written from this. Leave it when you gave the advice and the client was there.
-          It applies when the note is produced. A note already on the file is corrected on the document.
-        </p>
-      </div>
+    <div className="space-y-3" data-testid={`${idPrefix}meeting-cast-fields`}>
+      {!hideIntro && (
+        <div>
+          <p className="text-sm font-medium">Who was in this meeting</p>
+          <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+            The note is written from this. Leave it when you gave the advice and the client was there.
+            It applies when the note is produced. A note already on the file is corrected on the document.
+          </p>
+        </div>
+      )}
 
       <label className="flex items-start gap-2 text-sm">
         <Checkbox
           checked={value.adviserIsFeeEarner}
           onCheckedChange={(checked) => patch({ adviserIsFeeEarner: checked === true })}
           disabled={disabled}
-          data-testid="checkbox-cast-adviser-is-me"
+          data-testid={`${idPrefix}checkbox-cast-adviser-is-me`}
           className="mt-0.5"
         />
         <span>I gave the advice</span>
@@ -49,27 +64,27 @@ export function MeetingCastFields({
 
       {!value.adviserIsFeeEarner && (
         <div className="space-y-1.5">
-          <Label htmlFor="cast-adviser-name">Who gave the advice</Label>
+          <Label htmlFor={fieldId("cast-adviser-name")}>Who gave the advice</Label>
           <Input
-            id="cast-adviser-name"
+            id={fieldId("cast-adviser-name")}
             value={value.adviserName}
             onChange={(event) => patch({ adviserName: event.target.value })}
             placeholder="Name of the adviser"
             disabled={disabled}
-            data-testid="input-cast-adviser-name"
+            data-testid={`${idPrefix}input-cast-adviser-name`}
           />
         </div>
       )}
 
       <div className="space-y-1.5">
-        <Label htmlFor="cast-client-name">Client</Label>
+        <Label htmlFor={fieldId("cast-client-name")}>{clientLabel}</Label>
         <Input
-          id="cast-client-name"
+          id={fieldId("cast-client-name")}
           value={value.clientName}
           onChange={(event) => patch({ clientName: event.target.value })}
-          placeholder={matterClientName ? `Matter client: ${matterClientName}` : "Client name, if it is not the matter client"}
+          placeholder={clientPlaceholder ?? (matterClientName ? `Matter client: ${matterClientName}` : "Client name, if it is not the matter client")}
           disabled={disabled}
-          data-testid="input-cast-client-name"
+          data-testid={`${idPrefix}input-cast-client-name`}
         />
       </div>
 
@@ -78,35 +93,35 @@ export function MeetingCastFields({
           checked={value.clientPresent}
           onCheckedChange={(checked) => patch({ clientPresent: checked === true })}
           disabled={disabled}
-          data-testid="checkbox-cast-client-present"
+          data-testid={`${idPrefix}checkbox-cast-client-present`}
           className="mt-0.5"
         />
-        <span>The client was present</span>
+        <span>{presentLabel}</span>
       </label>
 
       {!value.clientPresent && (
         <div className="space-y-1.5">
-          <Label htmlFor="cast-representative-name">Who attended for the client</Label>
+          <Label htmlFor={fieldId("cast-representative-name")}>{representativeLabel}</Label>
           <Input
-            id="cast-representative-name"
+            id={fieldId("cast-representative-name")}
             value={value.representativeName}
             onChange={(event) => patch({ representativeName: event.target.value })}
             placeholder="Name of the person who attended"
             disabled={disabled}
-            data-testid="input-cast-representative-name"
+            data-testid={`${idPrefix}input-cast-representative-name`}
           />
         </div>
       )}
 
       <div className="space-y-1.5">
-        <Label htmlFor="cast-attendees">Anyone else present <span className="text-muted-foreground font-normal">(optional)</span></Label>
+        <Label htmlFor={fieldId("cast-attendees")}>Anyone else present <span className="text-muted-foreground font-normal">(optional)</span></Label>
         <Input
-          id="cast-attendees"
+          id={fieldId("cast-attendees")}
           value={value.attendees}
           onChange={(event) => patch({ attendees: event.target.value })}
           placeholder="Other people in the meeting"
           disabled={disabled}
-          data-testid="input-cast-attendees"
+          data-testid={`${idPrefix}input-cast-attendees`}
         />
       </div>
     </div>

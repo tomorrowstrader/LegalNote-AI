@@ -2571,6 +2571,7 @@ export default function DocumentViewer({
         id: proposal.id,
         original: proposal.original,
         replacement: proposal.replacement,
+        placement: proposal.placement,
       })),
     });
     setCorrectionTarget(null);
