@@ -39,6 +39,8 @@ import type { Case, Client, MatterKind } from "@shared/schema";
 import { RECORDING_TYPE_LABELS, MATTER_KIND_LABELS, type RecordingType } from "@shared/schema";
 import { PRACTICE_AREAS, PRACTICE_AREA_LABELS, type PracticeArea } from "@shared/schema";
 import { isClientMatterKind, partyLabelForMatterKind, normalizeMatterKind, requiresParticipantConsent } from "@shared/matterKinds";
+import { MeetingCastFields } from "@/components/MeetingCastFields";
+import { emptyMeetingCast, meetingCastError, meetingCastIsDefault, type MeetingCast } from "@shared/meetingCast";
 import {
   defaultRecordingTypeForMatterKind,
   recordingTypesForMatterKind,
@@ -101,6 +103,7 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
   const [conflictCheckNote, setConflictCheckNote] = useState("");
   const [costsEstimate, setCostsEstimate] = useState("");
   const [sessionLabel, setSessionLabel] = useState("");
+  const [meetingCast, setMeetingCast] = useState<MeetingCast>(emptyMeetingCast());
   // Keep local form disabled while global New Note recording is active
   const recordingLocked = sessionActive;
 
@@ -247,6 +250,16 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
       }
     }
 
+    const castError = meetingCastError(meetingCast);
+    if (castError) {
+      toast({
+        title: "Who was in this meeting",
+        description: castError,
+        variant: "destructive",
+      });
+      return;
+    }
+
     const selectedCase = existingCases.find((c) => c.id === selectedCaseId);
     const partyName = isClientMatter
       ? selectedClient?.name
@@ -272,6 +285,7 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
       selectedCaseId: noteMode === "add_session" ? selectedCaseId : undefined,
       recordingType,
       sessionLabel: sessionLabel || undefined,
+      meetingCast: meetingCastIsDefault(meetingCast) ? undefined : meetingCast,
       displayTitle:
         noteMode === "add_session"
           ? selectedCase?.title || "Existing matter"
@@ -648,6 +662,16 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
                   </SelectContent>
                 </Select>
               </div>
+              <MeetingCastFields
+                value={meetingCast}
+                onChange={setMeetingCast}
+                matterClientName={
+                  noteMode === "add_session"
+                    ? existingCases.find((item) => item.id === selectedCaseId)?.clientName
+                    : selectedClient?.name
+                }
+                disabled={recordingLocked}
+              />
             </CardContent>
           </Card>
 

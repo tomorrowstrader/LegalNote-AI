@@ -46,7 +46,8 @@ import {
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
-import { RichTextEditor, type TrackedChange, type TrackChangeAuditRecord } from "@/components/RichTextEditor";
+import { RichTextEditor, type SeededReplacement, type TrackedChange, type TrackChangeAuditRecord } from "@/components/RichTextEditor";
+import { NoteCorrectionPanel, type CorrectionProposal } from "@/components/NoteCorrectionPanel";
 import { PageView } from "@/components/PageView";
 import DiarizedTranscriptViewer, { type SpeakerUtterance, type Redaction } from "@/components/DiarizedTranscriptViewer";
 import {
@@ -1504,6 +1505,8 @@ function EditableDocumentContent({
   onRedact,
   legalContext,
   pageViewMode,
+  seedReplacements,
+  onSeedReplacementsApplied,
 }: { 
   document: Document;
   isEditing: boolean;
@@ -1523,6 +1526,8 @@ function EditableDocumentContent({
   onRedact?: (redactedText: string) => void;
   legalContext?: { clientName?: string; matterRef?: string; solicitorName?: string; firmName?: string };
   pageViewMode?: boolean;
+  seedReplacements?: SeededReplacement[];
+  onSeedReplacementsApplied?: (result: { applied: number; missed: number }) => void;
 }) {
   // Do not re-normalize while editing — reformatting the prop after every
   // keystroke/toolbar action forces TipTap setContent and jumps scroll to the bottom.
@@ -1607,6 +1612,8 @@ function EditableDocumentContent({
           onTrackChangeAction={isEditing ? onTrackChangeAction : undefined}
           onRedact={isEditing ? onRedact : undefined}
           legalContext={legalContext}
+          seedReplacements={isEditing ? seedReplacements : undefined}
+          onSeedReplacementsApplied={isEditing ? onSeedReplacementsApplied : undefined}
         />
       )}
     </div>
@@ -1661,6 +1668,9 @@ export default function DocumentViewer({
   const AUTO_SAVE_INTERVAL = 30000; // 30 seconds
   
   const [trackChangesEnabled, setTrackChangesEnabled] = useState(false);
+  const [correctionTarget, setCorrectionTarget] = useState<{ documentId: string; selectedText: string } | null>(null);
+  const [selectionOffer, setSelectionOffer] = useState<{ documentId: string; text: string; top: number; left: number } | null>(null);
+  const [correctionSeeds, setCorrectionSeeds] = useState<{ documentId: string; items: SeededReplacement[] } | null>(null);
   
   const [showVersionDiff, setShowVersionDiff] = useState<string | null>(null);
   
@@ -2458,8 +2468,13 @@ export default function DocumentViewer({
 
   const DRAFT_STORAGE_KEY = `legalnote_draft_`;
 
-  const startEditing = (document: Document) => {
-    const savedDraft = localStorage.getItem(`${DRAFT_STORAGE_KEY}${document.id}`);
+  const startEditing = (document: Document, options?: { ignoreDraft?: boolean }) => {
+    if (options?.ignoreDraft) {
+      localStorage.removeItem(`${DRAFT_STORAGE_KEY}${document.id}`);
+    }
+    const savedDraft = options?.ignoreDraft
+      ? null
+      : localStorage.getItem(`${DRAFT_STORAGE_KEY}${document.id}`);
     // Round-trip markers as TipTap-safe tokens so html:false does not escape/lose them.
     const rawContent = savedDraft ? JSON.parse(savedDraft).content : document.content;
     // Normalize once on enter-edit so section labels are clean without live reformat loops.
@@ -2504,7 +2519,87 @@ export default function DocumentViewer({
     setLastSavedContent("");
     setAutoSaveStatus('idle');
     setTrackChangesEnabled(false);
+    setCorrectionSeeds(null);
   };
+
+  const handleSeedsApplied = useCallback((result: { applied: number; missed: number }) => {
+    setCorrectionSeeds(null);
+    if (result.applied === 0) {
+      toast({
+        title: "Could not place the changes",
+        description: "The wording on the page did not match closely enough. Edit that passage directly.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (result.missed > 0) {
+      toast({
+        title: "Some changes could not be placed",
+        description: `${result.missed} ${result.missed === 1 ? "change was" : "changes were"} left out. Review the ones that are marked.`,
+      });
+      return;
+    }
+    toast({
+      title: "Changes ready to review",
+      description: "Accept the ones that are right. The rest of the note is unchanged.",
+    });
+  }, [toast]);
+
+  const beginCorrection = (document: Document, proposals: CorrectionProposal[], unplacedCount: number) => {
+    setCorrectionSeeds({
+      documentId: document.id,
+      items: proposals.map((proposal) => ({
+        id: proposal.id,
+        original: proposal.original,
+        replacement: proposal.replacement,
+      })),
+    });
+    setCorrectionTarget(null);
+    setSelectionOffer(null);
+    startEditing(document, { ignoreDraft: true });
+    if (unplacedCount > 0) {
+      toast({
+        title: "Some sentences were left out",
+        description: "They did not match the note exactly, so they were not changed.",
+      });
+    }
+  };
+
+  useEffect(() => {
+    const onMouseUp = (event: MouseEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest("[data-testid='button-correct-selection']")) return;
+      const selection = window.getSelection();
+      const text = selection?.toString().replace(/\s+/g, " ").trim() ?? "";
+      if (!selection || selection.isCollapsed || text.length < 8 || editingDocIdRef.current) {
+        setSelectionOffer(null);
+        return;
+      }
+      const node = selection.anchorNode;
+      const element = node instanceof Element ? node : node?.parentElement;
+      const card = element?.closest("[data-correction-document-id]");
+      const documentId = card?.getAttribute("data-correction-document-id");
+      if (!documentId) {
+        setSelectionOffer(null);
+        return;
+      }
+      const passage = text.slice(0, 2000);
+      if (correctionTarget?.documentId === documentId) {
+        setCorrectionTarget({ documentId, selectedText: passage });
+        setSelectionOffer(null);
+        return;
+      }
+      const rect = selection.getRangeAt(0).getBoundingClientRect();
+      setSelectionOffer({
+        documentId,
+        text: passage,
+        top: Math.min(rect.bottom + 8, window.innerHeight - 48),
+        left: Math.min(Math.max(8, rect.left), window.innerWidth - 140),
+      });
+    };
+    document.addEventListener("mouseup", onMouseUp);
+    return () => document.removeEventListener("mouseup", onMouseUp);
+  }, [correctionTarget]);
 
   const handleTrackChangeAction = useCallback((action: 'accept' | 'reject' | 'accept_all' | 'reject_all', changes: TrackChangeAuditRecord[]) => {
     if (!changes.length) return;
@@ -2875,6 +2970,18 @@ export default function DocumentViewer({
           <Edit className="w-3 h-3" />
           Edit Document
         </Button>
+        {(document.type === "attendance_note" || document.type === "meeting_notes" || document.type === "summary" || document.type === "client_letter") && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setCorrectionTarget({ documentId: document.id, selectedText: "" })}
+            className="gap-1"
+            data-testid="button-correct-document"
+          >
+            <PenLine className="w-3 h-3" />
+            Correct
+          </Button>
+        )}
       </div>
     );
   };
@@ -3273,6 +3380,21 @@ export default function DocumentViewer({
       data-testid="container-document-viewer"
       style={{ '--doc-header-height': `${headerHeight}px` } as CSSProperties}
     >
+      {selectionOffer && !editingDocId && (
+        <button
+          type="button"
+          className="fixed z-50 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground shadow-md"
+          style={{ top: selectionOffer.top, left: selectionOffer.left }}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => {
+            setCorrectionTarget({ documentId: selectionOffer.documentId, selectedText: selectionOffer.text });
+            setSelectionOffer(null);
+          }}
+          data-testid="button-correct-selection"
+        >
+          Correct this
+        </button>
+      )}
       {focusMode && (
         <div className="fixed top-4 right-4 z-[110] print:hidden">
           <Tooltip>
@@ -3645,7 +3767,7 @@ export default function DocumentViewer({
             <Card className={cn(
               showComments || (attendanceNote && showGapPanel === attendanceNote.id) ? 'flex-1' : 'w-full',
               'min-w-0 max-w-full overflow-x-clip overscroll-x-none touch-pan-y',
-            )} data-testid="attendance-note-card">
+            )} data-testid="attendance-note-card" data-correction-document-id={attendanceNote?.status === "draft" ? attendanceNote.id : undefined}>
               <CardHeader>
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -3660,6 +3782,15 @@ export default function DocumentViewer({
                 </div>
               </CardHeader>
               <DocumentPrimaryActions document={attendanceNote} />
+              {attendanceNote && correctionTarget?.documentId === attendanceNote.id && (
+                <NoteCorrectionPanel
+                  caseId={caseId}
+                  documentId={attendanceNote.id}
+                  selectedText={correctionTarget.selectedText}
+                  onClose={() => setCorrectionTarget(null)}
+                  onProposed={(proposals, unplacedCount) => beginCorrection(attendanceNote, proposals, unplacedCount)}
+                />
+              )}
               {coerceVerificationWarnings(attendanceNote?.verificationWarnings).length > 0 && attendanceNote && (
                 <VerificationWarningPanel
                   warnings={attendanceNote.verificationWarnings}
@@ -3702,6 +3833,8 @@ export default function DocumentViewer({
                     onTrackChangesToggle={setTrackChangesEnabled}
                     onTrackChangeAction={handleTrackChangeAction}
                     pageViewMode={pageViewMode}
+                    seedReplacements={correctionSeeds?.documentId === attendanceNote.id ? correctionSeeds.items : undefined}
+                    onSeedReplacementsApplied={handleSeedsApplied}
                   />
                 ) : (
                   <p className="text-sm text-muted-foreground italic p-6">
@@ -3877,7 +4010,7 @@ export default function DocumentViewer({
             <Card className={cn(
               showComments || (summary && showGapPanel === summary.id) ? 'flex-1' : 'w-full',
               'min-w-0 max-w-full overflow-x-clip',
-            )} data-testid="summary-note-card">
+            )} data-testid="summary-note-card" data-correction-document-id={summary?.status === "draft" ? summary.id : undefined}>
               <CardHeader>
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -3897,6 +4030,15 @@ export default function DocumentViewer({
                 </div>
               </CardHeader>
               <DocumentPrimaryActions document={summary} />
+              {summary && correctionTarget?.documentId === summary.id && (
+                <NoteCorrectionPanel
+                  caseId={caseId}
+                  documentId={summary.id}
+                  selectedText={correctionTarget.selectedText}
+                  onClose={() => setCorrectionTarget(null)}
+                  onProposed={(proposals, unplacedCount) => beginCorrection(summary, proposals, unplacedCount)}
+                />
+              )}
               {coerceVerificationWarnings(summary?.verificationWarnings).length > 0 && summary && (
                 <VerificationWarningPanel
                   warnings={summary.verificationWarnings}
@@ -3939,6 +4081,8 @@ export default function DocumentViewer({
                     onTrackChangesToggle={setTrackChangesEnabled}
                     onTrackChangeAction={handleTrackChangeAction}
                     pageViewMode={pageViewMode}
+                    seedReplacements={correctionSeeds?.documentId === summary.id ? correctionSeeds.items : undefined}
+                    onSeedReplacementsApplied={handleSeedsApplied}
                   />
                 ) : textNotes ? (
                   <div className="p-6">

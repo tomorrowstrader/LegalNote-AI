@@ -9,6 +9,8 @@ import {
   ChevronsLeft, ChevronsRight, Minimize2,
 } from "lucide-react";
 import { useFocusMode } from "@/contexts/FocusModeContext";
+import { MeetingCastFields, meetingCastFromUnknown } from "@/components/MeetingCastFields";
+import { meetingCastError, type MeetingCast, emptyMeetingCast } from "@shared/meetingCast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -134,7 +136,7 @@ const NAV_LABELS: Record<CaseSection, string> = {
   audit: "Audit",
 };
 
-function SessionDetails({ sessionId, caseId, onOpenAttendanceNote, litigationHold, litigationHoldReason }: { sessionId: string; caseId: string; onOpenAttendanceNote: () => void; litigationHold?: boolean; litigationHoldReason?: string | null }) {
+function SessionDetails({ sessionId, caseId, onOpenAttendanceNote, litigationHold, litigationHoldReason, matterClientName }: { sessionId: string; caseId: string; onOpenAttendanceNote: () => void; litigationHold?: boolean; litigationHoldReason?: string | null; matterClientName?: string }) {
   const { toast } = useToast();
   const { data, isLoading } = useQuery<SessionWithDetails>({
     queryKey: ['/api/sessions', sessionId],
@@ -143,6 +145,27 @@ function SessionDetails({ sessionId, caseId, onOpenAttendanceNote, litigationHol
   const { data: sessionAudio } = useQuery<{ id: string; filePath: string | null; deletedAt: string | null; expiresAt: string | null; duration?: number | null } | undefined>({
     queryKey: [`/api/audio/by-session/${sessionId}`],
     enabled: !!sessionId,
+  });
+
+  const [meetingCast, setMeetingCast] = useState<MeetingCast>(emptyMeetingCast());
+  useEffect(() => {
+    setMeetingCast(meetingCastFromUnknown(data?.meetingCast));
+  }, [data?.meetingCast]);
+
+  const saveCastMutation = useMutation({
+    mutationFn: async () => {
+      const error = meetingCastError(meetingCast);
+      if (error) throw new Error(error);
+      return apiRequest("PATCH", `/api/sessions/${sessionId}`, { meetingCast });
+    },
+    onSuccess: () => {
+      toast({ title: "Meeting cast saved", description: "The next note produced from this meeting will use it.", duration: 4000 });
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId] });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/sessions`] });
+    },
+    onError: (error: any) => {
+      toast({ title: "Could not save the meeting cast", description: error.message || "Check the names and try again.", variant: "destructive" });
+    },
   });
 
   const generateDocsMutation = useMutation({
@@ -243,6 +266,23 @@ function SessionDetails({ sessionId, caseId, onOpenAttendanceNote, litigationHol
         })() : (
           <p className="text-xs text-muted-foreground">No transcript for this session.</p>
         )}
+      </div>
+
+      <div className="space-y-3 rounded-md border border-border p-3" data-testid={`meeting-cast-${sessionId}`}>
+        <MeetingCastFields
+          value={meetingCast}
+          onChange={setMeetingCast}
+          matterClientName={matterClientName}
+        />
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => saveCastMutation.mutate()}
+          disabled={saveCastMutation.isPending}
+          data-testid={`button-save-meeting-cast-${sessionId}`}
+        >
+          {saveCastMutation.isPending ? "Saving…" : "Save who was in this meeting"}
+        </Button>
       </div>
 
       {/* Documents */}
@@ -2331,6 +2371,7 @@ export default function CaseDetail() {
                                 onOpenAttendanceNote={navigateToSessionDocs}
                                 litigationHold={caseData.litigationHold}
                                 litigationHoldReason={caseData.litigationHoldReason}
+                                matterClientName={caseData.clientName}
                               />
                             </div>
                           )}

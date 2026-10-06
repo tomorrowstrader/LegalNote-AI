@@ -40,6 +40,7 @@ import {
   PARTICIPANT_CONSENT_DISCLAIMER_VERSION,
 } from "@shared/consent";
 import type { MatterKind, PracticeArea, RecordingType } from "@shared/schema";
+import type { MeetingCast } from "@shared/meetingCast";
 import {
   isClientMatterKind,
   partyLabelForMatterKind,
@@ -65,6 +66,7 @@ export type NewNoteRecordingMeta = {
   selectedCaseId?: string;
   recordingType: RecordingType;
   sessionLabel?: string;
+  meetingCast?: MeetingCast;
   /** Shown in the control center */
   displayTitle: string;
   displaySubtitle?: string | null;
@@ -483,6 +485,7 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
         {
           recordingType: snapshot.recordingType,
           sessionTitle: snapshot.sessionLabel?.trim() || undefined,
+          meetingCast: snapshot.meetingCast,
         },
       );
 

@@ -6,6 +6,7 @@ import { verificationWarningSchema, type VerificationWarning } from "./verificat
 import {
   MATTER_KINDS,
 } from "./matterKinds";
+import type { MeetingCast } from "./meetingCast";
 
 export {
   MATTER_KINDS,
@@ -372,6 +373,8 @@ export const meetingSessions = pgTable("meeting_sessions", {
   durationSeconds: integer("duration_seconds"),
   status: text("status").notNull().default("pending"),
   notes: text("notes"),
+  /** Who advised, who attended, and who the client is for this meeting. */
+  meetingCast: jsonb("meeting_cast").$type<MeetingCast | null>(),
   createdBy: varchar("created_by").notNull().references(() => users.id),
 });
 

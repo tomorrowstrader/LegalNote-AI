@@ -1,3 +1,4 @@
+import { clientNameForNote, parseMeetingCast } from "@shared/meetingCast";
 import { DocumentService, type CaseMetadata } from "./documentService";
 import { formatDiarizedTranscript, type SpeakerUtterance } from "./assemblyAIService";
 import { logDocumentGovernanceViolations } from "./documentGovernanceGate";
@@ -125,9 +126,12 @@ async function buildMetadata(
     durationDisplay = formatDurationMinutes(durationMinutes);
   }
 
+  const meetingCast = parseMeetingCast(meetingSession?.meetingCast);
   return {
     title: caseData.title,
-    clientName: caseData.clientName,
+    clientName: clientNameForNote(caseData.clientName, meetingCast),
+    matterClientName: caseData.clientName,
+    meetingCast,
     matterReference: caseData.matterReference || undefined,
     recordingDate: meetingTimestamp
       ? formatUkLongDate(meetingTimestamp)

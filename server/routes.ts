@@ -128,6 +128,7 @@ import {
   dpaSigningLimiter,
 } from "./rateLimiting";
 import { logAuditEvent, auditMiddleware } from "./auditMiddleware";
+import { normalizeMeetingCastInput } from "@shared/meetingCast";
 import { SYSTEM_USER_ID } from "./systemUser";
 import {
   deleteCaseAudioRecording,
@@ -4159,6 +4160,87 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           message: error.message,
           code: error.code,
         });
+      }
+      next(error);
+    }
+  });
+
+  /**
+   * Propose a surgical correction to a note already on the file.
+   * Returns exact replacements for the fee earner to accept as tracked changes.
+   * Does not rewrite the document.
+   */
+  app.post("/api/cases/:caseId/documents/:documentId/note-corrections", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { caseId, documentId } = req.params;
+      const mode = req.body?.mode;
+      if (mode !== "selection" && mode !== "fact" && mode !== "replace") {
+        return res.status(400).json({ message: "Choose a passage, a fact, or a name." });
+      }
+
+      const instruction = typeof req.body?.instruction === "string" ? req.body.instruction.trim() : "";
+      const selectedText = typeof req.body?.selectedText === "string" ? req.body.selectedText.trim() : "";
+      const find = typeof req.body?.find === "string" ? req.body.find.trim() : "";
+      const replaceWith = typeof req.body?.replaceWith === "string" ? req.body.replaceWith.trim() : "";
+
+      if (mode === "selection") {
+        if (selectedText.length < 8 || selectedText.length > 2000) {
+          return res.status(400).json({ message: "Select a short passage from the note." });
+        }
+        if (instruction.length < 8 || instruction.length > 1000) {
+          return res.status(400).json({ message: "Say what should change in that passage." });
+        }
+      } else if (mode === "fact") {
+        if (instruction.length < 12 || instruction.length > 2000) {
+          return res.status(400).json({ message: "State the correction in a sentence or two." });
+        }
+      } else if (find.length < 2 || find.length > 80 || replaceWith.length < 1 || replaceWith.length > 200) {
+        return res.status(400).json({ message: "Enter the name to find and the name to use." });
+      }
+
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData) return res.status(404).json({ message: "Case not found" });
+
+      const document = await storage.getDocument(documentId);
+      if (!document || document.caseId !== caseId) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+      const correctable = new Set(["attendance_note", "meeting_notes", "summary", "client_letter"]);
+      if (!correctable.has(document.type)) {
+        return res.status(400).json({ message: "Corrections can be proposed for an attendance note or client letter." });
+      }
+      if (document.status === "approved") {
+        return res.status(400).json({ message: "Unlock the document before proposing a correction." });
+      }
+
+      const { proposeNoteCorrection } = await import("./services/noteCorrectionService");
+      const result = await proposeNoteCorrection({
+        mode,
+        content: document.content,
+        instruction,
+        selectedText,
+        find,
+        replaceWith,
+      });
+
+      await logAuditEvent(userId, "note_correction_proposed", {
+        caseId,
+        documentId,
+        metadata: {
+          mode,
+          proposalCount: result.proposals.length,
+          unplacedCount: result.unplacedCount,
+        },
+      });
+
+      res.json({
+        proposals: result.proposals,
+        unplacedCount: result.unplacedCount,
+      });
+    } catch (error: any) {
+      if (error?.name === "NoteCorrectionError") {
+        return res.status(error.statusCode || 400).json({ message: error.message });
       }
       next(error);
     }
@@ -15154,12 +15236,18 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       }
       const recordingType = recordingTypeResult.recordingType;
 
+      const castResult = normalizeMeetingCastInput(req.body.meetingCast);
+      if (!castResult.ok) {
+        return res.status(400).json({ message: castResult.message });
+      }
+
       const sessionData = {
         caseId,
         recordingType,
         sessionTitle: typeof req.body.sessionTitle === "string" && req.body.sessionTitle.trim() ? req.body.sessionTitle.trim() : undefined,
         status: "pending" as const,
         notes: typeof req.body.notes === "string" ? req.body.notes : null,
+        meetingCast: castResult.cast,
         createdBy: userId,
       };
 
@@ -15234,6 +15322,13 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       }
       if (typeof req.body.sessionTitle === "string") {
         updates.sessionTitle = req.body.sessionTitle.trim() || null;
+      }
+      if (req.body.meetingCast !== undefined) {
+        const castResult = normalizeMeetingCastInput(req.body.meetingCast);
+        if (!castResult.ok) {
+          return res.status(400).json({ message: castResult.message });
+        }
+        updates.meetingCast = castResult.cast;
       }
 
       const updated = await storage.updateMeetingSession(sessionId, updates);

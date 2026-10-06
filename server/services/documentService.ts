@@ -1,6 +1,12 @@
 import { getPrivilegedLLMProvider } from './llm/providerFactory';
 import { privilegedComplete } from './llm/privilegedComplete';
 import { ALL_RECORDING_TYPES } from '@shared/recordingTypes';
+import {
+  attendanceFeeEarnerLead,
+  attendanceSpeakerAttribution,
+  formatMeetingCastInstructions,
+  type MeetingCast,
+} from '@shared/meetingCast';
 import type { PracticeArea } from '@shared/schema';
 import { getPracticeAreaPromptContext } from './practiceAreaConfig';
 import { DERIVATION_ENGINE_RULES } from './derivationEngine';
@@ -691,6 +697,10 @@ export interface CaseMetadata {
   feeEarnerDisplayName?: string;
   /** Plain name for first-person voice instruction (no title) */
   feeEarnerName?: string;
+  /** Client on the matter, before a meeting cast overrides the note. */
+  matterClientName?: string;
+  /** Who advised, who attended, and whether the client was present. */
+  meetingCast?: MeetingCast | null;
   firmName?: string;
   templateId?: string;
   practiceArea?: string;
@@ -699,6 +709,14 @@ export interface CaseMetadata {
 }
 
 const NOT_DISCUSSED_PHRASE = 'This was not discussed on this occasion.';
+
+function withMeetingCast(systemPrompt: string, metadata: CaseMetadata): string {
+  const block = formatMeetingCastInstructions(metadata.meetingCast, {
+    feeEarnerName: metadata.feeEarnerName,
+    matterClientName: metadata.matterClientName ?? metadata.clientName,
+  });
+  return block ? `${systemPrompt}\n\n${block}` : systemPrompt;
+}
 
 function appendRelationshipDurationFacts(
   userPrompt: string,
@@ -814,7 +832,7 @@ export class DocumentService {
 
 ${DERIVATION_ENGINE_RULES}
 
-YOU ARE THE FEE EARNER. You were present at this meeting. Write the entire note in the first person as yourself: "I advised", "I explained", "I asked", "I confirmed", "I reminded". NEVER refer to yourself in the third person. Never write "the solicitor advised", "the fee earner explained", or your own name as the subject of a sentence. Your name is ${metadata.feeEarnerName ?? 'the fee earner'}; it appears in the header, never in the body as a third party. Refer to the client as "the client". Use the client's name only where necessary to disambiguate.
+${attendanceFeeEarnerLead(metadata.feeEarnerName, metadata.meetingCast, metadata.matterClientName ?? metadata.clientName)}
 
 You will be given a record of what was said at the meeting. You were there.
 
@@ -838,7 +856,7 @@ The SRA expects attendance notes to record not just what was discussed and what 
 SPEAKER-LABELED CONVERSATION RECORDS:
 - The conversation record may include speaker labels in the format "[Speaker A]: text" or "[Speaker B]: text"
 - Use these labels to distinguish your statements from the client's
-- You are the fee earner who was present; the client is the other party
+${attendanceSpeakerAttribution(metadata.meetingCast, metadata.matterClientName ?? metadata.clientName)}
 - Attribute advice and instructions correctly between yourself and the client
 - If speaker identities are unclear, use context from the content to distinguish your advice from the client's statements
 
@@ -1053,7 +1071,7 @@ ${transcript}`,
       metadata,
     );
 
-    const result = await this.generateDocument(systemPrompt, userPrompt, revision);
+    const result = await this.generateDocument(withMeetingCast(systemPrompt, metadata), userPrompt, revision);
     return {
       ...result,
       content: assembleAttendanceNoteDocument(result.content, metadata, prefs),
@@ -1122,7 +1140,7 @@ FORMATTING GUIDELINES:
 **Attendance note:**
 ${attendanceNote}`;
 
-    const result = await this.generateDocument(systemPrompt, userPrompt, revision);
+    const result = await this.generateDocument(withMeetingCast(systemPrompt, metadata), userPrompt, revision);
     return {
       ...result,
       content: assembleSummaryDocument(result.content, metadata),
@@ -1460,7 +1478,7 @@ ${transcript}`,
       metadata,
     );
 
-    return await this.generateDocument(systemPrompt, userPrompt, revision);
+    return await this.generateDocument(withMeetingCast(systemPrompt, metadata), userPrompt, revision);
   }
 
   async generateFileNote(
@@ -1505,7 +1523,7 @@ ${transcript}`,
       metadata,
     );
 
-    return await this.generateDocument(systemPrompt, userPrompt, revision);
+    return await this.generateDocument(withMeetingCast(systemPrompt, metadata), userPrompt, revision);
   }
 
   /**
@@ -1564,7 +1582,7 @@ This note is an internal firm record and may be subject to legal professional pr
 **Conversation record:**
 ${transcript}`;
 
-    return await this.generateDocument(systemPrompt, userPrompt, revision);
+    return await this.generateDocument(withMeetingCast(systemPrompt, metadata), userPrompt, revision);
   }
 
   async generateCourtAttendanceNote(
@@ -1662,7 +1680,7 @@ ${transcript}`,
       metadata,
     );
 
-    return await this.generateDocument(systemPrompt, userPrompt, revision);
+    return await this.generateDocument(withMeetingCast(systemPrompt, metadata), userPrompt, revision);
   }
 
   async generatePoliceStationAttendanceNote(
@@ -1761,7 +1779,7 @@ ${transcript}`,
       metadata,
     );
 
-    return await this.generateDocument(systemPrompt, userPrompt, revision);
+    return await this.generateDocument(withMeetingCast(systemPrompt, metadata), userPrompt, revision);
   }
 
   async generateDocumentByRecordingType(

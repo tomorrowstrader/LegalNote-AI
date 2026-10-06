@@ -32,6 +32,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 import { enrichGapCitationChips, hydrateReasoningGapAnchorsInDom } from "@/lib/reasoningGapAnchors";
+import { findFlexibleSpan } from "@shared/noteCorrections";
 
 function ensureSectionSpacing(content: string): string {
   const lines = content.split('\n');
@@ -707,6 +708,50 @@ function collectChangeRecords(doc: any, filterChangeIds?: string[]): TrackChange
   });
 }
 
+export interface SeededReplacement {
+  id: string;
+  original: string;
+  replacement: string;
+}
+
+function buildDocTextMap(doc: any): { text: string; pos: Array<number | null> } {
+  let text = "";
+  const pos: Array<number | null> = [];
+  let blockPos: number | null = null;
+  doc.descendants((node: any, position: number) => {
+    if (!node.isText || !node.text) return;
+    const resolved = doc.resolve(position);
+    const parentPos = resolved.depth > 0 ? resolved.before(resolved.depth) : 0;
+    if (blockPos !== null && parentPos !== blockPos && text.length > 0) {
+      text += "\n";
+      pos.push(null);
+    }
+    blockPos = parentPos;
+    for (let i = 0; i < node.text.length; i++) {
+      text += node.text[i];
+      pos.push(position + i);
+    }
+  });
+  return { text, pos };
+}
+
+function spanToDoc(
+  pos: Array<number | null>,
+  start: number,
+  end: number,
+): { from: number; to: number } | null {
+  let from: number | null = null;
+  let last: number | null = null;
+  for (let i = start; i < end && i < pos.length; i++) {
+    const point = pos[i];
+    if (point == null) continue;
+    if (from == null) from = point;
+    last = point;
+  }
+  if (from == null || last == null) return null;
+  return { from, to: last + 1 };
+}
+
 export interface LegalFieldContext {
   clientName?: string;
   matterRef?: string;
@@ -732,12 +777,15 @@ interface RichTextEditorProps {
   onAddComment?: (selectedText: string) => void;
   onRedact?: (redactedText: string) => void;
   legalContext?: LegalFieldContext;
+  /** Exact replacements to land as tracked changes once, after the note loads. */
+  seedReplacements?: SeededReplacement[];
+  onSeedReplacementsApplied?: (result: { applied: number; missed: number }) => void;
 }
 
 export function RichTextEditor({ 
   content, onChange, disabled, hydrateGapAnchors = false, gapAnchorLabels, placeholder, focusMode, onFocusModeToggle, zoom = 100,
   trackChangesEnabled = false, onTrackChangesToggle, onTrackChangeAction, onAddComment,
-  onRedact, legalContext,
+  onRedact, legalContext, seedReplacements, onSeedReplacementsApplied,
 }: RichTextEditorProps) {
   const isUpdatingRef = useRef(false);
   const isTrackingRef = useRef(trackChangesEnabled);
@@ -763,6 +811,7 @@ export function RichTextEditor({
     structuralNoticeTimerRef.current = setTimeout(() => setStructuralNotice(false), 4000);
   }, []);
   const lastEmittedContentRef = useRef<string>('');
+  const appliedSeedKeyRef = useRef<string>('');
   const [showSearch, setShowSearch] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [replaceTerm, setReplaceTerm] = useState('');
@@ -1203,6 +1252,74 @@ export function RichTextEditor({
       });
     }
   }, [editor, content, disabled, hydrateGapAnchors, gapAnchorLabels, trackChangesEnabled, scanForTrackedChanges]);
+
+  useEffect(() => {
+    if (!editor || disabled || !seedReplacements?.length) return;
+    const map = buildDocTextMap(editor.state.doc);
+    if (!map.text.trim()) return;
+    const key = seedReplacements.map((seed) => seed.id).join(",");
+    if (appliedSeedKeyRef.current === key) return;
+    appliedSeedKeyRef.current = key;
+    const occupied: Array<{ from: number; to: number }> = [];
+    const placements: Array<{ from: number; to: number; replacement: string; id: string }> = [];
+    let missed = 0;
+
+    for (const seed of seedReplacements) {
+      let fromIndex = 0;
+      let placed = false;
+      while (fromIndex < map.text.length) {
+        const span = findFlexibleSpan(map.text, seed.original, fromIndex);
+        if (!span) break;
+        const docSpan = spanToDoc(map.pos, span.start, span.end);
+        if (!docSpan) break;
+        const overlaps = occupied.some((range) => docSpan.from < range.to && docSpan.to > range.from);
+        if (!overlaps) {
+          occupied.push(docSpan);
+          placements.push({ ...docSpan, replacement: seed.replacement, id: seed.id });
+          placed = true;
+          break;
+        }
+        fromIndex = span.end;
+      }
+      if (!placed) missed += 1;
+    }
+
+    if (placements.length === 0) {
+      onSeedReplacementsApplied?.({ applied: 0, missed });
+      return;
+    }
+
+    placements.sort((a, b) => b.from - a.from);
+    isUpdatingRef.current = true;
+    const tr = editor.state.tr;
+    tr.setMeta("trackChangesApply", true);
+    const userName = userNameRef.current;
+    const timestamp = new Date().toISOString();
+    for (const placement of placements) {
+      const deletion = editor.schema.marks.deletion?.create({
+        user: userName,
+        timestamp,
+        changeId: placement.id,
+      });
+      const insertion = editor.schema.marks.insertion?.create({
+        user: userName,
+        timestamp,
+        changeId: `${placement.id}-ins`,
+      });
+      if (deletion) tr.addMark(placement.from, placement.to, deletion);
+      const flat = placement.replacement.replace(/\s*\n\s*/g, " ").trim();
+      if (flat && insertion) {
+        tr.insert(placement.to, editor.schema.text(flat, [insertion]));
+      }
+    }
+    editor.view.dispatch(tr);
+    isUpdatingRef.current = false;
+    scanForTrackedChanges(editor);
+    const html = editor.getHTML();
+    lastEmittedContentRef.current = html;
+    onChange(html);
+    onSeedReplacementsApplied?.({ applied: placements.length, missed });
+  }, [editor, content, disabled, seedReplacements, onChange, onSeedReplacementsApplied, scanForTrackedChanges]);
 
   useEffect(() => {
     if (editor && disabled !== undefined) {

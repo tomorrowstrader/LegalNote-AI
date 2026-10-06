@@ -2904,6 +2904,7 @@ export class MemStorage implements IStorage {
       durationSeconds: sessionData.durationSeconds ?? null,
       status: sessionData.status || "pending",
       notes: sessionData.notes ?? null,
+      meetingCast: sessionData.meetingCast ?? null,
       createdBy: sessionData.createdBy,
     };
     this.meetingSessionsMap.set(id, session);

@@ -215,6 +215,46 @@ Reasoning behind advice and decisions:Because the facts support that course.`,
     );
   });
 
+  it('lets a meeting cast override who advised and who the client is', async () => {
+    const service = new DocumentService({
+      chatCompletion: vi.fn().mockResolvedValue({
+        content: '**MATTERS DISCUSSED**\n\nJen advised the client.',
+        inputTokens: 10,
+        outputTokens: 20,
+        cost: 0,
+      }),
+    });
+    const generateDocumentSpy = vi
+      .spyOn(service as unknown as { generateDocument: (...args: unknown[]) => Promise<unknown> }, 'generateDocument')
+      .mockResolvedValue({
+        content: '**MATTERS DISCUSSED**\n\nJen advised the client.',
+        inputTokens: 10,
+        outputTokens: 20,
+        cost: 0,
+      });
+
+    await service.generateAttendanceNote('Jen advised. Jazz attended for Tyanna.', {
+      ...metadata,
+      clientName: 'Tyanna Davey',
+      matterClientName: 'Jazz Dennis',
+      feeEarnerName: 'Jazz Dennis',
+      meetingCast: {
+        adviserIsFeeEarner: false,
+        adviserName: 'Jen',
+        clientName: 'Tyanna Davey',
+        clientPresent: false,
+        representativeName: 'Jazz Dennis',
+        attendees: '',
+      },
+    });
+
+    const systemPrompt = generateDocumentSpy.mock.calls[0]?.[0] as string;
+    expect(systemPrompt).toContain('Adviser: Jen');
+    expect(systemPrompt).toContain('Client: Tyanna Davey');
+    expect(systemPrompt).toContain('Do not write it as "I advised"');
+    expect(systemPrompt).not.toContain('YOU ARE THE FEE EARNER');
+  });
+
   it('injects system-computed relationship duration facts into the user prompt', async () => {
     const service = new DocumentService({
       chatCompletion: vi.fn().mockResolvedValue({

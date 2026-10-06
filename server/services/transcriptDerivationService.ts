@@ -1,3 +1,4 @@
+import { clientNameForNote, parseMeetingCast } from "@shared/meetingCast";
 import { DocumentService, type CaseMetadata } from "./documentService";
 import { formatDiarizedTranscript, type SpeakerUtterance } from "./assemblyAIService";
 import { logDocumentGovernanceViolations } from "./documentGovernanceGate";
@@ -178,6 +179,7 @@ async function buildMetadata(
     params.caseData.assignedToUserId ??
     params.caseData.createdBy;
 
+  const meetingCast = parseMeetingCast(params.meetingSession?.meetingCast);
   const feeEarnerUser = await storage.getUser(feeEarnerUserId);
   const feeEarnerDisplayName = feeEarnerUser
     ? buildFeeEarnerDisplayName(feeEarnerUser, params.showFullSolicitorName)
@@ -202,7 +204,9 @@ async function buildMetadata(
 
   return {
     title: params.caseData.title,
-    clientName: params.caseData.clientName,
+    clientName: clientNameForNote(params.caseData.clientName, meetingCast),
+    matterClientName: params.caseData.clientName,
+    meetingCast,
     matterReference: params.caseData.matterReference || undefined,
     recordingDate: meetingTimestamp
       ? formatUkLongDate(meetingTimestamp)

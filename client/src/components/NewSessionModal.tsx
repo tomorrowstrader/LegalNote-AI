@@ -22,6 +22,8 @@ import {
   recordingTypesForMatterKind,
 } from "@shared/recordingTypes";
 import { isClientMatterKind } from "@shared/matterKinds";
+import { MeetingCastFields } from "@/components/MeetingCastFields";
+import { emptyMeetingCast, meetingCastError, meetingCastIsDefault, type MeetingCast } from "@shared/meetingCast";
 
 interface NewSessionModalProps {
   open: boolean;
@@ -38,6 +40,7 @@ export default function NewSessionModal({ open, onOpenChange, caseId, caseTitle,
     defaultRecordingTypeForMatterKind(matterKind) as RecordingType,
   );
   const [sessionLabel, setSessionLabel] = useState("");
+  const [meetingCast, setMeetingCast] = useState<MeetingCast>(emptyMeetingCast());
   const [step, setStep] = useState<"setup" | "countdown" | "recording" | "saving">("setup");
   const [countdown, setCountdown] = useState<number | null>(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -84,6 +87,7 @@ export default function NewSessionModal({ open, onOpenChange, caseId, caseTitle,
       setIsRecording(false);
       setRecordingDuration(0);
       setSessionLabel("");
+      setMeetingCast(emptyMeetingCast());
       setConsentGiven(null);
       audioBlobRef.current = null;
       consentBlobRef.current = null;
@@ -203,6 +207,7 @@ export default function NewSessionModal({ open, onOpenChange, caseId, caseTitle,
       const sessionResult = await apiRequest<{ id: string }>("POST", `/api/cases/${caseId}/sessions`, {
         recordingType,
         sessionTitle: sessionLabel.trim() || undefined,
+        meetingCast: meetingCastIsDefault(meetingCast) ? undefined : meetingCast,
       });
 
       const audioResult = await apiRequest<{ id: string }>("POST", "/api/audio", {
@@ -295,7 +300,7 @@ export default function NewSessionModal({ open, onOpenChange, caseId, caseTitle,
           </DialogHeader>
 
           {step === "setup" && (
-            <div className="space-y-4 py-2">
+            <div className="space-y-4 py-2 max-h-[70vh] overflow-y-auto pr-1">
               <div className="space-y-2">
                 <Label htmlFor="modal-recording-type">Type of Recording</Label>
                 <Select value={recordingType} onValueChange={(v) => setRecordingType(v as RecordingType)}>
@@ -321,9 +326,15 @@ export default function NewSessionModal({ open, onOpenChange, caseId, caseTitle,
                   data-testid="input-modal-session-label"
                 />
               </div>
+              <MeetingCastFields value={meetingCast} onChange={setMeetingCast} />
               <Button
                 className="w-full gap-2"
                 onClick={() => {
+                  const castError = meetingCastError(meetingCast);
+                  if (castError) {
+                    toast({ title: "Who was in this meeting", description: castError, variant: "destructive" });
+                    return;
+                  }
                   setStep("countdown");
                   setCountdown(3);
                 }}
