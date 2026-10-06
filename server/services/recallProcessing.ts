@@ -472,11 +472,24 @@ export async function processBotRecording(importRecord: MeetingImport): Promise<
     audioStoragePath: audioPath,
   });
 
-  await storage.updateCase(caseId, { status: 'processing' }, userId);
+  await storage.updateCase(caseId, {
+    status: 'processing',
+    aiProcessingMetadata: {
+      status: 'processing',
+      progress: 0,
+      currentStep: 'Queued for processing...',
+      processingQueuedAt: new Date().toISOString(),
+    },
+  }, userId);
 
   // Enqueue the AI processing job (transcription + document generation)
   const { jobQueue } = await import('./jobQueue');
-  const jobId = await jobQueue.addJob('ai-processing', { caseId, userId });
+  const { AI_PROCESSING_MAX_ATTEMPTS } = await import('./transcriptionWait');
+  const jobId = await jobQueue.addJob(
+    'ai-processing',
+    { caseId, userId },
+    { maxAttempts: AI_PROCESSING_MAX_ATTEMPTS },
+  );
   console.log(`[RecallProcessing] Enqueued AI processing job ${jobId} for import ${importId}`);
 
   // Listen for job completion/failure to update import status

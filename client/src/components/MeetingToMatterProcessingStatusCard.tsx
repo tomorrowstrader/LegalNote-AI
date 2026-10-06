@@ -4,6 +4,7 @@ import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   estimateRemainingSeconds,
+  estimateTranscriptionSeconds,
   formatEtaLabel,
   processingStartStorageKey,
 } from "@/lib/processingEta";
@@ -74,6 +75,8 @@ export default function MeetingToMatterProcessingStatusCard({
   const [etaSeconds, setEtaSeconds] = useState<number | null>(null);
   const realProgressRef = useRef(realProgress);
   const displayProgressRef = useRef(INITIAL_PROGRESS);
+  const audioDurationRef = useRef(audioDurationSec);
+  audioDurationRef.current = audioDurationSec;
   const rafIdRef = useRef<number | null>(null);
   const processingStartedAtRef = useRef<number | null>(null);
   const lastEtaProgressRef = useRef(0);
@@ -113,10 +116,22 @@ export default function MeetingToMatterProcessingStatusCard({
       } else {
         const cap = getProcessingCreepCap(real);
         if (display < cap) {
-          const remaining = cap - display;
-          const easeStep = remaining * CREEP_EASE_PER_SEC * dtSec;
-          const floorStep = CREEP_MIN_RATE * dtSec;
-          display = Math.min(display + Math.max(easeStep, floorStep), cap);
+          const duration = audioDurationRef.current;
+          const longTranscription = real < 40 && !!duration && duration >= 20 * 60;
+          if (longTranscription) {
+            // Cover the transcription hold over the expected wait. A fixed
+            // 0.5%/s rate reaches 39% in under a minute and then looks frozen
+            // for the rest of a long meeting.
+            const transcriptionSec = estimateTranscriptionSeconds(duration);
+            const span = Math.max(cap - Math.max(real, INITIAL_PROGRESS), 1);
+            const rate = span / Math.max(transcriptionSec, 1);
+            display = Math.min(display + rate * dtSec, cap);
+          } else {
+            const remaining = cap - display;
+            const easeStep = remaining * CREEP_EASE_PER_SEC * dtSec;
+            const floorStep = CREEP_MIN_RATE * dtSec;
+            display = Math.min(display + Math.max(easeStep, floorStep), cap);
+          }
         }
         display = Math.min(display, 99);
       }

@@ -30,6 +30,12 @@ export interface ProcessingMetadata {
   };
   error?: string;
   completedAt?: string;
+  /** AssemblyAI transcript id, kept so a retry or restart continues the same job. */
+  assemblyTranscriptId?: string;
+  /** When this transcription attempt started waiting on the provider. */
+  transcriptionStartedAt?: string;
+  /** Session this transcription belongs to, so a restart resumes the same recording. */
+  meetingSessionId?: string;
 }
 
 export class AIProcessingPipeline {
@@ -136,11 +142,45 @@ export class AIProcessingPipeline {
         sessionType: earlySessionType,
       });
 
+      const priorMeta = (caseData.aiProcessingMetadata as ProcessingMetadata) || {};
+      const transcriptionStartedAt = new Date().toISOString();
+      let lastProgressWrite = 0;
+      const audioDurationSec = audio.duration || 0;
+
       const diarizedResult = await this.assemblyAIService.transcribeWithDiarization(
         audio.filePath,
-        audio.duration || 0,
+        audioDurationSec,
         undefined,
-        keytermsConfig
+        keytermsConfig,
+        {
+          resumeTranscriptId: priorMeta.assemblyTranscriptId,
+          onTranscriptStarted: async (assemblyTranscriptId) => {
+            await this.updateProcessingStatus(caseId, userId, {
+              status: 'transcribing',
+              progress: 20,
+              currentStep: 'Converting speech to text with speaker identification...',
+              assemblyTranscriptId,
+              transcriptionStartedAt,
+              meetingSessionId: sessionId,
+            });
+          },
+          onPollTick: async (elapsedMs, waitMs) => {
+            const now = Date.now();
+            if (now - lastProgressWrite < 30_000) return;
+            lastProgressWrite = now;
+            const fraction = waitMs > 0 ? Math.min(1, elapsedMs / waitMs) : 0;
+            const progress = 20 + Math.floor(fraction * 12);
+            const waitedMin = Math.max(1, Math.round(elapsedMs / 60_000));
+            const budgetMin = Math.max(1, Math.round(waitMs / 60_000));
+            await this.updateProcessingStatus(caseId, userId, {
+              status: 'transcribing',
+              progress,
+              currentStep: `Converting speech to text with speaker identification (${waitedMin} of ${budgetMin} min)...`,
+              transcriptionStartedAt,
+              meetingSessionId: sessionId,
+            });
+          },
+        },
       );
       transcriptText = diarizedResult.text;
       transcriptUtterances = diarizedResult.utterances;
@@ -288,12 +328,19 @@ export class AIProcessingPipeline {
 
     const currentMetadata = (caseData.aiProcessingMetadata as ProcessingMetadata) || {};
     const updatedMetadata = { ...currentMetadata, ...metadata };
+    if (metadata.status && metadata.status !== 'failed') {
+      delete updatedMetadata.error;
+    }
 
     const caseUpdate: { aiProcessingMetadata: ProcessingMetadata; status?: string } = {
       aiProcessingMetadata: updatedMetadata,
     };
     if (metadata.status === 'failed') {
       caseUpdate.status = 'failed';
+    } else if (metadata.status === 'transcribing') {
+      // A retry starts from a failed matter. Put it back into processing so the
+      // progress card stays up for the whole transcription wait.
+      caseUpdate.status = 'processing';
     }
 
     await this.storage.updateCase(caseId, caseUpdate, userId);

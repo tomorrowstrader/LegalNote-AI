@@ -239,6 +239,17 @@ export function initializeWorkers() {
   jobQueue.addJob('recover-stuck-produce-versions', {});
   console.log('[PRODUCE-VERSION-RECOVERY] Sweep registered (5-minute interval).');
 
+  // Re-queue transcriptions orphaned when the in-memory queue is lost mid-wait.
+  jobQueue.registerHandler('recover-stuck-transcriptions', async () => {
+    const { recoverStuckTranscriptionCases } = await import('./services/stuckTranscriptionRecovery');
+    await recoverStuckTranscriptionCases(storage);
+  });
+  setInterval(() => {
+    jobQueue.addJob('recover-stuck-transcriptions', {});
+  }, 5 * 60 * 1000);
+  jobQueue.addJob('recover-stuck-transcriptions', {});
+  console.log('[TRANSCRIPTION-RECOVERY] Sweep registered (5-minute interval).');
+
   console.log('[WORKERS] Job queue workers initialized successfully');
 }
 

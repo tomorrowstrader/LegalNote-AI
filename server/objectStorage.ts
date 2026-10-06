@@ -265,7 +265,7 @@ export class ObjectStorageService {
     }
   }
 
-  async getObjectEntityFile(objectPath: string): Promise<Buffer> {
+  async getObjectEntityFile(objectPath: string, options?: { timeoutMs?: number }): Promise<Buffer> {
     try {
       // Convert database path to S3 key
       const key = this.resolveS3KeyFromPath(objectPath);
@@ -275,25 +275,50 @@ export class ObjectStorageService {
         Key: key,
       });
 
-      const data = await s3Client.send(command);
+      const abortSignal = options?.timeoutMs ? AbortSignal.timeout(options.timeoutMs) : undefined;
+      const data = await s3Client.send(command, abortSignal ? { abortSignal } : undefined);
       
-      if (!data.Body) {
+      const body = data.Body;
+      if (!body) {
         throw new ObjectNotFoundError();
       }
 
-      // Convert stream to buffer
-      if (data.Body instanceof Readable) {
-        return new Promise((resolve, reject) => {
-          const chunks: any[] = [];
-          data.Body!.on("data", (chunk) => chunks.push(chunk));
-          data.Body!.on("end", () => resolve(Buffer.concat(chunks)));
-          data.Body!.on("error", reject);
-        });
-      } else {
-        return Buffer.from(data.Body as any);
+      const readBody = async (): Promise<Buffer> => {
+        // Convert stream to buffer
+        if (body instanceof Readable) {
+          return new Promise((resolve, reject) => {
+            const chunks: Buffer[] = [];
+            body.on("data", (chunk: Buffer) => chunks.push(chunk));
+            body.on("end", () => resolve(Buffer.concat(chunks)));
+            body.on("error", reject);
+          });
+        }
+        return Buffer.from(body as any);
+      };
+
+      if (!options?.timeoutMs) {
+        return await readBody();
+      }
+
+      let timer: NodeJS.Timeout | undefined;
+      try {
+        return await Promise.race([
+          readBody(),
+          new Promise<Buffer>((_, reject) => {
+            timer = setTimeout(() => {
+              if (body instanceof Readable) body.destroy();
+              reject(new Error("Timed out downloading audio file"));
+            }, options.timeoutMs);
+          }),
+        ]);
+      } finally {
+        if (timer) clearTimeout(timer);
       }
     } catch (error) {
       if (error instanceof ObjectNotFoundError) throw error;
+      if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError" || error.message === "Timed out downloading audio file")) {
+        throw new Error("Timed out downloading audio file");
+      }
       console.error(`[S3] Error getting file:`, error);
       throw new ObjectNotFoundError();
     }

@@ -10,6 +10,18 @@ export interface Job<T = any> {
   error?: string;
   createdAt: Date;
   processedAt?: Date;
+  /** When set in the future, the job is waiting out backoff and must not be claimed early. */
+  retryAt?: Date;
+}
+
+export function isJobRunnable(
+  job: Pick<Job, "status" | "attempts" | "maxAttempts" | "retryAt">,
+  now: number = Date.now(),
+): boolean {
+  if (job.retryAt && job.retryAt.getTime() > now) return false;
+  if (job.status === "pending") return true;
+  if (job.status === "failed" && job.attempts < job.maxAttempts) return true;
+  return false;
 }
 
 export type JobHandler<T = any> = (data: T) => Promise<void>;
@@ -52,11 +64,9 @@ class JobQueue extends EventEmitter {
       return;
     }
 
-    // Find a pending job
-    const pendingJob = Array.from(this.jobs.values()).find(
-      job => job.status === 'pending' || 
-             (job.status === 'failed' && job.attempts < job.maxAttempts)
-    );
+    // Find a pending job. A job waiting on retry backoff stays pending but is not runnable yet;
+    // claiming it here used to skip the delay and start the same transcription again immediately.
+    const pendingJob = Array.from(this.jobs.values()).find((job) => isJobRunnable(job));
 
     if (!pendingJob) {
       return;
@@ -72,6 +82,7 @@ class JobQueue extends EventEmitter {
 
     // Mark as processing
     pendingJob.status = 'processing';
+    pendingJob.retryAt = undefined;
     pendingJob.attempts++;
     this.processing.add(pendingJob.id);
     this.emit('job:processing', pendingJob);
@@ -92,9 +103,11 @@ class JobQueue extends EventEmitter {
         pendingJob.status = 'failed';
         this.emit('job:failed', pendingJob);
       } else {
-        // Retry with exponential backoff
+        // Retry with exponential backoff. retryAt keeps the finally-block
+        // processNextJob() from claiming this same job before the delay.
         pendingJob.status = 'pending';
         const delay = Math.min(1000 * Math.pow(2, pendingJob.attempts - 1), 30000);
+        pendingJob.retryAt = new Date(Date.now() + delay);
         setTimeout(() => this.processNextJob(), delay);
       }
     } finally {
@@ -126,7 +139,8 @@ class JobQueue extends EventEmitter {
 // Singleton instance
 export const jobQueue = new JobQueue();
 
-// Clean up old jobs every hour
-setInterval(() => {
+// Clean up old jobs every hour. unref so unit tests that import the queue can exit.
+const jobCleanupTimer = setInterval(() => {
   jobQueue.clearCompletedJobs();
 }, 3600000);
+jobCleanupTimer.unref?.();

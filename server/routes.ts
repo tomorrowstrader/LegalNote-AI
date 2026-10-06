@@ -5865,6 +5865,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           status: 'processing',
           progress: 0,
           currentStep: 'Queued for processing...',
+          processingQueuedAt: new Date().toISOString(),
         }
       }, userId);
 
@@ -5872,9 +5873,15 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         await storage.updateMeetingSession(effectiveSessionId, { status: 'processing' });
       }
       
-      // Queue AI processing job
+      // Queue AI processing job. Two attempts: the second resumes the same
+      // AssemblyAI job instead of uploading the recording again.
       const { jobQueue } = await import('./services/jobQueue');
-      const jobId = await jobQueue.addJob('ai-processing', { caseId, userId, sessionId: effectiveSessionId });
+      const { AI_PROCESSING_MAX_ATTEMPTS } = await import('./services/transcriptionWait');
+      const jobId = await jobQueue.addJob(
+        'ai-processing',
+        { caseId, userId, sessionId: effectiveSessionId },
+        { maxAttempts: AI_PROCESSING_MAX_ATTEMPTS },
+      );
       
       await logAuditEvent(userId, "ai_processing_started", {
         caseId,
@@ -5957,20 +5964,29 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       }
       const effectiveRetrySessionId = retrySessionId || audioRecording.meetingSessionId;
       
-      // Reset processing metadata and update status
+      // Reset processing metadata and update status. Keep the AssemblyAI id so
+      // retry continues the transcript that already timed out instead of starting over.
+      const previousMeta = (caseData.aiProcessingMetadata as { assemblyTranscriptId?: string }) || {};
       await storage.updateCase(caseId, { 
         status: "processing",
         aiProcessingMetadata: {
           status: 'processing',
           progress: 0,
           currentStep: 'Retrying processing...',
-          error: undefined,
+          assemblyTranscriptId: previousMeta.assemblyTranscriptId,
+          meetingSessionId: effectiveRetrySessionId ?? undefined,
+          processingQueuedAt: new Date().toISOString(),
         }
       }, userId);
       
       // Queue AI processing job
       const { jobQueue } = await import('./services/jobQueue');
-      const jobId = await jobQueue.addJob('ai-processing', { caseId, userId, sessionId: effectiveRetrySessionId });
+      const { AI_PROCESSING_MAX_ATTEMPTS } = await import('./services/transcriptionWait');
+      const jobId = await jobQueue.addJob(
+        'ai-processing',
+        { caseId, userId, sessionId: effectiveRetrySessionId },
+        { maxAttempts: AI_PROCESSING_MAX_ATTEMPTS },
+      );
       
       await logAuditEvent(userId, "ai_processing_started", {
         caseId,

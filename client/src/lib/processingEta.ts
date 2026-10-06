@@ -46,8 +46,11 @@ function isLatePipelineStep(currentStep?: string): boolean {
 
 export function estimateTranscriptionSeconds(audioDurationSec?: number | null): number {
   if (!audioDurationSec || audioDurationSec <= 0) return 75;
-  // AssemblyAI is typically well under real-time
-  return Math.round(Math.max(25, Math.min(audioDurationSec * 0.35, 240)));
+  // Diarized transcription is faster than the meeting, but a fixed 4-minute
+  // ceiling made a 47-minute recording look almost finished while it was not.
+  const scaled = audioDurationSec * 0.5;
+  const ceiling = audioDurationSec + 15 * 60;
+  return Math.round(Math.max(45, Math.min(scaled, ceiling)));
 }
 
 export function milestoneRemainingSeconds(
@@ -127,8 +130,10 @@ export function estimateRemainingSeconds(params: {
 
 export function formatEtaCountdown(seconds: number): string {
   const s = Math.max(0, Math.round(seconds));
-  const m = Math.floor(s / 60);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
   const rem = s % 60;
+  if (h > 0) return `${h}h ${m}m`;
   if (m <= 0) return `${rem}s`;
   return `${m}:${rem.toString().padStart(2, "0")}`;
 }

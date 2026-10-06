@@ -1,4 +1,11 @@
 import { ObjectStorageService } from '../objectStorage';
+import {
+  downloadTimeoutMs,
+  pollTranscriptUntilDone,
+  TranscriptNotFoundError,
+  transcriptionWaitMs,
+  uploadTimeoutMs,
+} from './transcriptionWait';
 
 export interface SpeakerUtterance {
   speaker: string;
@@ -55,6 +62,18 @@ export interface KeytermsConfig {
   nativePrompt?: string;
 }
 
+export interface DiarizedTranscriptionOptions {
+  /** AssemblyAI transcript id from an earlier attempt. Polled before a new upload. */
+  resumeTranscriptId?: string | null;
+  /** Called once the provider job exists, before the long wait, so a restart can resume it. */
+  onTranscriptStarted?: (transcriptId: string) => Promise<void> | void;
+  /** elapsed/wait in ms while the provider is still working. */
+  onPollTick?: (elapsedMs: number, waitMs: number) => Promise<void> | void;
+}
+
+const CREATE_TRANSCRIPT_TIMEOUT_MS = 60_000;
+const POLL_REQUEST_TIMEOUT_MS = 20_000;
+
 export class AssemblyAIService {
   private objectStorageService: ObjectStorageService;
   private apiKey: string;
@@ -81,7 +100,7 @@ export class AssemblyAIService {
     const transcriptId = await this.createPlainTranscript(uploadUrl);
     console.log(`[AssemblyAI] Plain transcript job created: ${transcriptId}`);
 
-    const result = await this.pollForCompletion(transcriptId);
+    const result = await this.pollForCompletion(transcriptId, 0);
     console.log(`[AssemblyAI] Buffer transcription completed (${result.text?.length ?? 0} chars)`);
 
     return result.text || '';
@@ -91,7 +110,8 @@ export class AssemblyAIService {
     audioPath: string,
     audioDuration: number,
     expectedSpeakers?: number,
-    keytermsConfig?: KeytermsConfig
+    keytermsConfig?: KeytermsConfig,
+    options?: DiarizedTranscriptionOptions,
   ): Promise<DiarizedTranscriptionResult> {
     console.log(`[AssemblyAI] Starting diarized transcription (Universal-3 Pro → Universal-2 fallback) for: ${audioPath}`);
     if (keytermsConfig?.nativePrompt) {
@@ -101,7 +121,12 @@ export class AssemblyAIService {
     }
 
     try {
-      const buffer = await this.objectStorageService.getObjectEntityFile(audioPath);
+      const resumed = await this.tryResumeTranscript(audioDuration, options);
+      if (resumed) return resumed;
+
+      const buffer = await this.objectStorageService.getObjectEntityFile(audioPath, {
+        timeoutMs: downloadTimeoutMs(audioDuration),
+      });
       console.log(`[AssemblyAI] Downloaded audio file: ${buffer.length} bytes`);
 
       const uploadUrl = await this.uploadAudio(buffer);
@@ -124,33 +149,71 @@ export class AssemblyAIService {
         console.log(`[AssemblyAI] Transcript job created with Universal-2 fallback: ${transcriptId}`);
       }
 
-      const result = await this.pollForCompletion(transcriptId);
+      await options?.onTranscriptStarted?.(transcriptId);
+      const result = await this.pollForCompletion(transcriptId, audioDuration, options?.onPollTick);
       const reportedModel = result.speech_model_used || modelUsed;
       console.log(`[AssemblyAI] Transcription completed with ${result.utterances?.length || 0} utterances (model: ${reportedModel})`);
 
-      const cost = this.calculateCost(result.audio_duration || audioDuration, reportedModel);
-
-      const utterances: SpeakerUtterance[] = (result.utterances || []).map(u => ({
-        speaker: u.speaker,
-        text: u.text,
-        start: u.start,
-        end: u.end,
-        confidence: u.confidence,
-      }));
-
-      const speakerSet = new Set(utterances.map(u => u.speaker));
-
-      return {
-        text: result.text || '',
-        utterances,
-        speakerCount: speakerSet.size,
-        duration: result.audio_duration || audioDuration,
-        cost,
-      };
+      return this.toDiarizedResult(result, audioDuration, reportedModel);
     } catch (error: any) {
       console.error('[AssemblyAI] Transcription failed:', error);
       throw new Error(`AssemblyAI transcription failed: ${error.message}`);
     }
+  }
+
+  private async tryResumeTranscript(
+    audioDuration: number,
+    options?: DiarizedTranscriptionOptions,
+  ): Promise<DiarizedTranscriptionResult | null> {
+    const resumeId = options?.resumeTranscriptId?.trim();
+    if (!resumeId) return null;
+
+    let existing: AssemblyAITranscript;
+    try {
+      existing = await this.fetchTranscript(resumeId);
+    } catch (error) {
+      if (error instanceof TranscriptNotFoundError) {
+        console.warn(`[AssemblyAI] Saved transcript ${resumeId} is gone; starting a new job`);
+        return null;
+      }
+      throw error;
+    }
+
+    if (existing.status === 'error') {
+      console.warn(`[AssemblyAI] Saved transcript ${resumeId} failed (${existing.error}); starting a new job`);
+      return null;
+    }
+
+    console.log(`[AssemblyAI] Resuming transcript ${resumeId} (status: ${existing.status})`);
+    await options?.onTranscriptStarted?.(resumeId);
+    const result = existing.status === 'completed'
+      ? existing
+      : await this.pollForCompletion(resumeId, audioDuration, options?.onPollTick);
+    const reportedModel = result.speech_model_used || 'universal-3-pro';
+    return this.toDiarizedResult(result, audioDuration, reportedModel);
+  }
+
+  private toDiarizedResult(
+    result: AssemblyAITranscript,
+    audioDuration: number,
+    model: string,
+  ): DiarizedTranscriptionResult {
+    const cost = this.calculateCost(result.audio_duration || audioDuration, model);
+    const utterances: SpeakerUtterance[] = (result.utterances || []).map(u => ({
+      speaker: u.speaker,
+      text: u.text,
+      start: u.start,
+      end: u.end,
+      confidence: u.confidence,
+    }));
+    const speakerSet = new Set(utterances.map(u => u.speaker));
+    return {
+      text: result.text || '',
+      utterances,
+      speakerCount: speakerSet.size,
+      duration: result.audio_duration || audioDuration,
+      cost,
+    };
   }
 
   private async uploadAudio(buffer: Buffer): Promise<string> {
@@ -161,6 +224,7 @@ export class AssemblyAIService {
         'Content-Type': 'application/octet-stream',
       },
       body: buffer,
+      signal: AbortSignal.timeout(uploadTimeoutMs(buffer.length)),
     });
 
     if (!response.ok) {
@@ -187,6 +251,7 @@ export class AssemblyAIService {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(CREATE_TRANSCRIPT_TIMEOUT_MS),
     });
 
     if (!response.ok) {
@@ -236,6 +301,7 @@ export class AssemblyAIService {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(CREATE_TRANSCRIPT_TIMEOUT_MS),
     });
 
     if (!response.ok) {
@@ -247,38 +313,52 @@ export class AssemblyAIService {
     return data.id;
   }
 
-  private async pollForCompletion(transcriptId: string): Promise<AssemblyAITranscript> {
-    const maxWaitTime = 10 * 60 * 1000;
-    const pollInterval = 3000;
-    const startTime = Date.now();
+  private async fetchTranscript(transcriptId: string): Promise<AssemblyAITranscript> {
+    const response = await fetch(`${ASSEMBLYAI_API_URL}/transcript/${transcriptId}`, {
+      headers: {
+        'Authorization': this.apiKey,
+      },
+      signal: AbortSignal.timeout(POLL_REQUEST_TIMEOUT_MS),
+    });
 
-    while (Date.now() - startTime < maxWaitTime) {
-      const response = await fetch(`${ASSEMBLYAI_API_URL}/transcript/${transcriptId}`, {
-        headers: {
-          'Authorization': this.apiKey,
-        },
-      });
-
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`Failed to poll transcript: ${error}`);
-      }
-
-      const result = await response.json() as AssemblyAITranscript;
-
-      if (result.status === 'completed') {
-        return result;
-      }
-
-      if (result.status === 'error') {
-        throw new Error(`Transcription error: ${result.error}`);
-      }
-
-      console.log(`[AssemblyAI] Status: ${result.status}, waiting...`);
-      await new Promise(resolve => setTimeout(resolve, pollInterval));
+    if (response.status === 404) {
+      throw new TranscriptNotFoundError();
     }
 
-    throw new Error('Transcription timed out after 10 minutes');
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Failed to poll transcript: ${response.status} ${error}`);
+    }
+
+    return await response.json() as AssemblyAITranscript;
+  }
+
+  private async pollForCompletion(
+    transcriptId: string,
+    audioDurationSec: number,
+    onPollTick?: (elapsedMs: number, waitMs: number) => Promise<void> | void,
+  ): Promise<AssemblyAITranscript> {
+    const waitMs = transcriptionWaitMs(audioDurationSec);
+    console.log(
+      `[AssemblyAI] Waiting up to ${Math.round(waitMs / 60_000)} minutes for transcript ${transcriptId} (audio ${Math.round(audioDurationSec)}s)`,
+    );
+    let lastLoggedMinute = -1;
+
+    return pollTranscriptUntilDone({
+      audioDurationSec,
+      maxWaitMs: waitMs,
+      onTick: async (elapsedMs, budgetMs) => {
+        const minute = Math.floor(elapsedMs / 60_000);
+        if (minute !== lastLoggedMinute) {
+          lastLoggedMinute = minute;
+          console.log(
+            `[AssemblyAI] Status: processing, ${minute}m of ${Math.round(budgetMs / 60_000)}m`,
+          );
+        }
+        await onPollTick?.(elapsedMs, budgetMs);
+      },
+      poll: () => this.fetchTranscript(transcriptId),
+    });
   }
 
   private calculateCost(durationSeconds: number, model?: string): number {
