@@ -1239,23 +1239,33 @@ nav.sticky {
   100% { background-position: -200% 0; }
 }
 
-/* tiptap-pagination-plus: theme-aware page gap (library hardcodes white inline) */
-/* Google-Docs-style page separation: gap matches the translucent "desk"
-   (bg-muted/30, dark /10, over background) so pages float as discrete cards.
-   Gap side borders erase the column border across the gap (library design);
-   gap top/bottom edges form the page-bottom and page-top borders. */
-.rm-with-pagination .rm-pagination-gap {
-  background-color: color-mix(in srgb, hsl(var(--muted)) 30%, hsl(var(--background))) !important;
-  border-left-color: color-mix(in srgb, hsl(var(--muted)) 30%, hsl(var(--background))) !important;
-  border-right-color: color-mix(in srgb, hsl(var(--muted)) 30%, hsl(var(--background))) !important;
-  border-top: 1px solid hsl(var(--border)) !important;
-  border-bottom: 1px solid hsl(var(--border)) !important;
-  box-shadow: none !important;
+/* Edit-mode page break: one opaque desk, shared by the gap and the canvas
+   around the page. Light uses a solid warm gray; dark uses the app background.
+   Page sheets stay --card. Reading view (.page-view-page-separator) is unchanged. */
+.ln-editor-desk {
+  --ln-editor-desk: color-mix(in srgb, hsl(var(--muted)) 70%, hsl(var(--background)));
+  background-color: var(--ln-editor-desk);
 }
-.dark .rm-with-pagination .rm-pagination-gap {
-  background-color: color-mix(in srgb, hsl(var(--muted)) 10%, hsl(var(--background))) !important;
-  border-left-color: color-mix(in srgb, hsl(var(--muted)) 10%, hsl(var(--background))) !important;
-  border-right-color: color-mix(in srgb, hsl(var(--muted)) 10%, hsl(var(--background))) !important;
+.dark .ln-editor-desk {
+  --ln-editor-desk: hsl(var(--background));
+}
+
+.rm-with-pagination .rm-page-header,
+.rm-with-pagination .rm-page-footer,
+.rm-with-pagination .rm-first-page-header {
+  background-color: hsl(var(--card));
+}
+
+.rm-with-pagination .rm-pagination-gap {
+  background-color: var(--ln-editor-desk) !important;
+  border-top: 0 !important;
+  border-bottom: 0 !important;
+  border-left-color: var(--ln-editor-desk) !important;
+  border-right-color: var(--ln-editor-desk) !important;
+  /* Cover the page's side border so the break meets the canvas as one surface. */
+  box-shadow:
+    -2px 0 0 0 var(--ln-editor-desk),
+    2px 0 0 0 var(--ln-editor-desk) !important;
 }
 
 /* Page side edges: theme-aware instead of hardcoded #e5e5e5 */

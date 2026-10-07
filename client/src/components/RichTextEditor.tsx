@@ -1094,7 +1094,10 @@ export function RichTextEditor({
         pageHeight: 1122,
         pageWidth: 794,
         pageGap: 48,
-        pageGapBorderSize: 1,
+        pageGapBorderSize: 0,
+        // Solid desk colour (see --ln-editor-desk). The library otherwise paints #ffffff.
+        pageBreakBackground: "var(--ln-editor-desk)",
+        pageGapBorderColor: "var(--ln-editor-desk)",
         marginTop: 96,
         marginBottom: 96,
         marginLeft: 96,
@@ -2066,7 +2069,7 @@ export function RichTextEditor({
             Structural deletions are blocked while Track Changes is on. Turn Track Changes off to delete table rows, columns, or list items.
           </div>
         )}
-          <div className="bg-muted/30 dark:bg-muted/10 border-x border-border overflow-x-auto max-w-full py-8">
+          <div className="ln-editor-desk border-x border-border overflow-x-auto max-w-full py-8">
             <div className="pagination-plus-host mx-auto w-full max-w-full min-w-0">
               <EditorContent 
                 editor={editor} 
