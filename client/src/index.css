@@ -1131,6 +1131,74 @@ nav.sticky {
   margin-bottom: 0.375rem;
 }
 
+/*
+ * Edit view puts `prose prose-sm` on the editor. Typography then adds a top
+ * margin to the paragraph TipTap nests inside every list item, so the disc
+ * sits in a blank band above the sentence (and that band can swallow the
+ * page gap). Page view does not use `prose`. Keep the marker on the first line.
+ */
+.legal-document-editor .ProseMirror :is(ul, ol) {
+  list-style-position: outside;
+  margin-top: 0.35rem;
+  margin-bottom: 0.75rem;
+  padding-left: 1.5rem;
+}
+
+.legal-document-editor .ProseMirror ul {
+  list-style-type: disc;
+}
+
+.legal-document-editor .ProseMirror ol {
+  list-style-type: decimal;
+}
+
+.legal-document-editor .ProseMirror li {
+  display: list-item;
+  margin-top: 0.15rem;
+  margin-bottom: 0.15rem;
+}
+
+.legal-document-editor .ProseMirror li > p {
+  display: block;
+  width: auto;
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.legal-document-editor .ProseMirror li > p:has(> br.ProseMirror-trailingBreak:only-child) {
+  display: block;
+  width: auto;
+}
+
+.page-view-content li > p {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.spellcheck-misspelling {
+  text-decoration: underline wavy #b45309;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 2px;
+}
+
+.spellcheck-active {
+  text-decoration: underline wavy #9a3412;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+  background-color: hsl(38 92% 70% / 0.55);
+  border-radius: 2px;
+}
+
+::highlight(ln-spellcheck) {
+  background-color: hsl(38 92% 72% / 0.55);
+  color: inherit;
+}
+
+::highlight(ln-spellcheck-active) {
+  background-color: hsl(32 95% 58% / 0.72);
+  color: inherit;
+}
+
 .ProseMirror h1:first-child,
 .ProseMirror h2:first-child,
 .ProseMirror h3:first-child {

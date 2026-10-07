@@ -10,6 +10,7 @@ import Subscript from '@tiptap/extension-subscript';
 import CharacterCount from '@tiptap/extension-character-count';
 import { Mark, Node, Extension, mergeAttributes, generateJSON } from '@tiptap/core';
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
+import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { ReplaceStep, ReplaceAroundStep } from '@tiptap/pm/transform';
 import { Fragment } from '@tiptap/pm/model';
 import { useAuth } from "@/hooks/useAuth";
@@ -24,7 +25,7 @@ import {
   Subscript as SubscriptIcon, Table as TableIcon, Search,
   Maximize2, Minimize2, Type, GitCompareArrows, Check, X,
   CheckCheck, XCircle, MessageSquarePlus, EyeOff, ChevronDown, Hash,
-  User, Calendar, Briefcase, Building2
+  User, Calendar, Briefcase, Building2, SpellCheck
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
@@ -33,6 +34,16 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { enrichGapCitationChips, hydrateReasoningGapAnchorsInDom, splitGapLabelParts } from "@/lib/reasoningGapAnchors";
 import { findFlexibleSpan } from "@shared/noteCorrections";
+import {
+  addSpellVocabulary,
+  spellingIssuesInSegments,
+  spellingSuggestions,
+  type SpellAdapter,
+  type SpellingIssue,
+  type TextSegment,
+} from "@shared/ukSpellcheck";
+import { loadUkSpellchecker } from "@/lib/ukSpellcheck";
+import { SpellcheckReview } from "@/components/SpellcheckReview";
 
 function ensureSectionSpacing(content: string): string {
   const lines = content.split('\n');
@@ -841,6 +852,63 @@ export interface LegalFieldContext {
   firmName?: string;
 }
 
+const spellcheckPluginKey = new PluginKey('ukSpellcheck');
+const SUBSTANTIAL_EDIT_CHARS = 80;
+
+const UkSpellcheckHighlight = Extension.create({
+  name: 'ukSpellcheckHighlight',
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: spellcheckPluginKey,
+        state: {
+          init: () => DecorationSet.empty,
+          apply(tr, old) {
+            const meta = tr.getMeta(spellcheckPluginKey);
+            if (meta) return meta as DecorationSet;
+            return old.map(tr.mapping, tr.doc);
+          },
+        },
+        props: {
+          decorations(state) {
+            return spellcheckPluginKey.getState(state) as DecorationSet;
+          },
+        },
+      }),
+    ];
+  },
+});
+
+function editorSpellSegments(doc: { descendants: (f: (node: any, pos: number) => void) => void }): TextSegment[] {
+  const segments: TextSegment[] = [];
+  doc.descendants((node, pos) => {
+    if (!node.isText || !node.text) return;
+    const skip = node.marks?.some((mark: { type: { name: string } }) =>
+      mark.type.name === 'deletion' || mark.type.name === 'redaction'
+    );
+    segments.push({ text: node.text, from: pos, skip });
+  });
+  return segments;
+}
+
+function paintEditorSpellcheck(view: { state: any; dispatch: (tr: any) => void }, issues: SpellingIssue[], activeIndex: number) {
+  const { state } = view;
+  const size = state.doc.content.size;
+  const decorations = issues.flatMap((issue, index) => {
+    const from = Math.max(0, Math.min(issue.from, size));
+    const to = Math.max(from, Math.min(issue.to, size));
+    if (to <= from) return [];
+    try {
+      return [Decoration.inline(from, to, {
+        class: index === activeIndex ? 'spellcheck-active' : 'spellcheck-misspelling',
+      })];
+    } catch {
+      return [];
+    }
+  });
+  view.dispatch(state.tr.setMeta(spellcheckPluginKey, DecorationSet.create(state.doc, decorations)));
+}
+
 interface RichTextEditorProps {
   content: string;
   onChange: (content: string) => void;
@@ -902,6 +970,18 @@ export function RichTextEditor({
   const [selectedOption, setSelectedOption] = useState(0);
   const [trackedChanges, setTrackedChanges] = useState<TrackedChange[]>([]);
   const [changeCount, setChangeCount] = useState(0);
+  const [spellOpen, setSpellOpen] = useState(false);
+  const [spellLoading, setSpellLoading] = useState(false);
+  const [spellError, setSpellError] = useState<string | null>(null);
+  const [spellIssues, setSpellIssues] = useState<SpellingIssue[]>([]);
+  const [spellIndex, setSpellIndex] = useState(0);
+  const [spellSuggestions, setSpellSuggestions] = useState<string[]>([]);
+  const [spellHint, setSpellHint] = useState(false);
+  const spellAdapterRef = useRef<SpellAdapter | null>(null);
+  const spellBaselineRef = useRef<number | null>(null);
+  const spellHintDismissedRef = useRef(false);
+  const disabledRef = useRef(disabled);
+  useEffect(() => { disabledRef.current = disabled; }, [disabled]);
 
   useEffect(() => {
     isTrackingRef.current = trackChangesEnabled;
@@ -1000,6 +1080,7 @@ export function RichTextEditor({
           };
         },
       }),
+      UkSpellcheckHighlight,
       // A4 @ 96dpi with Word/Google Docs default 1" (96px) margins on all sides.
       PaginationPlus.configure({
         pageHeight: 1122,
@@ -1020,6 +1101,7 @@ export function RichTextEditor({
       attributes: {
         class: 'prose prose-sm max-w-none focus:outline-none min-h-[400px] text-foreground',
         spellcheck: 'true',
+        lang: 'en-GB',
       },
       // Pagination widgets skew ProseMirror's default scroll-into-view math and
       // can fling the viewport to the document end on bold/Enter/Backspace.
@@ -1043,6 +1125,10 @@ export function RichTextEditor({
       },
     },
     onUpdate: ({ editor }) => {
+      if (!disabledRef.current && spellBaselineRef.current != null && !spellHintDismissedRef.current) {
+        const delta = Math.abs(editor.getText().length - spellBaselineRef.current);
+        if (delta >= SUBSTANTIAL_EDIT_CHARS) setSpellHint(true);
+      }
       if (isUpdatingRef.current) return;
       // Read-only view mode: never emit content changes (avoids render loops
       // when display content is transformed before setContent).
@@ -1336,6 +1422,11 @@ export function RichTextEditor({
         if (!disabled && trackChangesEnabled) {
           scanForTrackedChanges(editor);
         }
+        if (!disabled) {
+          spellBaselineRef.current = editor.getText().length;
+          spellHintDismissedRef.current = false;
+          setSpellHint(false);
+        }
       });
     }
   }, [editor, content, disabled, hydrateGapAnchors, gapAnchorLabels, trackChangesEnabled, scanForTrackedChanges]);
@@ -1543,6 +1634,107 @@ export function RichTextEditor({
     }
   }, [editor]);
 
+  const refreshSpellSuggestions = useCallback((issues: SpellingIssue[], index: number) => {
+    const issue = issues[index];
+    const spell = spellAdapterRef.current;
+    setSpellSuggestions(issue && spell ? spellingSuggestions(issue.word, spell) : []);
+  }, []);
+
+  const focusSpellIssue = useCallback((issues: SpellingIssue[], index: number) => {
+    if (!editor) return;
+    paintEditorSpellcheck(editor.view, issues, index);
+    const issue = issues[index];
+    if (!issue) return;
+    const size = editor.state.doc.content.size;
+    const from = Math.max(0, Math.min(issue.from, size));
+    const to = Math.max(from, Math.min(issue.to, size));
+    if (to <= from) return;
+    try {
+      editor.chain().setTextSelection({ from, to }).scrollIntoView().run();
+    } catch {
+      // The word may have moved while the pages were reflowing.
+    }
+  }, [editor]);
+
+  const runSpellcheck = useCallback(async () => {
+    if (!editor) return;
+    setSpellOpen(true);
+    setSpellLoading(true);
+    setSpellError(null);
+    setSpellHint(false);
+    spellHintDismissedRef.current = true;
+    try {
+      const spell = spellAdapterRef.current ?? await loadUkSpellchecker();
+      spellAdapterRef.current = spell;
+      addSpellVocabulary(spell, [
+        legalContext?.clientName,
+        legalContext?.solicitorName,
+        legalContext?.firmName,
+        legalContext?.matterRef,
+      ]);
+      const issues = spellingIssuesInSegments(editorSpellSegments(editor.state.doc), spell);
+      setSpellIssues(issues);
+      setSpellIndex(0);
+      refreshSpellSuggestions(issues, 0);
+      focusSpellIssue(issues, 0);
+    } catch (err) {
+      console.error("[RichTextEditor] UK spell check failed:", err);
+      setSpellError("UK English spell check could not be loaded. Try again in a moment.");
+    } finally {
+      setSpellLoading(false);
+    }
+  }, [editor, legalContext, focusSpellIssue, refreshSpellSuggestions]);
+
+  const closeSpellcheck = useCallback(() => {
+    setSpellOpen(false);
+    setSpellIssues([]);
+    setSpellSuggestions([]);
+    if (editor) paintEditorSpellcheck(editor.view, [], 0);
+  }, [editor]);
+
+  const moveSpellIssue = useCallback((nextIndex: number) => {
+    if (spellIssues.length === 0) return;
+    const wrapped = (nextIndex + spellIssues.length) % spellIssues.length;
+    setSpellIndex(wrapped);
+    refreshSpellSuggestions(spellIssues, wrapped);
+    focusSpellIssue(spellIssues, wrapped);
+  }, [spellIssues, focusSpellIssue, refreshSpellSuggestions]);
+
+  const ignoreSpellIssue = useCallback(() => {
+    const next = spellIssues.filter((_, i) => i !== spellIndex);
+    const nextIndex = Math.min(spellIndex, Math.max(0, next.length - 1));
+    setSpellIssues(next);
+    setSpellIndex(nextIndex);
+    refreshSpellSuggestions(next, nextIndex);
+    focusSpellIssue(next, nextIndex);
+  }, [spellIssues, spellIndex, focusSpellIssue, refreshSpellSuggestions]);
+
+  const ignoreAllSpellIssues = useCallback(() => {
+    const current = spellIssues[spellIndex];
+    if (!current) return;
+    spellAdapterRef.current?.add(current.word);
+    const next = spellIssues.filter((issue) => issue.word.toLowerCase() !== current.word.toLowerCase());
+    const nextIndex = Math.min(spellIndex, Math.max(0, next.length - 1));
+    setSpellIssues(next);
+    setSpellIndex(nextIndex);
+    refreshSpellSuggestions(next, nextIndex);
+    focusSpellIssue(next, nextIndex);
+  }, [spellIssues, spellIndex, focusSpellIssue, refreshSpellSuggestions]);
+
+  const replaceSpellIssue = useCallback((suggestion: string) => {
+    const issue = spellIssues[spellIndex];
+    const spell = spellAdapterRef.current;
+    if (!editor || !issue || !spell) return;
+    editor.chain().focus().insertContentAt({ from: issue.from, to: issue.to }, suggestion).run();
+    requestAnimationFrame(() => {
+      const issues = spellingIssuesInSegments(editorSpellSegments(editor.state.doc), spell);
+      const nextIndex = Math.min(spellIndex, Math.max(0, issues.length - 1));
+      setSpellIssues(issues);
+      setSpellIndex(nextIndex);
+      refreshSpellSuggestions(issues, nextIndex);
+      focusSpellIssue(issues, nextIndex);
+    });
+  }, [editor, spellIssues, spellIndex, focusSpellIssue, refreshSpellSuggestions]);
 
   if (!editor) return null;
 
@@ -1582,9 +1774,9 @@ export function RichTextEditor({
   };
 
   const ToolbarButton = ({ 
-    onClick, active, icon: Icon, tooltip, disabled: btnDisabled 
+    onClick, active, icon: Icon, tooltip, disabled: btnDisabled, testId,
   }: { 
-    onClick: () => void; active?: boolean; icon: any; tooltip: string; disabled?: boolean 
+    onClick: () => void; active?: boolean; icon: any; tooltip: string; disabled?: boolean; testId?: string;
   }) => (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -1595,6 +1787,7 @@ export function RichTextEditor({
           onClick={onClick}
           disabled={btnDisabled ?? disabled}
           className="h-7 w-7"
+          data-testid={testId}
         >
           <Icon className="h-3.5 w-3.5" />
         </Button>
@@ -1717,6 +1910,7 @@ export function RichTextEditor({
 
             <RibbonGroup label="Review">
               <ToolbarButton onClick={() => setShowSearch(s => !s)} active={showSearch} icon={Search} tooltip="Find & Replace" />
+              <ToolbarButton onClick={() => { void runSpellcheck(); }} active={spellOpen} icon={SpellCheck} tooltip="Spell check (UK English)" testId="button-spell-check-editor" />
               {onTrackChangesToggle && (
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -1800,6 +1994,41 @@ export function RichTextEditor({
               <Button size="sm" variant="outline" onClick={handleReplace} className="h-7 text-xs px-2">Replace All</Button>
               <Button size="sm" variant="ghost" onClick={() => setShowSearch(false)} className="h-7 text-xs px-2">Close</Button>
             </div>
+          )}
+
+          {spellHint && !spellOpen && (
+            <div className="flex items-center justify-between gap-2 px-3 pb-2" data-testid="notice-spellcheck-hint">
+              <p className="text-[11px] text-muted-foreground">
+                Substantial edits — spell check can walk through any words that are not UK English, without changing the note.
+              </p>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs shrink-0"
+                onClick={() => { void runSpellcheck(); }}
+              >
+                Spell check
+              </Button>
+            </div>
+          )}
+
+          {spellOpen && (
+            <SpellcheckReview
+              loading={spellLoading}
+              error={spellError}
+              wordCount={spellIssues.length}
+              index={spellIndex}
+              word={spellIssues[spellIndex]?.word ?? null}
+              suggestions={spellSuggestions}
+              canReplace
+              onPrev={() => moveSpellIssue(spellIndex - 1)}
+              onNext={() => moveSpellIssue(spellIndex + 1)}
+              onIgnore={ignoreSpellIssue}
+              onIgnoreAll={ignoreAllSpellIssues}
+              onReplace={replaceSpellIssue}
+              onClose={closeSpellcheck}
+            />
           )}
         </div>
       )}

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileDown, FileSearch, FileText, CheckCircle, Lock, Unlock, AlertCircle, Edit, Save, CloudUpload, Shield, ZoomIn, ZoomOut, Maximize2, Minimize2, Printer, MessageSquare, MessageSquarePlus, Check, Eye, EyeOff, X, GitCompareArrows, ChevronDown, ChevronUp, Mail, MailCheck, BookOpen, Pencil, AlertTriangle, PenLine, Share2, Quote, Play, MoreHorizontal, Clock, ArrowUp } from "lucide-react";
+import { FileDown, FileSearch, FileText, CheckCircle, Lock, Unlock, AlertCircle, Edit, Save, CloudUpload, Shield, ZoomIn, ZoomOut, Maximize2, Minimize2, Printer, MessageSquare, MessageSquarePlus, Check, Eye, EyeOff, X, GitCompareArrows, ChevronDown, ChevronUp, Mail, MailCheck, BookOpen, Pencil, AlertTriangle, PenLine, Share2, Quote, Play, MoreHorizontal, Clock, ArrowUp, SpellCheck } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -47,6 +47,10 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 import { RichTextEditor, type SeededReplacement, type TrackedChange, type TrackChangeAuditRecord } from "@/components/RichTextEditor";
+import { SpellcheckReview } from "@/components/SpellcheckReview";
+import { loadUkSpellchecker } from "@/lib/ukSpellcheck";
+import { clearDomHits, collectDomWordHits, paintDomHits, type DomWordHit } from "@/lib/spellcheckDom";
+import { addSpellVocabulary, spellingSuggestions, type SpellAdapter } from "@shared/ukSpellcheck";
 import { NoteCorrectionPanel, type CorrectionProposal } from "@/components/NoteCorrectionPanel";
 import { attendanceNoteToPlain, resolvePassage } from "@shared/noteCorrections";
 import { PageView } from "@/components/PageView";
@@ -1616,6 +1620,84 @@ function EditableDocumentContent({
   const sourceContent = isEditing
     ? editContent
     : formatAttendanceNoteMarkdown(document.content, document.type);
+  const noteBodyRef = useRef<HTMLDivElement>(null);
+  const viewSpellRef = useRef<SpellAdapter | null>(null);
+  const [viewSpellOpen, setViewSpellOpen] = useState(false);
+  const [viewSpellLoading, setViewSpellLoading] = useState(false);
+  const [viewSpellError, setViewSpellError] = useState<string | null>(null);
+  const [viewSpellHits, setViewSpellHits] = useState<DomWordHit[]>([]);
+  const [viewSpellIndex, setViewSpellIndex] = useState(0);
+  const [viewSpellSuggestions, setViewSpellSuggestions] = useState<string[]>([]);
+
+  const closeViewSpellcheck = useCallback(() => {
+    setViewSpellOpen(false);
+    setViewSpellHits([]);
+    setViewSpellSuggestions([]);
+    clearDomHits();
+  }, []);
+
+  useEffect(() => {
+    if (isEditing) closeViewSpellcheck();
+  }, [isEditing, closeViewSpellcheck]);
+
+  useEffect(() => () => clearDomHits(), []);
+
+  const showViewSpellIssue = useCallback((hits: DomWordHit[], index: number, spell: SpellAdapter | null) => {
+    const safeIndex = hits.length === 0 ? 0 : Math.min(index, Math.max(0, hits.length - 1));
+    setViewSpellIndex(safeIndex);
+    setViewSpellSuggestions(hits[safeIndex] && spell ? spellingSuggestions(hits[safeIndex].word, spell) : []);
+    paintDomHits(hits, safeIndex);
+  }, []);
+
+  const runViewSpellcheck = useCallback(async () => {
+    setViewSpellOpen(true);
+    setViewSpellLoading(true);
+    setViewSpellError(null);
+    try {
+      const spell = viewSpellRef.current ?? await loadUkSpellchecker();
+      viewSpellRef.current = spell;
+      addSpellVocabulary(spell, [
+        legalContext?.clientName,
+        legalContext?.solicitorName,
+        legalContext?.firmName,
+        legalContext?.matterRef,
+      ]);
+      const body = noteBodyRef.current;
+      const pages = body ? Array.from(body.querySelectorAll<HTMLElement>("[data-page-view-visible]")) : [];
+      const roots = pages.length
+        ? pages
+        : Array.from(body?.querySelectorAll<HTMLElement>(".ProseMirror") ?? [])
+            .filter((el) => !el.closest("[data-page-view-measure]"));
+      if (roots.length === 0) {
+        setViewSpellHits([]);
+        setViewSpellError("The note is still laying out. Try the spell check again in a moment.");
+        return;
+      }
+      const hits = collectDomWordHits(roots, spell);
+      setViewSpellHits(hits);
+      showViewSpellIssue(hits, 0, spell);
+    } catch (err) {
+      console.error("[DocumentViewer] UK spell check failed:", err);
+      setViewSpellError("UK English spell check could not be loaded. Try again in a moment.");
+    } finally {
+      setViewSpellLoading(false);
+    }
+  }, [legalContext, showViewSpellIssue]);
+
+  const ignoreViewSpellIssue = useCallback(() => {
+    const next = viewSpellHits.filter((_, i) => i !== viewSpellIndex);
+    setViewSpellHits(next);
+    showViewSpellIssue(next, Math.min(viewSpellIndex, Math.max(0, next.length - 1)), viewSpellRef.current);
+  }, [viewSpellHits, viewSpellIndex, showViewSpellIssue]);
+
+  const ignoreAllViewSpellIssues = useCallback(() => {
+    const current = viewSpellHits[viewSpellIndex];
+    if (!current) return;
+    viewSpellRef.current?.add(current.word);
+    const next = viewSpellHits.filter((hit) => hit.word.toLowerCase() !== current.word.toLowerCase());
+    setViewSpellHits(next);
+    showViewSpellIssue(next, Math.min(viewSpellIndex, Math.max(0, next.length - 1)), viewSpellRef.current);
+  }, [viewSpellHits, viewSpellIndex, showViewSpellIssue]);
 
   return (
     <div
@@ -1668,9 +1750,44 @@ function EditableDocumentContent({
         </div>
       )}
 
+      {!isEditing && (
+        <div className="flex justify-end px-4">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-8 gap-1.5 text-xs"
+            onClick={() => { void runViewSpellcheck(); }}
+            data-testid="button-spell-check"
+          >
+            <SpellCheck className="w-3.5 h-3.5" />
+            Spell check
+          </Button>
+        </div>
+      )}
+
+      {!isEditing && viewSpellOpen && (
+        <SpellcheckReview
+          loading={viewSpellLoading}
+          error={viewSpellError}
+          wordCount={viewSpellHits.length}
+          index={viewSpellIndex}
+          word={viewSpellHits[viewSpellIndex]?.word ?? null}
+          suggestions={viewSpellSuggestions}
+          canReplace={false}
+          onPrev={() => showViewSpellIssue(viewSpellHits, (viewSpellIndex - 1 + viewSpellHits.length) % viewSpellHits.length, viewSpellRef.current)}
+          onNext={() => showViewSpellIssue(viewSpellHits, (viewSpellIndex + 1) % viewSpellHits.length, viewSpellRef.current)}
+          onIgnore={ignoreViewSpellIssue}
+          onIgnoreAll={ignoreAllViewSpellIssues}
+          onReplace={() => {}}
+          onClose={closeViewSpellcheck}
+        />
+      )}
+
       {/* Page View: accurate multi-page layout renderer.
           Display uses indexed gap tokens so the panel can jump to the exact advice point,
           and each marker chip shows the specific advice point that still needs reasoning. */}
+      <div ref={noteBodyRef} className="min-w-0 max-w-full">
       {pageViewMode && !isEditing ? (
         <PageView
           content={prepareReasoningGapDisplayContent(sourceContent)}
@@ -1698,6 +1815,7 @@ function EditableDocumentContent({
           onSeedReplacementsApplied={isEditing ? onSeedReplacementsApplied : undefined}
         />
       )}
+      </div>
     </div>
   );
 }
