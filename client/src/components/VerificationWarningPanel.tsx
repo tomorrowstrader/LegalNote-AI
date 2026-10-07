@@ -265,6 +265,8 @@ export function VerificationWarningPanel({
 
   if (warnings.length === 0) return null;
 
+  const allResolved = openWarnings.length === 0;
+
   const closeResolve = () => {
     setResolveTarget(null);
     setResolveReason("");
@@ -285,16 +287,40 @@ export function VerificationWarningPanel({
   return (
     <>
       <div
-        className="mx-6 mb-2 p-3 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 rounded-md"
+        className={cn(
+          "mx-6 mb-2 p-3 rounded-md border",
+          allResolved
+            ? "bg-emerald-500/15 border-emerald-600/30 dark:bg-emerald-500/10 dark:border-emerald-500/35"
+            : "bg-yellow-50 dark:bg-yellow-950/30 border-yellow-200 dark:border-yellow-800",
+        )}
         data-testid={`panel-verification-warning-${testIdPrefix}`}
+        data-review-state={allResolved ? "complete" : "required"}
       >
         <div className="flex items-start gap-2">
-          <AlertCircle className="w-4 h-4 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" />
+          {allResolved ? (
+            <CheckCircle2 className="w-4 h-4 text-emerald-700 dark:text-emerald-400 mt-0.5 flex-shrink-0" />
+          ) : (
+            <AlertCircle className="w-4 h-4 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" />
+          )}
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-yellow-800 dark:text-yellow-300">
-              Solicitor Review Required
+            <p
+              className={cn(
+                "text-sm font-medium",
+                allResolved
+                  ? "text-emerald-800 dark:text-emerald-300"
+                  : "text-yellow-800 dark:text-yellow-300",
+              )}
+            >
+              {allResolved ? "Solicitor review complete" : "Solicitor Review Required"}
             </p>
-            <p className="text-xs text-yellow-700 dark:text-yellow-400 mt-1">
+            <p
+              className={cn(
+                "text-xs mt-1",
+                allResolved
+                  ? "text-emerald-800/80 dark:text-emerald-300/80"
+                  : "text-yellow-700 dark:text-yellow-400",
+              )}
+            >
               {openWarnings.length > 0
                 ? summary
                 : `All ${warnings.length} flagged statement${warnings.length !== 1 ? "s" : ""} reviewed.`}{" "}
@@ -347,7 +373,14 @@ export function VerificationWarningPanel({
                       Previous
                     </Button>
 
-                    <p className="text-xs text-yellow-800 dark:text-yellow-300 tabular-nums text-center">
+                    <p
+                      className={cn(
+                        "text-xs tabular-nums text-center",
+                        allResolved
+                          ? "text-emerald-800 dark:text-emerald-300"
+                          : "text-yellow-800 dark:text-yellow-300",
+                      )}
+                    >
                       Flag {safeIndex + 1} of {total}
                       {canGoNext ? (
                         <span className="text-muted-foreground">
@@ -355,7 +388,7 @@ export function VerificationWarningPanel({
                           <button
                             type="button"
                             onClick={goNext}
-                            className="underline hover:no-underline text-yellow-800 dark:text-yellow-300"
+                            className="underline hover:no-underline"
                             data-testid={`button-warning-view-next-label-${testIdPrefix}`}
                           >
                             View {ordinalLabel(safeIndex + 2)}
