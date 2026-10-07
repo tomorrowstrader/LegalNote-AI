@@ -1582,7 +1582,7 @@ export default function CaseDetail() {
               </p>
             )}
             {activeSessionLabel && activeSessionLabel !== caseData.title && (
-              <p className="text-[11px] text-muted-foreground/80 truncate mb-1" data-testid="text-matter-title-panel" title={caseData.title}>
+              <p className="text-[11px] text-muted-foreground/80 whitespace-normal break-words mb-1" data-testid="text-matter-title-panel">
                 {caseData.title}
               </p>
             )}
