@@ -1823,51 +1823,7 @@ function EditableDocumentContent({
         usesJustifiedLegalLayout(document.type) && 'legal-document-justified',
         usesAttendanceNoteLayout(document.type) && 'legal-document-attendance',
       )}
-    >      {isEditing && (
-        <div className="flex items-center gap-2 flex-wrap px-6">
-          <Button
-            size="sm"
-            onClick={() => onSaveEdits(document.id)}
-            disabled={isSaving}
-            data-testid="button-save-edits"
-          >
-            {isSaving ? "Saving..." : "Save Changes"}
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={onCancelEditing}
-            disabled={isSaving}
-            data-testid="button-cancel-edits"
-          >
-            Cancel
-          </Button>
-          {autoSaveStatus !== 'idle' && (
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground" data-testid="indicator-autosave">
-              {autoSaveStatus === 'saving' && (
-                <>
-                  <CloudUpload className="w-3 h-3 animate-pulse text-blue-500" />
-                  <span>Auto-saving...</span>
-                </>
-              )}
-              {autoSaveStatus === 'saved' && (
-                <>
-                  <CheckCircle className="w-3 h-3 text-green-500" />
-                  <span className="text-green-600 dark:text-green-400">Saved</span>
-                </>
-              )}
-              {autoSaveStatus === 'error' && (
-                <>
-                  <AlertCircle className="w-3 h-3 text-amber-500" />
-                  <span className="text-amber-600 dark:text-amber-400">Auto-save failed</span>
-                </>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {!isEditing && (
+    >      {!isEditing && (
         <div className="flex justify-end px-4">
           <Button
             type="button"
@@ -1930,6 +1886,49 @@ function EditableDocumentContent({
           legalContext={legalContext}
           seedReplacements={isEditing ? seedReplacements : undefined}
           onSeedReplacementsApplied={isEditing ? onSeedReplacementsApplied : undefined}
+          editActions={isEditing ? (
+            <>
+              <Button
+                size="sm"
+                onClick={() => onSaveEdits(document.id)}
+                disabled={isSaving}
+                data-testid="button-save-edits"
+              >
+                {isSaving ? "Saving..." : "Save Changes"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={onCancelEditing}
+                disabled={isSaving}
+                data-testid="button-cancel-edits"
+              >
+                Cancel
+              </Button>
+              {autoSaveStatus !== 'idle' && (
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground" data-testid="indicator-autosave">
+                  {autoSaveStatus === 'saving' && (
+                    <>
+                      <CloudUpload className="w-3 h-3 animate-pulse text-blue-500" />
+                      <span>Auto-saving...</span>
+                    </>
+                  )}
+                  {autoSaveStatus === 'saved' && (
+                    <>
+                      <CheckCircle className="w-3 h-3 text-green-500" />
+                      <span className="text-green-600 dark:text-green-400">Saved</span>
+                    </>
+                  )}
+                  {autoSaveStatus === 'error' && (
+                    <>
+                      <AlertCircle className="w-3 h-3 text-amber-500" />
+                      <span className="text-amber-600 dark:text-amber-400">Auto-save failed</span>
+                    </>
+                  )}
+                </div>
+              )}
+            </>
+          ) : undefined}
         />
       )}
       </div>

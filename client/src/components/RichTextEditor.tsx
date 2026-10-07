@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useRef, useState } from "react";
+import { useEffect, useCallback, useRef, useState, type ReactNode } from "react";
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -873,12 +873,14 @@ interface RichTextEditorProps {
   /** Exact replacements to land as tracked changes once, after the note loads. */
   seedReplacements?: SeededReplacement[];
   onSeedReplacementsApplied?: (result: { applied: number; missed: number }) => void;
+  /** Save and cancel, pinned with the toolbar so they stay reachable while the note scrolls. */
+  editActions?: ReactNode;
 }
 
 export function RichTextEditor({ 
   content, onChange, disabled, hydrateGapAnchors = false, gapAnchorLabels, placeholder, focusMode, onFocusModeToggle, zoom = 100,
   trackChangesEnabled = false, onTrackChangesToggle, onTrackChangeAction, onAddComment,
-  onRedact, legalContext, seedReplacements, onSeedReplacementsApplied,
+  onRedact, legalContext, seedReplacements, onSeedReplacementsApplied, editActions,
 }: RichTextEditorProps) {
   const isUpdatingRef = useRef(false);
   const isTrackingRef = useRef(trackChangesEnabled);
@@ -1820,8 +1822,13 @@ export function RichTextEditor({
       style={{ fontSize: `${zoom}%` }}
     >
       {!disabled && (
-        <div className="border border-border rounded-t-md bg-muted/40 backdrop-blur-sm sticky z-30" style={{ top: 'var(--doc-header-height, 0px)' }}>
-          <div className="flex items-start gap-0 p-1.5 flex-wrap">
+        <div className="border border-border rounded-t-md bg-background/95 backdrop-blur-sm sticky z-30" style={{ top: 'var(--doc-header-height, 0px)' }}>
+          {editActions ? (
+            <div className="flex items-center gap-2 flex-wrap border-b border-border/60 px-2 py-1.5" data-testid="container-edit-actions">
+              {editActions}
+            </div>
+          ) : null}
+          <div className="flex items-start gap-0 p-1.5 flex-wrap bg-muted/40">
             <RibbonGroup label="Font">
               <ToolbarButton onClick={() => editorFocusChain(editor).toggleBold().run()} active={editor.isActive('bold')} icon={Bold} tooltip="Bold (Ctrl+B)" />
               <ToolbarButton onClick={() => editorFocusChain(editor).toggleItalic().run()} active={editor.isActive('italic')} icon={Italic} tooltip="Italic (Ctrl+I)" />
