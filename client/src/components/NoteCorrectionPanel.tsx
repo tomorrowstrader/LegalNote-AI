@@ -25,6 +25,8 @@ interface NoteCorrectionPanelProps {
   caseId: string;
   documentId: string;
   selectedText: string;
+  /** True when the matter is already instructed. An enquiry opens unticked. */
+  instructionsAlreadyTaken?: boolean;
   onClose: () => void;
   onProposed: (proposals: CorrectionProposal[], unplacedCount: number) => void;
 }
@@ -33,6 +35,7 @@ export function NoteCorrectionPanel({
   caseId,
   documentId,
   selectedText,
+  instructionsAlreadyTaken = false,
   onClose,
   onProposed,
 }: NoteCorrectionPanelProps) {
@@ -41,7 +44,7 @@ export function NoteCorrectionPanel({
   const [instruction, setInstruction] = useState("");
   const [find, setFind] = useState("");
   const [replaceWith, setReplaceWith] = useState("");
-  const [instructionsTaken, setInstructionsTaken] = useState(false);
+  const [instructionsTaken, setInstructionsTaken] = useState(instructionsAlreadyTaken);
   const [cast, setCast] = useState<MeetingCast>(emptyMeetingCast);
   const [pending, setPending] = useState(false);
 

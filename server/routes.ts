@@ -130,6 +130,7 @@ import {
 import { logAuditEvent, auditMiddleware } from "./auditMiddleware";
 import { normalizeMeetingCastInput } from "@shared/meetingCast";
 import { parseNoteRole } from "@shared/noteCorrections";
+import { parseInstructionStatus } from "@shared/instructionStatus";
 import { SYSTEM_USER_ID } from "./systemUser";
 import {
   deleteCaseAudioRecording,
@@ -2480,6 +2481,9 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         validatedData.riskLevel = getAmlRiskDefault(validatedData.practiceArea);
       }
 
+      if (!isClientMatter) {
+        validatedData.instructionStatus = "instructed";
+      }
 
       const newCase = await storage.createCase(validatedData, userId);
       await logAuditEvent(userId, "case_created", {
@@ -2500,60 +2504,13 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         });
       }
 
-      // Client care letters only apply to solicitor–client matters
-      if (isClientMatter) {
-        (async () => {
-          try {
-            const fp = await storage.getFirmProfile();
-            if (!fp?.firmName) return;
-            const { DocumentService } = await import("./services/documentService");
-            const documentService = new DocumentService();
-            const { PRACTICE_AREA_LABELS: PAL } = await import("@shared/schema");
-            const paLabel = newCase.practiceArea
-              ? PAL[newCase.practiceArea as keyof typeof PAL] || newCase.practiceArea
-              : "General";
-            const feeEarnerUser = await storage.getUser(newCase.assignedToUserId || userId);
-            const feeEarnerDisplayName = feeEarnerUser
-              ? [feeEarnerUser.firstName, feeEarnerUser.lastName].filter(Boolean).join(" ") || feeEarnerUser.email || "Fee Earner"
-              : "Fee Earner";
-            const result = await documentService.generateClientCareLetter({
-              firmName: fp.firmName,
-              firmAddress: [fp.addressLine1, fp.addressLine2, fp.city, fp.postcode].filter(Boolean).join(", ") || undefined,
-              firmPhone: fp.phone || undefined,
-              firmEmail: fp.email || undefined,
-              sraNumber: fp.sraNumber || undefined,
-              feeEarnerName: feeEarnerDisplayName,
-              clientName: newCase.clientName,
-              matterDescription: newCase.title,
-              practiceArea: paLabel,
-              costsEstimate: newCase.costsEstimate || undefined,
-              matterReference: newCase.matterReference || undefined,
-            });
-            const doc = await storage.createDocument({
-              caseId: newCase.id,
-              type: "client_care_letter",
-              content: result.content,
-              version: 1,
-              versionType: "system_generated",
-              createdBy: userId,
-            });
-            await storage.updateCase(newCase.id, { clientCareLetterId: doc.id }, userId);
-            await logAuditEvent(userId, "document_generated", {
-              caseId: newCase.id,
-              documentId: doc.id,
-              req,
-              metadata: {
-                action: "auto_generate_client_care_letter",
-                practiceArea: newCase.practiceArea,
-                generationCost: result.cost,
-                automatic: true,
-              },
-            });
-            console.log(`[CLIENT_CARE_LETTER] Auto-generated for case ${newCase.id}`);
-          } catch (err) {
+      // Client care letters are produced once the firm has been instructed.
+      if (isClientMatter && parseInstructionStatus(newCase.instructionStatus) === "instructed") {
+        void import("./services/clientCareLetterService")
+          .then(({ ensureClientCareLetter }) => ensureClientCareLetter(newCase, userId))
+          .catch((err) => {
             console.error(`[CLIENT_CARE_LETTER] Auto-generation failed for case ${newCase.id}:`, err);
-          }
-        })();
+          });
       }
 
       res.json(newCase);
@@ -4231,11 +4188,25 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         role: role ?? undefined,
       });
 
+      const correctionInstruction = mode === "replace"
+        ? `Replace "${find}" with "${replaceWith}".`
+        : mode === "role" && role
+          ? [
+              role.instructionsTaken ? "Instructions have been taken." : "Instructions have not been taken.",
+              role.clientName ? `Person: ${role.clientName}.` : "",
+              role.clientPresent ? "They were present." : `They were not present. Attended: ${role.representativeName}.`,
+              role.adviserIsFeeEarner ? "The fee earner gave the advice." : `Adviser: ${role.adviserName}.`,
+              role.attendees ? `Also present: ${role.attendees}.` : "",
+            ].filter(Boolean).join(" ")
+          : instruction;
+
       await logAuditEvent(userId, "note_correction_proposed", {
         caseId,
         documentId,
         metadata: {
           mode,
+          instruction: correctionInstruction.slice(0, 1000),
+          selectedText: mode === "selection" ? selectedText.slice(0, 300) : undefined,
           proposalCount: result.proposals.length,
           unplacedCount: result.unplacedCount,
         },
@@ -5887,6 +5858,38 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
   });
 
   // All-in-one processing: transcribe + generate documents using background jobs
+  app.post("/api/cases/:id/instructions-received", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseId = req.params.id;
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData) return res.status(404).json({ message: "Case not found" });
+      if (!isClientMatterKind((caseData as { matterKind?: string }).matterKind)) {
+        return res.status(400).json({ message: "Instructions apply to a client matter." });
+      }
+      if (parseInstructionStatus(caseData.instructionStatus) === "instructed") {
+        return res.json(caseData);
+      }
+      const updated = await storage.updateCase(caseId, { instructionStatus: "instructed" }, userId);
+      await logAuditEvent(userId, "case_updated", {
+        caseId,
+        req,
+        metadata: { action: "instructions_received" },
+      });
+      void import("./services/clientCareLetterService")
+        .then(({ ensureClientCareLetter }) => ensureClientCareLetter(
+          { ...caseData, instructionStatus: "instructed" },
+          userId,
+        ))
+        .catch((err) => {
+          console.error(`[CLIENT_CARE_LETTER] Generation failed for case ${caseId}:`, err);
+        });
+      res.json(updated ?? { ...caseData, instructionStatus: "instructed" });
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
   app.post("/api/cases/:id/process", isAuthenticated, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
@@ -5940,6 +5943,49 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       }
       
       const effectiveSessionId = sessionId || audioRecording.meetingSessionId;
+      const matterInstructionStatus = parseInstructionStatus(
+        (caseData as { instructionStatus?: string }).instructionStatus,
+      );
+      const isClientMatter = isClientMatterKind((caseData as { matterKind?: string }).matterKind);
+      if (isClientMatter && matterInstructionStatus === "enquiry") {
+        const sessionRecord = effectiveSessionId
+          ? await storage.getMeetingSession(effectiveSessionId)
+          : undefined;
+        const bodyHasAnswer = typeof req.body?.instructionsTaken === "boolean";
+        const bodyAnswer = bodyHasAnswer ? req.body.instructionsTaken === true : null;
+        const storedAnswer = typeof sessionRecord?.instructionsTaken === "boolean"
+          ? sessionRecord.instructionsTaken
+          : null;
+        const resolvedAnswer = bodyHasAnswer ? bodyAnswer : storedAnswer;
+        if (resolvedAnswer === null) {
+          return res.status(409).json({
+            code: "instruction_confirmation_required",
+            message: "Confirm whether the firm has been instructed before the documents are produced.",
+          });
+        }
+        if (effectiveSessionId && bodyHasAnswer) {
+          await storage.updateMeetingSession(effectiveSessionId, { instructionsTaken: bodyAnswer });
+        }
+        if (resolvedAnswer === true) {
+          await storage.updateCase(caseId, { instructionStatus: "instructed" }, userId);
+          await logAuditEvent(userId, "case_updated", {
+            caseId,
+            req,
+            metadata: {
+              action: "instructions_received",
+              sessionId: effectiveSessionId ?? null,
+            },
+          });
+          void import("./services/clientCareLetterService")
+            .then(({ ensureClientCareLetter }) => ensureClientCareLetter(
+              { ...caseData, instructionStatus: "instructed" },
+              userId,
+            ))
+            .catch((err) => {
+              console.error(`[CLIENT_CARE_LETTER] Generation failed for case ${caseId}:`, err);
+            });
+        }
+      }
 
       // Prevent duplicate processing - check both case status and metadata
       const metadata = (caseData.aiProcessingMetadata as any) || {};
@@ -11519,6 +11565,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
             clientId: clientData.id,
             clientName: resolvedClientName,
             matterKind: "client",
+            instructionStatus: newCaseData?.instructionStatus === "instructed" ? "instructed" : "enquiry",
             status: 'pending',
             priority: 'normal',
             sourceType: 'audio',
@@ -15336,6 +15383,9 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
           return res.status(400).json({ message: castResult.message });
         }
         updates.meetingCast = castResult.cast;
+      }
+      if (typeof req.body.instructionsTaken === "boolean") {
+        updates.instructionsTaken = req.body.instructionsTaken;
       }
 
       const updated = await storage.updateMeetingSession(sessionId, updates);

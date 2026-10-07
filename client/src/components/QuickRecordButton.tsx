@@ -39,7 +39,7 @@ import MeetingToMatterProcessingOverlay, { type ProcessingStep } from "@/compone
 import { createProcessingStepTimer } from "@/lib/processingStepTimer";
 import TextNotesModal from "@/components/TextNotesModal";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, getApiErrorMessage, queryClient } from "@/lib/queryClient";
 import type { Client } from "@shared/schema";
 import { PRACTICE_AREAS, PRACTICE_AREA_LABELS, type PracticeArea } from "@shared/schema";
 import { CONSENT_DISCLAIMER_TEXT, CONSENT_DISCLAIMER_VERSION } from "@shared/consent";
@@ -781,10 +781,14 @@ export default function QuickRecordButton() {
           })
           .catch((error: any) => {
             console.error("AI processing failed:", error);
+            const detail = getApiErrorMessage(error, "Unknown error");
+            const needsAnswer = detail.toLowerCase().includes("instructed");
             toast({
-              title: "Processing Issue",
-              description: `Documents may not have been generated: ${error?.message || "Unknown error"}. You can retry from the case detail page.`,
-              variant: "destructive",
+              title: needsAnswer ? "Confirm whether the firm has been instructed" : "Processing Issue",
+              description: needsAnswer
+                ? "The recording is saved. Open the matter and answer on the session before the note is produced."
+                : `Documents may not have been generated: ${detail}. You can retry from the case detail page.`,
+              variant: needsAnswer ? "default" : "destructive",
               duration: 10000,
             });
           });
@@ -977,6 +981,7 @@ export default function QuickRecordButton() {
         practiceArea: practiceArea || undefined,
         conflictCheckCompleted,
         conflictCheckNote: conflictCheckNote || undefined,
+        instructionStatus: "enquiry",
       });
 
       // Link to derivation engine via a meeting session (full_meeting for Quick Record)
@@ -1099,11 +1104,14 @@ export default function QuickRecordButton() {
           })
           .catch((error: any) => {
             console.error('AI processing failed:', error);
-            const errorMessage = error?.message || error?.toString() || "Unknown error occurred";
+            const detail = getApiErrorMessage(error, "Unknown error occurred");
+            const needsAnswer = detail.toLowerCase().includes("instructed");
             toast({
-              title: "Processing Issue",
-              description: `Documents may not have been generated: ${errorMessage}. You can retry from the case detail page.`,
-              variant: "destructive",
+              title: needsAnswer ? "Confirm whether the firm has been instructed" : "Processing Issue",
+              description: needsAnswer
+                ? "The recording is saved. Open the matter and answer on the session before the note is produced."
+                : `Documents may not have been generated: ${detail}. You can retry from the case detail page.`,
+              variant: needsAnswer ? "default" : "destructive",
               duration: 10000,
             });
           });
@@ -1314,6 +1322,7 @@ export default function QuickRecordButton() {
       practiceArea: practiceArea || undefined,
       conflictCheckCompleted,
       conflictCheckNote: conflictCheckNote || undefined,
+      instructionStatus: "enquiry",
     });
     
     setShowTextNotesModal(false);

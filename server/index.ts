@@ -19,6 +19,7 @@ import { ensureEvaluationOnboardingSetupsTable } from "./evaluationOnboardingMig
 import { ensureMeetingImportsConsentColumns } from "./meetingImportsConsentMigration";
 import { ensureMeetingBookingTables } from "./meetingBookingMigration";
 import { ensureMeetingCastColumn } from "./meetingCastMigration";
+import { ensureInstructionStatusColumns } from "./instructionStatusMigration";
 import { ensureMatterKindColumn } from "./matterKindMigration";
 import { ensureEvaluationStartsAtColumn } from "./evaluationStartsAtMigration";
 import { ensureFirmBillingColumns } from "./firmBillingMigration";
@@ -280,6 +281,7 @@ app.use((req, res, next) => {
   // Ensure propose-times booking tables exist (idempotent)
   await ensureMeetingBookingTables();
   await ensureMeetingCastColumn();
+  await ensureInstructionStatusColumns();
 
   // Ensure cases.matter_kind for internal / firm meetings (idempotent)
   await ensureMatterKindColumn();

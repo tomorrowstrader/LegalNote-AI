@@ -138,8 +138,27 @@ export function attendanceSpeakerAttribution(
 export function attendanceTranscriptPresenceRule(
   cast: MeetingCast | null | undefined,
   matterClientName?: string,
+  options?: { instructionsTaken?: boolean | null },
 ): string {
   if (!meetingCastIsDefault(cast, matterClientName)) return "";
+  if (options?.instructionsTaken === false) return "";
+  if (options?.instructionsTaken === true) {
+    return [
+      "READ THE CONVERSATION — WHO WAS THERE",
+      "",
+      "The firm has been instructed. Do not describe this meeting as a preliminary enquiry, and do not call the client the prospective client.",
+      "",
+      "Write the usual note unless the conversation itself shows that someone attended for a person who was not in the meeting. Do not infer that from silence, from a file name, or from the header.",
+      "",
+      "Someone attended for a person who was not in the meeting. The conversation says so: they were speaking on that person's behalf, that person was absent, or they are a partner, relative, or other representative rather than the client.",
+      "- The absent person is the client.",
+      "- The person who attended is not the client. Do not write their words as the client speaking.",
+      "- State once, near the start of MATTERS DISCUSSED, that the client was not present, who attended, and in what capacity.",
+      "- Record what the attendee said as their account. Do not record it as the client's instructions.",
+      "",
+      "When that situation applies, it prevails over an instruction to treat the other speaker as the client and over an example that says \"I advised the client\" or \"The client stated\".",
+    ].join("\n");
+  }
   return [
     "READ THE CONVERSATION — WHO WAS THERE",
     "",

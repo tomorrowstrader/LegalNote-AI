@@ -57,7 +57,7 @@ import SupervisionSection from "@/components/SupervisionSection";
 import LitigationHoldSection from "@/components/LitigationHoldSection";
 import { useLocation, useParams, useSearch } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, getApiErrorMessage, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
   buildValuePulseCopy,
@@ -136,7 +136,7 @@ const NAV_LABELS: Record<CaseSection, string> = {
   audit: "Audit",
 };
 
-function SessionDetails({ sessionId, caseId, onOpenAttendanceNote, litigationHold, litigationHoldReason, matterClientName }: { sessionId: string; caseId: string; onOpenAttendanceNote: () => void; litigationHold?: boolean; litigationHoldReason?: string | null; matterClientName?: string }) {
+function SessionDetails({ sessionId, caseId, onOpenAttendanceNote, litigationHold, litigationHoldReason, matterClientName, matterInstructionStatus }: { sessionId: string; caseId: string; onOpenAttendanceNote: () => void; litigationHold?: boolean; litigationHoldReason?: string | null; matterClientName?: string; matterInstructionStatus?: string | null }) {
   const { toast } = useToast();
   const { data, isLoading } = useQuery<SessionWithDetails>({
     queryKey: ['/api/sessions', sessionId],
@@ -169,7 +169,10 @@ function SessionDetails({ sessionId, caseId, onOpenAttendanceNote, litigationHol
   });
 
   const generateDocsMutation = useMutation({
-    mutationFn: () => apiRequest("POST", `/api/cases/${caseId}/process`, { sessionId }),
+    mutationFn: (instructionsTaken?: boolean) => apiRequest("POST", `/api/cases/${caseId}/process`, {
+      sessionId,
+      ...(typeof instructionsTaken === "boolean" ? { instructionsTaken } : {}),
+    }),
     onSuccess: () => {
       toast({ title: "Producing documents", description: "Meeting-to-Matter™ is compiling this session’s documents.", duration: 5000 });
       queryClient.setQueryData([`/api/cases/${caseId}`], (old: Case | undefined) =>
@@ -191,7 +194,7 @@ function SessionDetails({ sessionId, caseId, onOpenAttendanceNote, litigationHol
       queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/documents`] });
     },
     onError: (error: any) => {
-      toast({ title: "Failed to produce documents", description: error.message || "Please try again.", variant: "destructive", duration: 5000 });
+      toast({ title: "Failed to produce documents", description: getApiErrorMessage(error, "Please try again."), variant: "destructive", duration: 5000 });
     },
   });
 
@@ -289,11 +292,33 @@ function SessionDetails({ sessionId, caseId, onOpenAttendanceNote, litigationHol
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Documents</p>
-          {data.transcript && (
+          {data.transcript && matterInstructionStatus === "enquiry" && typeof data.instructionsTaken !== "boolean" && activeDocuments.length === 0 ? (
+            <div className="flex flex-wrap gap-2" data-testid={`instruction-confirm-${sessionId}`}>
+              <Button
+                size="sm"
+                onClick={() => generateDocsMutation.mutate(true)}
+                disabled={generateDocsMutation.isPending}
+                data-testid={`button-instructed-${sessionId}`}
+              >
+                {generateDocsMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Instructed — produce the client documents"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => generateDocsMutation.mutate(false)}
+                disabled={generateDocsMutation.isPending}
+                data-testid={`button-enquiry-${sessionId}`}
+              >
+                Not yet — produce the enquiry note
+              </Button>
+            </div>
+          ) : data.transcript ? (
             <Button
               size="sm"
               variant="outline"
-              onClick={() => generateDocsMutation.mutate()}
+              onClick={() => generateDocsMutation.mutate(
+                typeof data.instructionsTaken === "boolean" ? data.instructionsTaken : undefined,
+              )}
               disabled={generateDocsMutation.isPending}
               data-testid={`button-generate-docs-${sessionId}`}
               className="gap-1.5"
@@ -302,7 +327,7 @@ function SessionDetails({ sessionId, caseId, onOpenAttendanceNote, litigationHol
                 ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Producing…</>
                 : <><FileText className="w-3.5 h-3.5" />{activeDocuments.length > 0 ? "Produce again" : "Produce documents"}</>}
             </Button>
-          )}
+          ) : null}
         </div>
         {activeAttendanceNote ? (
           <div className="space-y-1.5">
@@ -848,6 +873,22 @@ export default function CaseDetail() {
     void queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/processing-status`] });
   };
 
+  const instructionsReceivedMutation = useMutation({
+    mutationFn: async () => apiRequest("POST", `/api/cases/${caseId}/instructions-received`, {}),
+    onSuccess: () => {
+      toast({
+        title: "Instructions received",
+        description: "Later meetings are written as a retained client. Notes already on the file are left as they are.",
+        duration: 6000,
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/documents`] });
+    },
+    onError: (error: any) => {
+      toast({ title: "Could not update the matter", description: error.message || "Try again.", variant: "destructive" });
+    },
+  });
+
   const processAIMutation = useMutation({
     mutationFn: async () => apiRequest("POST", `/api/cases/${caseId}/process`, {}),
     onSuccess: () => {
@@ -855,7 +896,7 @@ export default function CaseDetail() {
       markCaseAsProcessing("Queued for processing...");
     },
     onError: (error: any) => {
-      toast({ title: "Processing failed", description: error.message || "Failed to process case. Please try again.", variant: "destructive", duration: 6000 });
+      toast({ title: "Processing failed", description: getApiErrorMessage(error, "Failed to process case. Please try again."), variant: "destructive", duration: 6000 });
     },
   });
 
@@ -1561,6 +1602,11 @@ export default function CaseDetail() {
                 {hasExternalAttendees ? "Non-client · external attendees" : "Non-client meeting"}
               </Badge>
             )}
+            {isClientMatter && (
+              <Badge variant="outline" className="text-[10px] mt-1 no-default-hover-elevate no-default-active-elevate" data-testid="badge-instruction-status">
+                {caseData.instructionStatus === "enquiry" ? "Enquiry" : "Instructed"}
+              </Badge>
+            )}
             {caseData.matterReference && (
               <p className="text-xs text-muted-foreground font-mono mt-0.5 truncate" data-testid="text-matter-ref-panel">
                 {caseData.matterReference}
@@ -2203,6 +2249,25 @@ export default function CaseDetail() {
           key={activeSection}
           className="flex-1 px-6 lg:px-8 py-6 animate-in fade-in duration-200"
         >
+          {(activeSection === "documents" || activeSection === "sessions") && isClientMatter && caseData.instructionStatus === "enquiry" && caseData.status !== "processing" && (
+            <div className="p-4 rounded-md border border-border bg-muted/40 space-y-3" data-testid="banner-enquiry">
+              <div>
+                <p className="text-sm font-semibold text-foreground">This matter is an enquiry</p>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  Instructions have not been taken. The attendance note calls them the prospective client, and a client letter is not produced. When you are instructed, record it here. Notes already on the file stay as they are.
+                </p>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => instructionsReceivedMutation.mutate()}
+                disabled={instructionsReceivedMutation.isPending}
+                data-testid="button-instructions-received"
+              >
+                {instructionsReceivedMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Instructions have been received"}
+              </Button>
+            </div>
+          )}
+
           {activeSection === 'documents' && (() => {
             return (
               <div className="space-y-6">
@@ -2232,6 +2297,7 @@ export default function CaseDetail() {
                   textNotes={caseData.textNotes}
                   status={caseData.status}
                   caseTitle={caseData.title}
+                  instructionStatus={caseData.instructionStatus}
                   clientName={caseData.clientName}
                   matterKind={normalizeMatterKind(caseData.matterKind)}
                   matterReference={caseData.matterReference || undefined}
@@ -2372,6 +2438,7 @@ export default function CaseDetail() {
                                 litigationHold={caseData.litigationHold}
                                 litigationHoldReason={caseData.litigationHoldReason}
                                 matterClientName={caseData.clientName}
+                                matterInstructionStatus={caseData.instructionStatus}
                               />
                             </div>
                           )}

@@ -201,6 +201,9 @@ function formatMetadata(eventType: string, metadata: Record<string, any>): strin
         : "New case created";
     
     case "case_updated":
+      if (metadata.action === "instructions_received") {
+        return "Instructions received. Later meetings are written as a retained client. Notes already on the file are left as they are.";
+      }
       if (metadata.fields && Array.isArray(metadata.fields)) {
         return `Updated: ${metadata.fields.join(", ")}`;
       }
@@ -358,6 +361,20 @@ function formatMetadata(eventType: string, metadata: Record<string, any>): strin
 
     case "time_entry_deleted":
       return `Deleted record of ${metadata.durationMinutes ?? 0} minutes (${metadata.units ?? 0} units)`;
+
+    case "note_correction_proposed": {
+      const modeLabels: Record<string, string> = {
+        selection: "Selected passage",
+        fact: "A fact",
+        replace: "A name",
+        role: "Who this note is about",
+      };
+      const modeLabel = modeLabels[String(metadata.mode)] || "Correction";
+      const instruction = typeof metadata.instruction === "string" ? metadata.instruction.trim() : "";
+      const count = typeof metadata.proposalCount === "number" ? metadata.proposalCount : null;
+      const countLabel = count === null ? "" : ` (${count} ${count === 1 ? "change" : "changes"})`;
+      return instruction ? `${modeLabel}: ${instruction}${countLabel}` : `${modeLabel}${countLabel}`;
+    }
     
     default:
       // Filter out technical fields that aren't meaningful to solicitors

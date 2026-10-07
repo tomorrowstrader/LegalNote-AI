@@ -8,6 +8,7 @@ import {
   formatMeetingCastInstructions,
   type MeetingCast,
 } from '@shared/meetingCast';
+import { attendanceEnquiryRule } from '@shared/instructionStatus';
 import type { PracticeArea } from '@shared/schema';
 import { getPracticeAreaPromptContext } from './practiceAreaConfig';
 import { DERIVATION_ENGINE_RULES } from './derivationEngine';
@@ -503,8 +504,11 @@ function buildAttendanceNoteHeader(metadata: CaseMetadata, prefs: Required<FirmP
     `**Advisor:** ${metadata.feeEarnerDisplayName ?? 'Not specified'}`,
   ].join('  \n');
 
+  const clientName = metadata.instructionsTaken === false
+    ? `${metadata.clientName} (prospective client)`
+    : metadata.clientName;
   const group2 = [
-    `**Client Name:** ${metadata.clientName}`,
+    `**Client Name:** ${clientName}`,
     `**Date:** ${metadata.recordingDate}`,
   ].join('  \n');
 
@@ -702,6 +706,8 @@ export interface CaseMetadata {
   matterClientName?: string;
   /** Who advised, who attended, and whether the client was present. */
   meetingCast?: MeetingCast | null;
+  /** False when this meeting is an enquiry. Omitted means the usual instructed note. */
+  instructionsTaken?: boolean | null;
   firmName?: string;
   templateId?: string;
   practiceArea?: string;
@@ -1063,16 +1069,20 @@ CRITICAL: Extract only what was actually discussed. Where an area was not covere
     const presenceRule = attendanceTranscriptPresenceRule(
       metadata.meetingCast,
       metadata.matterClientName ?? metadata.clientName,
+      { instructionsTaken: metadata.instructionsTaken },
     );
     if (presenceRule) {
       systemPrompt += `\n\n${presenceRule}`;
     }
 
+    const promptClientName = metadata.instructionsTaken === false
+      ? `${metadata.clientName} (prospective client)`
+      : metadata.clientName;
     const userPrompt = appendRelationshipDurationFacts(
       `Generate a professional attendance note for the following meeting:
 
 **Case Title:** ${metadata.title}
-**Client Name:** ${metadata.clientName}
+**Client Name:** ${promptClientName}
 **Matter Reference:** ${metadata.matterReference || 'TBD'}
 
 **What was said at the meeting:**
@@ -1080,7 +1090,13 @@ ${transcript}`,
       metadata,
     );
 
-    const result = await this.generateDocument(withMeetingCast(systemPrompt, metadata), userPrompt, revision);
+    const enquiryRule = attendanceEnquiryRule(metadata.instructionsTaken);
+    const prompted = withMeetingCast(systemPrompt, metadata);
+    const result = await this.generateDocument(
+      enquiryRule ? `${prompted}\n\n${enquiryRule}` : prompted,
+      userPrompt,
+      revision,
+    );
     return {
       ...result,
       content: assembleAttendanceNoteDocument(result.content, metadata, prefs),

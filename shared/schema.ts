@@ -285,6 +285,11 @@ export const cases = pgTable("cases", {
   litigationHoldReleaseReason: text("litigation_hold_release_reason"),
   supervisorId: varchar("supervisor_id").references(() => users.id),
   supervisorName: text("supervisor_name"),
+  /**
+   * enquiry = instructions have not been taken. instructed = the firm is retained.
+   * Existing rows stay instructed. New matters are opened as an enquiry from the app.
+   */
+  instructionStatus: text("instruction_status").notNull().default("instructed"),
 });
 
 export const quickNotes = pgTable("quick_notes", {
@@ -375,6 +380,8 @@ export const meetingSessions = pgTable("meeting_sessions", {
   notes: text("notes"),
   /** Who advised, who attended, and who the client is for this meeting. */
   meetingCast: jsonb("meeting_cast").$type<MeetingCast | null>(),
+  /** Null inherits the matter. True or false is this meeting's own answer. */
+  instructionsTaken: boolean("instructions_taken"),
   createdBy: varchar("created_by").notNull().references(() => users.id),
 });
 
@@ -986,6 +993,7 @@ export const insertCaseSchema = createInsertSchema(cases).omit({
   practiceArea: z.enum(PRACTICE_AREAS).optional(),
   conflictCheckCompleted: z.boolean().default(false),
   conflictCheckNote: z.string().max(2000).transform(sanitizeString).optional(),
+  instructionStatus: z.enum(["enquiry", "instructed"]).default("instructed"),
   costsEstimate: z.string().max(500).transform(sanitizeString).optional(),
   textNotes: z.string().max(100000).optional(), // 100KB limit for text notes
   litigationHold: z.boolean().default(false),

@@ -100,6 +100,7 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
   const caseSearchRef = useRef<HTMLDivElement>(null);
   const [practiceArea, setPracticeArea] = useState<PracticeArea | "">("");
   const [conflictCheckCompleted, setConflictCheckCompleted] = useState(false);
+  const [instructionStatus, setInstructionStatus] = useState<"enquiry" | "instructed">("enquiry");
   const [conflictCheckNote, setConflictCheckNote] = useState("");
   const [costsEstimate, setCostsEstimate] = useState("");
   const [sessionLabel, setSessionLabel] = useState("");
@@ -281,6 +282,7 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
       conflictCheckCompleted: isClientMatter ? conflictCheckCompleted : false,
       conflictCheckNote: isClientMatter ? (conflictCheckNote || undefined) : undefined,
       costsEstimate: isClientMatter ? (costsEstimate || undefined) : undefined,
+      instructionStatus: isClientMatter ? instructionStatus : "instructed",
       templateId: activeTemplate?.id || undefined,
       selectedCaseId: noteMode === "add_session" ? selectedCaseId : undefined,
       recordingType,
@@ -354,6 +356,7 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
         conflictCheckCompleted: isClientMatter ? conflictCheckCompleted : false,
         conflictCheckNote: isClientMatter ? (conflictCheckNote || undefined) : undefined,
         costsEstimate: isClientMatter ? (costsEstimate || undefined) : undefined,
+        instructionStatus: isClientMatter ? instructionStatus : "instructed",
       });
 
       queryClient.invalidateQueries({
@@ -469,6 +472,7 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
           conflictCheckCompleted: isClientMatter ? conflictCheckCompleted : false,
           conflictCheckNote: isClientMatter ? (conflictCheckNote || undefined) : undefined,
           costsEstimate: isClientMatter ? (costsEstimate || undefined) : undefined,
+          instructionStatus: isClientMatter ? instructionStatus : "instructed",
         });
         targetCaseId = caseResult.id;
       }
@@ -662,6 +666,30 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
                   </SelectContent>
                 </Select>
               </div>
+              {noteMode === "new_matter" && isClientMatter && (
+                <div className="space-y-2" data-testid="instruction-status-field">
+                  <Label>Has the firm been instructed?</Label>
+                  <RadioGroup
+                    value={instructionStatus}
+                    onValueChange={(value) => setInstructionStatus(value as "enquiry" | "instructed")}
+                    className="flex flex-col gap-2"
+                    disabled={recordingLocked}
+                  >
+                    <div className="flex items-start gap-2">
+                      <RadioGroupItem value="enquiry" id="instruction-enquiry" data-testid="radio-instruction-enquiry" className="mt-0.5" />
+                      <Label htmlFor="instruction-enquiry" className="cursor-pointer font-normal leading-snug">
+                        Not yet. This opens as an enquiry. The note calls them the prospective client, and a client letter is not produced.
+                      </Label>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <RadioGroupItem value="instructed" id="instruction-instructed" data-testid="radio-instruction-instructed" className="mt-0.5" />
+                      <Label htmlFor="instruction-instructed" className="cursor-pointer font-normal leading-snug">
+                        Yes. The firm is instructed. The note and client-care letter are produced in the usual way.
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+              )}
               <MeetingCastFields
                 value={meetingCast}
                 onChange={setMeetingCast}

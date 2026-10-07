@@ -1166,6 +1166,7 @@ export class MemStorage implements IStorage {
       conflictCheckNote: insertCase.conflictCheckNote || null,
       clientCareLetterId: null,
       clientCareLetterSentAt: null,
+      instructionStatus: insertCase.instructionStatus === "enquiry" ? "enquiry" : "instructed",
       costsEstimate: insertCase.costsEstimate || null,
       textNotes: insertCase.textNotes || null,
       reviewed: insertCase.reviewed || false,
@@ -2905,6 +2906,7 @@ export class MemStorage implements IStorage {
       status: sessionData.status || "pending",
       notes: sessionData.notes ?? null,
       meetingCast: sessionData.meetingCast ?? null,
+      instructionsTaken: sessionData.instructionsTaken ?? null,
       createdBy: sessionData.createdBy,
     };
     this.meetingSessionsMap.set(id, session);
@@ -3572,6 +3574,7 @@ export class DbStorage implements IStorage {
         practiceArea: insertCase.practiceArea ?? null,
         conflictCheckCompleted: insertCase.conflictCheckCompleted ?? false,
         conflictCheckNote: insertCase.conflictCheckNote ?? null,
+        instructionStatus: insertCase.instructionStatus === "enquiry" ? "enquiry" : "instructed",
         costsEstimate: insertCase.costsEstimate ?? null,
         textNotes: insertCase.textNotes ?? null,
         reviewed: insertCase.reviewed ?? false,

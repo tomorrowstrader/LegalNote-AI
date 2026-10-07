@@ -1,4 +1,5 @@
 import { clientNameForNote, parseMeetingCast } from "@shared/meetingCast";
+import { parseInstructionStatus, resolveInstructionsTaken } from "@shared/instructionStatus";
 import { DocumentService, type CaseMetadata } from "./documentService";
 import { formatDiarizedTranscript, type SpeakerUtterance } from "./assemblyAIService";
 import { logDocumentGovernanceViolations } from "./documentGovernanceGate";
@@ -132,6 +133,10 @@ async function buildMetadata(
     clientName: clientNameForNote(caseData.clientName, meetingCast),
     matterClientName: caseData.clientName,
     meetingCast,
+    instructionsTaken: resolveInstructionsTaken(
+      parseInstructionStatus(caseData.instructionStatus),
+      meetingSession?.instructionsTaken,
+    ),
     matterReference: caseData.matterReference || undefined,
     recordingDate: meetingTimestamp
       ? formatUkLongDate(meetingTimestamp)

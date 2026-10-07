@@ -1,4 +1,5 @@
 import { clientNameForNote, parseMeetingCast } from "@shared/meetingCast";
+import { parseInstructionStatus, resolveInstructionsTaken } from "@shared/instructionStatus";
 import { DocumentService, type CaseMetadata } from "./documentService";
 import { formatDiarizedTranscript, type SpeakerUtterance } from "./assemblyAIService";
 import { logDocumentGovernanceViolations } from "./documentGovernanceGate";
@@ -166,6 +167,7 @@ async function buildMetadata(
       practiceArea?: string | null;
       assignedToUserId?: string | null;
       createdBy: string;
+      instructionStatus?: string | null;
     };
     meetingSession: MeetingSession | null | undefined;
     meetingTimestamp?: Date;
@@ -207,6 +209,10 @@ async function buildMetadata(
     clientName: clientNameForNote(params.caseData.clientName, meetingCast),
     matterClientName: params.caseData.clientName,
     meetingCast,
+    instructionsTaken: resolveInstructionsTaken(
+      parseInstructionStatus(params.caseData.instructionStatus),
+      params.meetingSession?.instructionsTaken,
+    ),
     matterReference: params.caseData.matterReference || undefined,
     recordingDate: meetingTimestamp
       ? formatUkLongDate(meetingTimestamp)
@@ -306,7 +312,11 @@ export async function deriveDocumentsFromTranscript(
       meetingSession?.recordingType ||
       "full_meeting";
 
-    const generateClientLetter = shouldGenerateClientLetter({
+    const instructionsTaken = resolveInstructionsTaken(
+      parseInstructionStatus(caseData.instructionStatus),
+      meetingSession?.instructionsTaken,
+    );
+    const generateClientLetter = instructionsTaken && shouldGenerateClientLetter({
       matterKind: (caseData as { matterKind?: string }).matterKind,
       recordingType,
       explicit: generateClientLetterParam,

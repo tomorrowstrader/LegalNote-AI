@@ -506,6 +506,7 @@ export function LiveBotModal({
       conflictCheckCompleted?: boolean;
       conflictCheckNote?: string;
       practiceArea?: string;
+      instructionStatus?: "enquiry" | "instructed";
     }) => apiRequest("POST", "/api/cases", data),
     onSuccess: async (newCase: any) => {
       setIsCreatingCase(false);
@@ -1135,8 +1136,9 @@ export function LiveBotModal({
                               conflictCheckCompleted: false,
                               conflictCheckNote: "Deferred — matter opened from live video join",
                               practiceArea: "corporate_commercial",
+                              instructionStatus: "enquiry" as const,
                             }
-                          : {}),
+                          : { instructionStatus: "instructed" as const }),
                       })
                     }
                   >
@@ -1784,6 +1786,7 @@ export function LiveBotModal({
                             clientName: isClientMatterKind(postMeetingMatterKind)
                               ? postMeetingClient.trim()
                               : partyLabelForMatterKind(postMeetingMatterKind),
+                            instructionStatus: isClientMatterKind(postMeetingMatterKind) ? "enquiry" : "instructed",
                           },
                         })}
                         data-testid="button-post-create-assign"

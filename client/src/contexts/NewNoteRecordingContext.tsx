@@ -19,7 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useMeetingNotesPopout } from "@/hooks/useMeetingNotesPopout";
 import { useChunkedRecording } from "@/hooks/useChunkedRecording";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, getApiErrorMessage, queryClient } from "@/lib/queryClient";
 import { logAuditEvent } from "@/lib/auditLogger";
 import { appendConsentSegmentToFormData } from "@/lib/consentSegmentCapture";
 import { createProcessingStepTimer } from "@/lib/processingStepTimer";
@@ -62,6 +62,7 @@ export type NewNoteRecordingMeta = {
   conflictCheckCompleted: boolean;
   conflictCheckNote?: string;
   costsEstimate?: string;
+  instructionStatus?: "enquiry" | "instructed";
   templateId?: string;
   selectedCaseId?: string;
   recordingType: RecordingType;
@@ -475,6 +476,7 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
           conflictCheckCompleted: snapshot.conflictCheckCompleted,
           conflictCheckNote: snapshot.conflictCheckNote || undefined,
           costsEstimate: snapshot.costsEstimate || undefined,
+          instructionStatus: isClientMatterKind(kind) ? (snapshot.instructionStatus ?? "enquiry") : "instructed",
         });
         targetCaseId = caseResult.id;
       }
@@ -581,11 +583,16 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
               },
             });
           })
-          .catch(() => {
+          .catch((error) => {
+            const detail = getApiErrorMessage(error, "");
+            const needsAnswer = detail.toLowerCase().includes("instructed");
             toast({
-              title: "Recording saved — tap Process to generate documents",
-              description:
-                "The recording was saved but processing could not start automatically.",
+              title: needsAnswer
+                ? "Confirm whether the firm has been instructed"
+                : "Recording saved — tap Process to generate documents",
+              description: needsAnswer
+                ? "Open the matter and answer on the session before the note is produced."
+                : "The recording was saved but processing could not start automatically.",
               duration: 8000,
             });
           });

@@ -50,6 +50,9 @@ export function getApiErrorMessage(
   if (code === "unsupported_type") {
     return "Further versions can only be produced for attendance notes and client letters.";
   }
+  if (code === "instruction_confirmation_required") {
+    return message || "Confirm whether the firm has been instructed before the documents are produced.";
+  }
   if (code === "SCHEMA_MIGRATION_REQUIRED") {
     return message || "Database schema needs an update. Please contact support or run pending migrations.";
   }

@@ -600,6 +600,8 @@ interface DocumentViewerProps {
   onLogTime?: () => void;
   /** Linked client id — used to resolve/save email for care-letter acknowledgement. */
   clientId?: string | null;
+  /** Matter relationship. An enquiry has not yet been instructed. */
+  instructionStatus?: string | null;
 }
 
 /**
@@ -1656,6 +1658,7 @@ export default function DocumentViewer({
   litigationHold,
   onLogTime,
   clientId,
+  instructionStatus,
 }: DocumentViewerProps) {
   const { toast } = useToast();
   const { role: authRole } = useAuth();
@@ -3864,6 +3867,7 @@ export default function DocumentViewer({
                   caseId={caseId}
                   documentId={attendanceNote.id}
                   selectedText={correctionTarget.selectedText}
+                  instructionsAlreadyTaken={instructionStatus === "instructed"}
                   onClose={() => setCorrectionTarget(null)}
                   onProposed={(proposals, unplacedCount) => beginCorrection(attendanceNote, proposals, unplacedCount)}
                 />
@@ -4112,6 +4116,7 @@ export default function DocumentViewer({
                   caseId={caseId}
                   documentId={summary.id}
                   selectedText={correctionTarget.selectedText}
+                  instructionsAlreadyTaken={instructionStatus === "instructed"}
                   onClose={() => setCorrectionTarget(null)}
                   onProposed={(proposals, unplacedCount) => beginCorrection(summary, proposals, unplacedCount)}
                 />

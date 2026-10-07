@@ -114,6 +114,10 @@ function formatMetadata(eventType: string, metadata: Record<string, any> | null)
     if (metadata.messageLength) parts.push(`Message: ${metadata.messageLength} characters`);
   } else if (eventType === 'document_sent') {
     if (metadata.recipient) parts.push(`To: ${metadata.recipient}`);
+  } else if (eventType === 'note_correction_proposed' && metadata.instruction) {
+    parts.push(String(metadata.instruction));
+  } else if (eventType === 'case_updated' && metadata.action === 'instructions_received') {
+    parts.push('Instructions received');
   } else if (eventType === 'audio_deleted') {
     if (metadata.reason) parts.push(`Reason: ${metadata.reason.replace(/_/g, ' ')}`);
   } else if (metadata.documentType) {
