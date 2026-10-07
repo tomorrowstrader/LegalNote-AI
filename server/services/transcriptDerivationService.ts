@@ -349,6 +349,18 @@ export async function deriveDocumentsFromTranscript(
       await storage.updateCase(caseId, { status: "review_required" }, userId);
       if (effectiveSessionId) {
         await storage.updateMeetingSession(effectiveSessionId, { status: "completed" });
+        try {
+          const session = await storage.getMeetingSession(effectiveSessionId);
+          const { ensureDraftTimeEntryForSession } = await import("./timeEntryDraftService");
+          await ensureDraftTimeEntryForSession({
+            caseId,
+            userId,
+            sessionId: effectiveSessionId,
+            durationSeconds: session?.durationSeconds ?? null,
+          });
+        } catch (draftErr) {
+          console.warn("[TranscriptDerivation] Failed to auto-draft time entry:", draftErr);
+        }
       }
       return {
         success: true,
@@ -590,6 +602,18 @@ export async function deriveDocumentsFromTranscript(
             params.durationSeconds != null
               ? Math.round(params.durationSeconds)
               : meetingSession?.durationSeconds ?? undefined,
+        });
+
+        const completedSeconds =
+          params.durationSeconds != null
+            ? Math.round(params.durationSeconds)
+            : meetingSession?.durationSeconds ?? null;
+        const { ensureDraftTimeEntryForSession } = await import("./timeEntryDraftService");
+        await ensureDraftTimeEntryForSession({
+          caseId,
+          userId,
+          sessionId: effectiveSessionId,
+          durationSeconds: completedSeconds,
         });
       } catch (e) {
         console.warn("[TranscriptDerivation] Failed to update session status:", e);
