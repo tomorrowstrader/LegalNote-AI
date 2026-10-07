@@ -4,6 +4,12 @@ import { ChevronRight, Shield } from "lucide-react";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { Case, PRACTICE_AREA_LABELS, type PracticeArea } from "@shared/schema";
 import { useLocation } from "wouter";
@@ -39,13 +45,25 @@ interface CaseListViewProps {
 
 type CaseStatus = "completed" | "processing" | "pending" | "review_required" | "failed";
 
-const statusConfig: Record<CaseStatus, { color: string; label: string }> = {
+/**
+ * Status dots encode workflow status only.
+ * Urgency (overdue / urgent / soon) stays in the Priority column + deadline colour.
+ */
+const STATUS_DOT: Record<CaseStatus, { color: string; label: string; pulse?: boolean }> = {
+  pending: { color: "bg-slate-400 dark:bg-slate-500", label: "Pending" },
+  processing: { color: "bg-blue-500", label: "Processing", pulse: true },
+  review_required: { color: "bg-amber-500", label: "Needs review" },
   completed: { color: "bg-emerald-500", label: "Completed" },
-  processing: { color: "bg-blue-500", label: "Processing" },
-  pending: { color: "bg-amber-500", label: "Pending" },
-  review_required: { color: "bg-orange-500", label: "Review Required" },
   failed: { color: "bg-red-500", label: "Failed" },
 };
+
+const STATUS_LEGEND: Array<{ color: string; label: string; pulse?: boolean }> = [
+  STATUS_DOT.pending,
+  STATUS_DOT.processing,
+  STATUS_DOT.review_required,
+  STATUS_DOT.completed,
+  STATUS_DOT.failed,
+];
 
 const RISK_AGEING_THRESHOLDS: Record<string, number> = {
   low: 365,
@@ -61,32 +79,12 @@ function isRiskAgeingOverdue(caseItem: Case, amlActivityDates?: Record<string, s
   return differenceInDays(new Date(), lastActivity) > threshold;
 }
 
-function getStatusDotColor(caseItem: Case): string {
-  if (caseItem.reviewed) return "bg-emerald-500";
-  
-  if (caseItem.deadline && isPast(new Date(caseItem.deadline))) {
-    return "bg-red-500";
+function getStatusDot(caseItem: Case): { color: string; label: string; pulse?: boolean } {
+  if (caseItem.reviewed) {
+    return { color: STATUS_DOT.completed.color, label: "Reviewed" };
   }
-  
-  if (caseItem.priority === "urgent") return "bg-red-500";
-  if (caseItem.priority === "deadline-soon") return "bg-amber-500";
-  
   const status = caseItem.status as CaseStatus;
-  return statusConfig[status]?.color || "bg-muted-foreground";
-}
-
-function getStatusTooltip(caseItem: Case): string {
-  if (caseItem.reviewed) return "Reviewed";
-  
-  if (caseItem.deadline && isPast(new Date(caseItem.deadline))) {
-    return "Overdue";
-  }
-  
-  if (caseItem.priority === "urgent") return "Action Required";
-  if (caseItem.priority === "deadline-soon") return "Deadline Approaching";
-  
-  const status = caseItem.status as CaseStatus;
-  return statusConfig[status]?.label || "Unknown";
+  return STATUS_DOT[status] ?? { color: "bg-muted-foreground", label: "Unknown" };
 }
 
 function getPriorityBadge(caseItem: Case) {
@@ -228,6 +226,24 @@ export default function CaseListView({
 
   return (
     <>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-1 pb-2 text-xs text-muted-foreground" data-testid="case-status-legend">
+        <span className="font-medium text-muted-foreground/80">Status</span>
+        {STATUS_LEGEND.map((item) => (
+          <span key={item.label} className="inline-flex items-center gap-1.5">
+            <span
+              className={cn(
+                "w-2 h-2 rounded-full shrink-0",
+                item.color,
+                item.pulse && !prefersReducedMotion && "animate-pulse",
+              )}
+              aria-hidden
+            />
+            {item.label}
+          </span>
+        ))}
+      </div>
+
+      <TooltipProvider delayDuration={200}>
       <div 
         ref={listRef}
         className="divide-y divide-border rounded-lg border border-border bg-card overflow-hidden"
@@ -251,7 +267,7 @@ export default function CaseListView({
               />
             </div>
           )}
-          <div className="w-3"></div>
+          <div className="w-3" aria-hidden />
           <div>Client</div>
           <div>Case Title</div>
           <div>Practice Area</div>
@@ -262,8 +278,7 @@ export default function CaseListView({
 
         {/* Case rows */}
         {cases.map((caseItem, index) => {
-          const statusColor = getStatusDotColor(caseItem);
-          const statusTooltip = getStatusTooltip(caseItem);
+          const statusDot = getStatusDot(caseItem);
           const priorityBadge = getPriorityBadge(caseItem);
           const isSelected = selectedCase?.id === caseItem.id && isDrawerOpen;
           const isFocused = focusedIndex === index;
@@ -317,13 +332,24 @@ export default function CaseListView({
                 </div>
               )}
 
-              {/* Status indicator */}
-              <div className="flex items-center justify-center pt-0.5" title={statusTooltip}>
-                <span className={cn(
-                  "w-2.5 h-2.5 rounded-full ring-2 ring-background shadow-sm transition-transform duration-150",
-                  statusColor,
-                  (caseItem.status === "processing") && "animate-pulse"
-                )} />
+              {/* Workflow status indicator */}
+              <div className="flex items-center justify-center pt-0.5">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span
+                      className={cn(
+                        "w-2.5 h-2.5 rounded-full ring-2 ring-background shadow-sm transition-transform duration-150",
+                        statusDot.color,
+                        statusDot.pulse && !prefersReducedMotion && "animate-pulse",
+                      )}
+                      aria-label={`Status: ${statusDot.label}`}
+                      data-testid={`status-dot-${caseItem.id}`}
+                    />
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="text-xs">
+                    {statusDot.label}
+                  </TooltipContent>
+                </Tooltip>
               </div>
 
               {/* Client name */}
@@ -411,6 +437,7 @@ export default function CaseListView({
           );
         })}
       </div>
+      </TooltipProvider>
 
       {/* Case Detail Drawer */}
       <CaseDetailDrawer
