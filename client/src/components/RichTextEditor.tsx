@@ -1090,12 +1090,14 @@ export function RichTextEditor({
       }),
       UkSpellcheckHighlight,
       // A4 @ 96dpi with Word/Google Docs default 1" (96px) margins on all sides.
+      // Edit mode starts with pagination off so the note is one continuous page.
+      // Reading view uses PageView and is not this editor.
       PaginationPlus.configure({
+        enabled: !!disabled,
         pageHeight: 1122,
         pageWidth: 794,
         pageGap: 48,
         pageGapBorderSize: 0,
-        // Solid desk colour (see --ln-editor-desk). The library otherwise paints #ffffff.
         pageBreakBackground: "var(--ln-editor-desk)",
         pageGapBorderColor: "var(--ln-editor-desk)",
         marginTop: 96,
@@ -1179,6 +1181,14 @@ export function RichTextEditor({
       }
 
       scanForTrackedChanges(editor);
+    },
+    onCreate: ({ editor: created }) => {
+      const commands = created.commands as {
+        disablePagination?: () => boolean;
+        enablePagination?: () => boolean;
+      };
+      if (disabledRef.current) commands.enablePagination?.();
+      else commands.disablePagination?.();
     },
   });
 
@@ -1541,6 +1551,18 @@ export function RichTextEditor({
     if (editor && disabled !== undefined) {
       editor.setEditable(!disabled);
     }
+  }, [editor, disabled]);
+
+  // Edit mode is one continuous page, matching mobile. Page breaks stay in
+  // the reading view (PageView), which does not use this editor.
+  useEffect(() => {
+    if (!editor) return;
+    const commands = editor.commands as {
+      disablePagination?: () => boolean;
+      enablePagination?: () => boolean;
+    };
+    if (disabled) commands.enablePagination?.();
+    else commands.disablePagination?.();
   }, [editor, disabled]);
 
   // Keep page geometry applied even if pagination-plus onCreate races with
@@ -2069,7 +2091,7 @@ export function RichTextEditor({
             Structural deletions are blocked while Track Changes is on. Turn Track Changes off to delete table rows, columns, or list items.
           </div>
         )}
-          <div className="ln-editor-desk border-x border-border overflow-x-auto max-w-full py-8">
+          <div className={`ln-editor-desk border-x border-border overflow-x-auto max-w-full py-8${!disabled ? " ln-editor-continuous" : ""}`}>
             <div className="pagination-plus-host mx-auto w-full max-w-full min-w-0">
               <EditorContent 
                 editor={editor} 

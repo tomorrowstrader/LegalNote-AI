@@ -1239,15 +1239,33 @@ nav.sticky {
   100% { background-position: -200% 0; }
 }
 
-/* Edit-mode page break: one opaque desk, shared by the gap and the canvas
-   around the page. Light uses a solid warm gray; dark uses the app background.
-   Page sheets stay --card. Reading view (.page-view-page-separator) is unchanged. */
+/* Editor canvas. Edit mode (.ln-editor-continuous) is one solid page: the
+   pagination gap is removed. Reading view (.page-view-page-separator) is unchanged. */
 .ln-editor-desk {
   --ln-editor-desk: color-mix(in srgb, hsl(var(--muted)) 70%, hsl(var(--background)));
   background-color: var(--ln-editor-desk);
 }
 .dark .ln-editor-desk {
   --ln-editor-desk: hsl(var(--background));
+}
+
+.ln-editor-continuous .ProseMirror.rm-with-pagination {
+  padding-top: var(--rm-margin-top, 96px) !important;
+  padding-bottom: var(--rm-margin-bottom, 96px) !important;
+  background-color: hsl(var(--card));
+}
+
+.ln-editor-continuous .rm-pagination-gap,
+.ln-editor-continuous .rm-page-break,
+.ln-editor-continuous .breaker,
+.ln-editor-continuous [data-rm-pagination],
+.ln-editor-continuous .rm-first-page-header {
+  display: none !important;
+  height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  box-shadow: none !important;
 }
 
 .rm-with-pagination .rm-page-header,
