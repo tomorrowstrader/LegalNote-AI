@@ -33,7 +33,7 @@ function trackChangeAttrsFromElement(el: HTMLElement) {
 }
 
 function isTrackedChangesHtml(content: string): boolean {
-  return /<(?:ins|del)\b[^>]*\bdata-track-change\s*=/i.test(content);
+  return /<(?:ins|del|span)\b[^>]*\bdata-track-change\s*=/i.test(content);
 }
 
 const InsertionMark = Mark.create({
@@ -47,7 +47,7 @@ const InsertionMark = Mark.create({
     };
   },
   renderHTML({ HTMLAttributes }) {
-    return ['ins', mergeAttributes(HTMLAttributes, { 'data-track-change': 'insertion', class: 'track-change-insertion' }), 0];
+    return ['span', mergeAttributes(HTMLAttributes, { 'data-track-change': 'insertion', class: 'track-change-insertion' }), 0];
   },
   parseHTML() {
     return [
@@ -69,7 +69,7 @@ const DeletionMark = Mark.create({
     };
   },
   renderHTML({ HTMLAttributes }) {
-    return ['del', mergeAttributes(HTMLAttributes, { 'data-track-change': 'deletion', class: 'track-change-deletion' }), 0];
+    return ['span', mergeAttributes(HTMLAttributes, { 'data-track-change': 'deletion', class: 'track-change-deletion' }), 0];
   },
   parseHTML() {
     return [

@@ -36,6 +36,13 @@ import { enrichGapCitationChips, hydrateReasoningGapAnchorsInDom, splitGapLabelP
 import { isEditorHtml, repairNameAutolinks } from "@shared/editorHtml";
 import { findFlexibleSpan } from "@shared/noteCorrections";
 import {
+  buildTrackedTypingTransaction,
+  caretForTrackedStep,
+  findAdjacentDeletionMark,
+  findAdjacentInsertionMark,
+  newChangeId,
+} from "@shared/trackChangeTyping";
+import {
   addSpellVocabulary,
   spellingIssuesInSegments,
   spellingSuggestions,
@@ -86,7 +93,7 @@ function trackChangeAttrsFromElement(el: HTMLElement) {
 
 /** Content saved via getHTML() when track-change marks are present. */
 function isTrackedChangesHtml(content: string): boolean {
-  return /<(?:ins|del)\b[^>]*\bdata-track-change\s*=/i.test(content);
+  return /<(?:ins|del|span)\b[^>]*\bdata-track-change\s*=/i.test(content);
 }
 
 function ensureBoldHeadings(content: string): string {
@@ -282,96 +289,10 @@ function classifyStepDeletion(step: any, docBefore: any): DeletionClass {
   return { kind: 'structural-destructive' };
 }
 
-function newChangeId(): string {
-  return (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
-    ? crypto.randomUUID()
-    : `tc-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
-/** Reuse changeId when a new insertion is position-adjacent to same-author insertion mark. */
-function findAdjacentInsertionMark(
-  doc: any,
-  from: number,
-  to: number,
-  author: string,
-): { changeId: string; timestamp: string } | null {
-  const matchesAuthor = (mark: any) =>
-    mark.type.name === 'insertion'
-    && mark.attrs.changeId
-    && (mark.attrs.user || 'Unknown') === author;
-
-  if (from > 0) {
-    const nodeBefore = doc.resolve(from).nodeBefore;
-    if (nodeBefore?.isText) {
-      const mark = nodeBefore.marks.find(matchesAuthor);
-      if (mark) {
-        return {
-          changeId: mark.attrs.changeId,
-          timestamp: mark.attrs.timestamp || new Date().toISOString(),
-        };
-      }
-    }
-  }
-
-  if (to < doc.content.size) {
-    const nodeAfter = doc.resolve(to).nodeAfter;
-    if (nodeAfter?.isText) {
-      const mark = nodeAfter.marks.find(matchesAuthor);
-      if (mark) {
-        return {
-          changeId: mark.attrs.changeId,
-          timestamp: mark.attrs.timestamp || new Date().toISOString(),
-        };
-      }
-    }
-  }
-
-  return null;
-}
-
-/** Reuse changeId when a new deletion reinsert is position-adjacent to same-author deletion mark. */
-function findAdjacentDeletionMark(
-  doc: any,
-  pos: number,
-  author: string,
-): { changeId: string; timestamp: string } | null {
-  const matchesAuthor = (mark: any) =>
-    mark.type.name === 'deletion'
-    && mark.attrs.changeId
-    && (mark.attrs.user || 'Unknown') === author;
-
-  if (pos > 0) {
-    const nodeBefore = doc.resolve(pos).nodeBefore;
-    if (nodeBefore?.isText) {
-      const mark = nodeBefore.marks.find(matchesAuthor);
-      if (mark) {
-        return {
-          changeId: mark.attrs.changeId,
-          timestamp: mark.attrs.timestamp || new Date().toISOString(),
-        };
-      }
-    }
-  }
-
-  if (pos < doc.content.size) {
-    const nodeAfter = doc.resolve(pos).nodeAfter;
-    if (nodeAfter?.isText) {
-      const mark = nodeAfter.marks.find(matchesAuthor);
-      if (mark) {
-        return {
-          changeId: mark.attrs.changeId,
-          timestamp: mark.attrs.timestamp || new Date().toISOString(),
-        };
-      }
-    }
-  }
-
-  return null;
-}
-
 const InsertionMark = Mark.create({
   name: 'insertion',
   priority: 1000,
+  inclusive: true,
   excludes: 'deletion',
   addAttributes() {
     return {
@@ -388,7 +309,9 @@ const InsertionMark = Mark.create({
     ];
   },
   renderHTML({ HTMLAttributes }) {
-    return ['ins', mergeAttributes(HTMLAttributes, { 'data-track-change': 'insertion', class: 'track-change-insertion' }), 0];
+    // Span, not <ins>. Chrome and Safari move the caret when a keystroke is
+    // wrapped in <ins>/<del>, so the next letter lands inside the word.
+    return ['span', mergeAttributes(HTMLAttributes, { 'data-track-change': 'insertion', class: 'track-change-insertion' }), 0];
   },
 });
 
@@ -413,7 +336,7 @@ const DeletionMark = Mark.create({
     ];
   },
   renderHTML({ HTMLAttributes }) {
-    return ['del', mergeAttributes(HTMLAttributes, { 'data-track-change': 'deletion', class: 'track-change-deletion' }), 0];
+    return ['span', mergeAttributes(HTMLAttributes, { 'data-track-change': 'deletion', class: 'track-change-deletion' }), 0];
   },
 });
 
@@ -657,13 +580,17 @@ function createTrackChangesPlugin(
 
           if (nodes.length === 0) continue;
 
-          // Cursor intent: empty selection, head at range end = Backspace; at start = Delete.
-          let cursor: 'before' | 'after' | null = null;
+          // Backspace/Delete only. A keystroke that also inserts (typing over a
+          // word, spellcheck) must keep the caret where ProseMirror left it.
           const sel = oldState.selection;
-          if (sel.empty && transaction.steps.length === 1) {
-            if (sel.head === cls.to) cursor = 'before';
-            else if (sel.head === cls.from) cursor = 'after';
-          }
+          const cursor = caretForTrackedStep({
+            insertedSize,
+            selectionEmpty: sel.empty,
+            selectionHead: sel.head,
+            deletedFrom: cls.from,
+            deletedTo: cls.to,
+            stepCount: transaction.steps.length,
+          });
 
           reinserts.push({
             pos: reinsertPos,
@@ -704,6 +631,13 @@ function createTrackChangesPlugin(
         const to = tr.mapping.map(op.to, -1);
         if (to <= from) continue;
 
+        let alreadyMarked = true;
+        tr.doc.nodesBetween(from, to, (node: any) => {
+          if (!node.isText) return;
+          if (!node.marks.some((mark: any) => mark.type.name === 'insertion')) alreadyMarked = false;
+        });
+        if (alreadyMarked) continue;
+
         const adjacent = findAdjacentInsertionMark(tr.doc, from, to, author);
         const isNewChange = !adjacent;
         const changeId = adjacent?.changeId ?? newChangeId();
@@ -723,7 +657,8 @@ function createTrackChangesPlugin(
       }
 
       if (tr.steps.length === 0 && cursorTarget === null) return null;
-      if (cursorTarget !== null) {
+      // Never relocate the caret on a transaction that also typed text.
+      if (cursorTarget !== null && insertionRanges.length === 0) {
         const clamped = Math.max(1, Math.min(cursorTarget, tr.doc.content.size));
         tr = tr.setSelection(TextSelection.create(tr.doc, clamped));
       }
@@ -732,6 +667,13 @@ function createTrackChangesPlugin(
     },
 
     props: {
+      handleTextInput(view, from, to, text) {
+        if (!isTrackingRef.current || isUpdatingRef.current || composingRef.current) return false;
+        const tr = buildTrackedTypingTransaction(view.state, from, to, text, userNameRef.current);
+        if (!tr) return false;
+        view.dispatch(tr);
+        return true;
+      },
       handleDOMEvents: {
         compositionstart: () => { composingRef.current = true; return false; },
         compositionend: () => { composingRef.current = false; return false; },
@@ -1203,6 +1145,13 @@ export function RichTextEditor({
     editor.view.updateState(newState);
   }, [editor, handleChangeLogged, handleStructuralBlocked]);
 
+  useEffect(() => {
+    if (!editor) return;
+    // Native spellcheck rewrites the DOM under the caret. That rewrite is what
+    // Track Changes then records as a deletion-plus-insertion in the wrong order.
+    editor.view.dom.spellcheck = !trackChangesEnabled;
+  }, [editor, trackChangesEnabled]);
+
   const scanForTrackedChanges = useCallback((editorInstance: any) => {
     if (!editorInstance) return;
     const { doc } = editorInstance.state;
@@ -1390,6 +1339,10 @@ export function RichTextEditor({
   useEffect(() => {
     if (!editor) return;
     if (content === lastEmittedContentRef.current) return;
+    // While the solicitor is typing, the editor document is the source of truth.
+    // Reloading from the prop and putting the caret back at the old offset drops
+    // the next letters into the middle of the word.
+    if (editor.isFocused && lastEmittedContentRef.current) return;
     setTrackedChanges([]);
     setChangeCount(0);
     lastEmittedContentRef.current = content;
@@ -1451,7 +1404,7 @@ export function RichTextEditor({
           setSpellHint(false);
           // A previous save stored the whole note as HTML without track marks.
           // Write markdown back so the next open is a normal note, not tags.
-          if (isEditorHtml(content) && !isTrackedChangesHtml(content)) {
+          if (!editor.isFocused && isEditorHtml(content) && !isTrackedChangesHtml(content)) {
             try {
               const markdown = editor.storage.markdown.getMarkdown();
               if (markdown && markdown !== content) {
