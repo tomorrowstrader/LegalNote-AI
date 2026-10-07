@@ -72,7 +72,12 @@ export class ObjectStorageService {
     return { start, end, openEnded: false };
   }
 
-  async downloadObject(fileKey: string | Buffer, res: Response, cacheTtlSec: number = 3600) {
+  async downloadObject(
+    fileKey: string | Buffer,
+    res: Response,
+    cacheTtlSec: number = 3600,
+    options?: { contentType?: string },
+  ) {
     try {
       // If fileKey is a Buffer, it's already been fetched, just stream it
       if (Buffer.isBuffer(fileKey)) {
@@ -137,7 +142,7 @@ export class ObjectStorageService {
           contentRange = `bytes ${start}-${servedEnd}/${totalSize}`;
         }
 
-        const contentType = data.ContentType || "application/octet-stream";
+        const contentType = options?.contentType || data.ContentType || "application/octet-stream";
         res.status(206);
         res.set({
           "Content-Type": contentType,
@@ -162,7 +167,7 @@ export class ObjectStorageService {
       });
 
       const data = await s3Client.send(command);
-      const contentType = data.ContentType || "application/octet-stream";
+      const contentType = options?.contentType || data.ContentType || "application/octet-stream";
       const contentLength = data.ContentLength || 0;
 
       res.status(200);

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { FileText, Clock, CheckCircle2, FolderOpen, AlertTriangle, Search, SortAsc, Archive, AlertCircle, Mic, Keyboard, ClipboardCheck, Eye, ShieldCheck, Shield, Phone, Video, Trash2, FolderPlus, PlusCircle, ListFilter, ArchiveRestore, Loader2, X } from "lucide-react";
+import { FileText, Clock, CheckCircle2, FolderOpen, AlertTriangle, Search, SortAsc, Archive, AlertCircle, Mic, Keyboard, ClipboardCheck, Eye, ShieldCheck, Shield, Phone, Video, Trash2, ArchiveRestore, Loader2, X } from "lucide-react";
 import { ScheduledMeetingsViewer } from "@/components/ScheduledMeetingsViewer";
 import StatsCard from "@/components/StatsCard";
 import CaseListView from "@/components/CaseListView";
@@ -9,12 +9,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { Case, MeetingImport } from "@shared/schema";
+import type { Case } from "@shared/schema";
+import type { AssignableRecording } from "@shared/assignableRecording";
+import { formatRecordingClock, platformLabel, recordingListenHints, sameCallCount } from "@shared/assignableRecording";
+import { UnassignedRecordingQueue } from "@/components/UnassignedRecordingQueue";
+import { snoozeAssignmentQueue } from "@/components/VideoBotRecoveryModal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, differenceInDays, differenceInHours, isPast } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { isFeatureVisible } from "@/lib/features";
-import { flushLiveBotNotesOnAssign } from "@/lib/meetingNotesDraft";
 import { useBulkCaseActions } from "@/hooks/useCaseActions";
 
 const amlComplianceVisible = isFeatureVisible("amlCompliance");
@@ -44,7 +47,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 
 interface AttentionStats {
@@ -80,13 +82,9 @@ export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<SortOption>("deadline");
   const [statsRange, setStatsRange] = useState<StatsRange>("all");
-  const [assignImport, setAssignImport] = useState<MeetingImport | null>(null);
-  const [assignCaseId, setAssignCaseId] = useState("");
-  const [assignRecordingType, setAssignRecordingType] = useState("full_meeting");
-  const [assignMode, setAssignMode] = useState<"existing" | "new">("existing");
-  const [newMatterTitle, setNewMatterTitle] = useState("");
-  const [newMatterClient, setNewMatterClient] = useState("");
-  const [discardTarget, setDiscardTarget] = useState<MeetingImport | null>(null);
+  const [queueOpen, setQueueOpen] = useState(false);
+  const [queueInitialId, setQueueInitialId] = useState<string | null>(null);
+  const [discardTarget, setDiscardTarget] = useState<AssignableRecording | null>(null);
   const [discardConfirmed, setDiscardConfirmed] = useState(false);
   const [selectedCaseIds, setSelectedCaseIds] = useState<Set<string>>(new Set());
   const [bulkArchiveConfirmOpen, setBulkArchiveConfirmOpen] = useState(false);
@@ -99,49 +97,15 @@ export default function Dashboard() {
     queryKey: ["/api/cases"],
   });
 
-  const { data: unassignedImports } = useQuery<MeetingImport[]>({
+  const { data: unassignedImports } = useQuery<AssignableRecording[]>({
     queryKey: ["/api/recall/imports/unassigned"],
     refetchInterval: 30000,
   });
 
-  const assignMutation = useMutation({
-    mutationFn: async ({ importId, caseId, recordingType, createCase, caseData }: {
-      importId: string;
-      caseId?: string;
-      recordingType: string;
-      createCase?: boolean;
-      caseData?: { title: string; clientName: string };
-    }) => apiRequest<{ success: boolean; caseId: string; importId: string }>(
-      "POST",
-      `/api/recall/import/${importId}/assign`,
-      { caseId, recordingType, createCase, caseData },
-    ),
-    onSuccess: async (data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/recall/imports/unassigned"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/cases"] });
-      if (data?.caseId && data?.importId) {
-        try {
-          await flushLiveBotNotesOnAssign(
-            data.importId,
-            data.caseId,
-            variables.caseData?.title,
-          );
-        } catch {
-          // Draft retained locally if flush fails
-        }
-      }
-      toast({ title: "Recording assigned", description: "The recording has been assigned and is now being processed.", duration: 4000 });
-      setAssignImport(null);
-      setAssignCaseId("");
-      setAssignRecordingType("full_meeting");
-      setAssignMode("existing");
-      setNewMatterTitle("");
-      setNewMatterClient("");
-    },
-    onError: () => {
-      toast({ title: "Assignment failed", description: "Could not assign the recording. Please try again.", variant: "destructive", duration: 4000 });
-    },
-  });
+  const openAssignmentQueue = (importId?: string) => {
+    setQueueInitialId(importId ?? unassignedImports?.[0]?.id ?? null);
+    setQueueOpen(true);
+  };
 
   const discardMutation = useMutation({
     mutationFn: async (importId: string) =>
@@ -590,26 +554,39 @@ export default function Dashboard() {
               </p>
             </div>
             <div className="divide-y divide-amber-500/10">
-              {unassignedImports.map((imp) => (
+              {unassignedImports.map((imp) => {
+                const when = imp.meetingStartTime || imp.createdAt;
+                const durationLabel = formatRecordingClock(imp.durationSeconds);
+                const hints = recordingListenHints(imp);
+                const reconnects = sameCallCount(imp, unassignedImports);
+                return (
                 <div key={imp.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3" data-testid={`row-unassigned-import-${imp.id}`}>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{imp.meetingTitle || "Untitled meeting"}</p>
+                    <p className="text-sm font-medium text-foreground truncate">{imp.meetingTitle || `${platformLabel(imp.meetingPlatform)} call`}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      {imp.meetingStartTime ? format(new Date(imp.meetingStartTime), "d MMM yyyy, HH:mm") : format(new Date(imp.createdAt), "d MMM yyyy, HH:mm")}
-                      {imp.durationSeconds ? ` · ${Math.round(imp.durationSeconds / 60)} min` : ""}
-                      {" · "}{imp.meetingPlatform ? imp.meetingPlatform.charAt(0).toUpperCase() + imp.meetingPlatform.slice(1) : "Video call"}
+                      {when ? format(new Date(when), "d MMM yyyy, HH:mm") : "Time unknown"}
+                      {durationLabel ? ` · ${durationLabel}` : ""}
+                      {" · "}{platformLabel(imp.meetingPlatform)}
+                      {((imp.participantNames ?? []).length > 0) ? ` · ${imp.participantNames.join(", ")}` : ""}
                     </p>
+                    {(hints.length > 0 || reconnects > 1 || imp.suggestedMatter) && (
+                      <p className="text-xs text-amber-800 dark:text-amber-200 mt-1">
+                        {reconnects > 1 ? "Reconnect attempt. " : ""}
+                        {hints.length > 0 ? `${hints.join(" ")} ` : ""}
+                        {imp.suggestedMatter ? `Calendar match: ${imp.suggestedMatter.clientName || imp.suggestedMatter.title}.` : ""}
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <Button
                       size="sm"
                       variant="outline"
                       className="gap-1.5"
-                      onClick={() => { setAssignImport(imp); setAssignCaseId(""); setAssignRecordingType("full_meeting"); }}
+                      onClick={() => openAssignmentQueue(imp.id)}
                       data-testid={`button-assign-import-${imp.id}`}
                     >
-                      <FolderPlus className="w-3.5 h-3.5" />
-                      Assign to matter
+                      <Video className="w-3.5 h-3.5" />
+                      Listen & assign
                     </Button>
                     <Button
                       size="icon"
@@ -622,7 +599,8 @@ export default function Dashboard() {
                     </Button>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -632,9 +610,21 @@ export default function Dashboard() {
             {/* Sticky Header with Title, Tabs, Search */}
             <div className="sticky top-0 z-10 bg-card border-b border-border p-4 sm:p-6 pb-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 mb-4">
-                <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                <h2 className="text-lg font-semibold text-foreground flex items-center gap-2 flex-wrap">
                   <FolderOpen className="w-5 h-5 text-muted-foreground" />
                   Case Files
+                  {unassignedImports && unassignedImports.length > 0 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 border-amber-500/40 text-amber-800 dark:text-amber-200"
+                      onClick={() => openAssignmentQueue()}
+                      data-testid="button-recordings-to-assign"
+                    >
+                      {unassignedImports.length} to assign
+                    </Button>
+                  )}
                 </h2>
                 <div className="flex items-center gap-3 w-full sm:w-auto">
                   <div className="relative flex-1 sm:w-64 min-w-0">
@@ -821,126 +811,29 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Assign Recording Dialog */}
-      <Dialog open={!!assignImport} onOpenChange={(open) => { if (!open) { setAssignImport(null); setAssignMode("existing"); setNewMatterTitle(""); setNewMatterClient(""); } }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FolderPlus className="w-5 h-5" />
-              Assign recording to a matter
-            </DialogTitle>
-            <DialogDescription>
-              {assignImport?.meetingTitle || "Untitled meeting"} — choose which matter this recording belongs to and what type of session it was.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 pt-1">
-            {/* Mode toggle */}
-            <div className="flex rounded-md border overflow-hidden">
-              <button
-                type="button"
-                className={`flex-1 px-3 py-2 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors ${assignMode === "existing" ? "bg-accent text-accent-foreground" : "bg-transparent text-muted-foreground hover-elevate"}`}
-                onClick={() => setAssignMode("existing")}
-                data-testid="button-assign-mode-existing"
-              >
-                <ListFilter className="w-3.5 h-3.5" />
-                Existing matter
-              </button>
-              <button
-                type="button"
-                className={`flex-1 px-3 py-2 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors ${assignMode === "new" ? "bg-accent text-accent-foreground" : "bg-transparent text-muted-foreground hover-elevate"}`}
-                onClick={() => setAssignMode("new")}
-                data-testid="button-assign-mode-new"
-              >
-                <PlusCircle className="w-3.5 h-3.5" />
-                Create new matter
-              </button>
-            </div>
-
-            {assignMode === "existing" ? (
-              <div className="space-y-2">
-                <Label htmlFor="assign-case">Select matter</Label>
-                <Select value={assignCaseId} onValueChange={setAssignCaseId}>
-                  <SelectTrigger id="assign-case" data-testid="select-assign-case">
-                    <SelectValue placeholder="Search and select a matter..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {cases?.filter(c => !c.archived).map((c) => (
-                      <SelectItem key={c.id} value={c.id}>{c.title}{c.clientName ? ` — ${c.clientName}` : ""}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="new-matter-title">Matter title <span className="text-accent">*</span></Label>
-                  <Input
-                    id="new-matter-title"
-                    placeholder="e.g. Smith v Jones — contract dispute"
-                    value={newMatterTitle}
-                    onChange={(e) => setNewMatterTitle(e.target.value)}
-                    data-testid="input-new-matter-title"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="new-matter-client">Client name <span className="text-accent">*</span></Label>
-                  <Input
-                    id="new-matter-client"
-                    placeholder="e.g. Jane Smith"
-                    value={newMatterClient}
-                    onChange={(e) => setNewMatterClient(e.target.value)}
-                    data-testid="input-new-matter-client"
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground">A new matter will be created and the recording will be processed against it.</p>
-              </div>
-            )}
-
-            <div className="space-y-2">
-              <Label htmlFor="assign-recording-type">Session type</Label>
-              <Select value={assignRecordingType} onValueChange={setAssignRecordingType}>
-                <SelectTrigger id="assign-recording-type" data-testid="select-assign-recording-type">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="full_meeting">Client Meeting</SelectItem>
-                  <SelectItem value="telephone_call">Telephone Call</SelectItem>
-                  <SelectItem value="court_hearing">Court Hearing</SelectItem>
-                  <SelectItem value="police_station">Police Station</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex gap-2 pt-2">
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => { setAssignImport(null); setAssignMode("existing"); setNewMatterTitle(""); setNewMatterClient(""); }}
-                data-testid="button-assign-cancel"
-              >
-                Cancel
-              </Button>
-              <Button
-                className="flex-1"
-                disabled={assignMutation.isPending || (assignMode === "existing" ? !assignCaseId : !newMatterTitle.trim() || !newMatterClient.trim())}
-                onClick={() => {
-                  if (!assignImport) return;
-                  if (assignMode === "existing" && assignCaseId) {
-                    assignMutation.mutate({ importId: assignImport.id, caseId: assignCaseId, recordingType: assignRecordingType });
-                  } else if (assignMode === "new" && newMatterTitle.trim()) {
-                    assignMutation.mutate({
-                      importId: assignImport.id,
-                      recordingType: assignRecordingType,
-                      createCase: true,
-                      caseData: { title: newMatterTitle.trim(), clientName: newMatterClient.trim() },
-                    });
-                  }
-                }}
-                data-testid="button-assign-confirm"
-              >
-                {assignMutation.isPending ? "Assigning..." : "Assign & process"}
-              </Button>
-            </div>
-          </div>
+      {/* Listen, then assign or delete. Closing leaves the recordings on the dashboard. */}
+      <Dialog
+        open={queueOpen && !!unassignedImports?.length}
+        onOpenChange={(open) => {
+          if (!open) {
+            snoozeAssignmentQueue();
+            setQueueOpen(false);
+          }
+        }}
+      >
+        <DialogContent className="max-w-xl" data-testid="dialog-assign-recording-queue">
+          {unassignedImports && unassignedImports.length > 0 && (
+            <UnassignedRecordingQueue
+              key={queueInitialId ?? "first"}
+              recordings={unassignedImports}
+              initialId={queueInitialId}
+              onNotNow={() => {
+                snoozeAssignmentQueue();
+                setQueueOpen(false);
+              }}
+              onFinished={() => setQueueOpen(false)}
+            />
+          )}
         </DialogContent>
       </Dialog>
 

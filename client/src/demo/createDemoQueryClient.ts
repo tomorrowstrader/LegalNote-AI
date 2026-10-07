@@ -2034,11 +2034,17 @@ export function createDemoQueryClient(params: DemoParams): { qc: QueryClient; re
 
   const demoUnassignedRecording = {
     id: "demo-import-001",
-    botId: null,
-    status: "completed",
+    meetingTitle: "Teams call — Adam Reeve",
+    meetingPlatform: "teams",
+    meetingUrl: "https://teams.microsoft.com/l/meetup-join/demo-consultation",
+    meetingStartTime: relDateTime(-1, "15:30"),
     createdAt: relDateTime(-1, "15:30"),
-    title: "Teams call — unnamed meeting",
-    durationSeconds: 1800,
+    durationSeconds: 42,
+    participantNames: ["You"],
+    participantCount: 1,
+    hasAudio: false,
+    suggestedMatter: null,
+    status: "awaiting_assignment",
   };
 
   const demoCalendarEvents = [

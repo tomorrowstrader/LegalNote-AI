@@ -106,6 +106,7 @@ import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, i
 import { scrubInsightComment } from "@shared/productInsights";
 import { CONSENT_DISCLAIMER_TEXT, CONSENT_DISCLAIMER_VERSION } from "@shared/consent";
 import { defaultRecordingTypeForMatterKind, validateRecordingType } from "@shared/recordingTypes";
+import { toAssignableRecordings } from "./services/assignableRecordingView";
 import { getAmlRiskDefault } from "./services/practiceAreaConfig";
 import { isFeatureVisible, type FeatureKey } from "@shared/featureVisibility";
 import { documentMatchesSharedType, getUnadoptedSharedDocumentTypes } from "@shared/shareDocumentTypes";
@@ -11596,7 +11597,8 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
     try {
       const userId = req.user.claims.sub;
       const imports = await storage.getUnassignedMeetingImports(userId);
-      res.json(imports);
+      const views = await toAssignableRecordings(userId, imports);
+      res.json(views);
     } catch (error) {
       next(error);
     }
@@ -11634,23 +11636,58 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         }),
       );
 
+      const assignable = await toAssignableRecordings(userId, incomplete);
+      const assignableById = new Map(assignable.map((view) => [view.id, view]));
+
       res.json(
-        incomplete.map((i) => ({
-          importId: i.id,
-          botId: i.recallBotId,
-          caseId: i.caseId,
-          caseTitle: i.caseId ? caseTitleById.get(i.caseId) || null : null,
-          status: i.status,
-          botStatus: i.botStatus,
-          meetingTitle: i.meetingTitle,
-          meetingPlatform: i.meetingPlatform,
-          meetingUrl: i.meetingUrl,
-          createdAt: i.createdAt,
-          consentMode: i.consentMode || "pre_confirmed",
-          consentConfirmed: i.consentConfirmed,
-          errorMessage: i.errorMessage,
-        })),
+        incomplete.map((i) => {
+          const view = assignableById.get(i.id);
+          return {
+            importId: i.id,
+            botId: i.recallBotId,
+            caseId: i.caseId,
+            caseTitle: i.caseId ? caseTitleById.get(i.caseId) || null : null,
+            status: i.status,
+            botStatus: i.botStatus,
+            meetingTitle: i.meetingTitle,
+            meetingPlatform: i.meetingPlatform,
+            meetingUrl: i.meetingUrl,
+            createdAt: i.createdAt,
+            consentMode: i.consentMode || "pre_confirmed",
+            consentConfirmed: i.consentConfirmed,
+            errorMessage: i.errorMessage,
+            durationSeconds: view?.durationSeconds ?? i.durationSeconds ?? null,
+            meetingStartTime: view?.meetingStartTime ?? null,
+            participantNames: view?.participantNames ?? [],
+            participantCount: view?.participantCount ?? 0,
+            hasAudio: view?.hasAudio ?? false,
+            suggestedMatter: view?.suggestedMatter ?? null,
+          };
+        }),
       );
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Preview audio for a recording that is still awaiting a matter. Range requests let the player scrub.
+  app.get("/api/recall/import/:importId/audio", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const importData = await storage.getMeetingImport(req.params.importId);
+      if (!importData || importData.userId !== userId) {
+        return res.status(404).json({ message: "Import not found" });
+      }
+      if (importData.status !== "awaiting_assignment") {
+        return res.status(400).json({ message: "Preview is only available before this recording is assigned" });
+      }
+      if (!importData.audioStoragePath) {
+        return res.status(404).json({ message: "No audio stored for this recording" });
+      }
+
+      const contentType = importData.audioStoragePath.endsWith(".mp4") ? "video/mp4" : "audio/mpeg";
+      const objectStorageService = new ObjectStorageService();
+      await objectStorageService.downloadObject(importData.audioStoragePath, res, 300, { contentType });
     } catch (error) {
       next(error);
     }
