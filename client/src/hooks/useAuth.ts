@@ -19,6 +19,8 @@ export interface User {
   inviteStatus?: string | null;
   role?: string;
   accessAllowed?: boolean;
+  firmIsEvaluation?: boolean;
+  evaluationActive?: boolean;
   /** How this account authenticated (from auth_identities). */
   authProviders?: ("google" | "microsoft")[];
   /** Calendar to recommend during integrations onboarding. */

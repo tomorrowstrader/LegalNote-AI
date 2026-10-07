@@ -34,8 +34,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { format, differenceInDays, formatDistanceToNow } from "date-fns";
 import { PRACTICE_AREA_LABELS } from "@shared/schema";
 import { isFeatureVisible } from "@/lib/features";
-
-const firmComplianceDashboardVisible = isFeatureVisible("firmComplianceDashboard");
+import { useFeatureVisibility } from "@/hooks/useFeatureVisibility";
 
 interface MatterComplianceStatus {
   caseId: string;
@@ -189,6 +188,7 @@ function FinanceSortButton({ field, currentField, dir, onSort, label }: {
 }
 
 export default function FirmCompliance() {
+  const firmComplianceDashboardVisible = useFeatureVisibility("firmComplianceDashboard");
   const [, setLocation] = useLocation();
   const { canAccessFirmCompliance, isCOFA, isFirmAdmin, user, isLoading: authLoading } = useAuth();
   const isManagingPartner = user?.primaryRole === "managing_partner";

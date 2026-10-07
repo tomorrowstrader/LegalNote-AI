@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { openGlobalSearch, openVoiceCommand, openNotifications } from "@/lib/mobileChromeEvents";
 import { useAuth } from "@/hooks/useAuth";
 import { isFeatureVisible } from "@/lib/features";
+import { useFeatureVisibility } from "@/hooks/useFeatureVisibility";
 import {
   Sheet,
   SheetContent,
@@ -35,8 +36,6 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useQuery } from "@tanstack/react-query";
 import { applyTheme, getStoredTheme, type AppTheme } from "@/lib/theme";
-
-const firmComplianceDashboardVisible = isFeatureVisible("firmComplianceDashboard");
 
 interface MobileBottomNavProps {
   onRestartTour: () => void;
@@ -62,6 +61,7 @@ function useThemeToggle() {
 }
 
 export default function MobileBottomNav({ onRestartTour }: MobileBottomNavProps) {
+  const firmComplianceDashboardVisible = useFeatureVisibility("firmComplianceDashboard");
   const [location, setLocation] = useLocation();
   const [moreOpen, setMoreOpen] = useState(false);
   const { user, isAdmin, isFirmAdmin, canAccessFirmCompliance } = useAuth();
