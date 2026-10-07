@@ -10,6 +10,7 @@ import { Mark, Node, mergeAttributes, generateJSON } from '@tiptap/core';
 import { Markdown } from 'tiptap-markdown';
 import { FileText } from "lucide-react";
 import { enrichGapCitationChips, hydrateReasoningGapAnchorsInHtml } from "@/lib/reasoningGapAnchors";
+import { isEditorHtml, repairNameAutolinks } from "@shared/editorHtml";
 
 // A4 layout constants matching the editor (Word/Docs 1" margins @ 96dpi)
 const PAGE_W    = 794;   // A4 width in px
@@ -138,7 +139,10 @@ export function PageView({ content, gapAnchorLabels }: PageViewProps) {
   // as RichTextEditor but without the pagination plugin or placeholder.
   const measureEditor = useEditor({
     extensions: [
-      StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
+      StarterKit.configure({
+        heading: { levels: [1, 2, 3] },
+        link: { autolink: false, openOnClick: false, linkOnPaste: false },
+      }),
       Markdown.configure({
         html: false,
         transformCopiedText: false,
@@ -166,8 +170,8 @@ export function PageView({ content, gapAnchorLabels }: PageViewProps) {
   useEffect(() => {
     if (!measureEditor || !content) return;
     try {
-      if (isTrackedChangesHtml(content)) {
-        const json = generateJSON(content, measureEditor.extensionManager.extensions);
+      if (isEditorHtml(content) || isTrackedChangesHtml(content)) {
+        const json = generateJSON(repairNameAutolinks(content), measureEditor.extensionManager.extensions);
         measureEditor.commands.setContent(json, false);
       } else {
         measureEditor.commands.setContent(content, false);

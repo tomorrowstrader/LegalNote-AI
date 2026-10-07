@@ -1159,15 +1159,8 @@ nav.sticky {
 }
 
 .legal-document-editor .ProseMirror li > p {
-  display: block;
-  width: auto;
   margin-top: 0;
   margin-bottom: 0;
-}
-
-.legal-document-editor .ProseMirror li > p:has(> br.ProseMirror-trailingBreak:only-child) {
-  display: block;
-  width: auto;
 }
 
 .page-view-content li > p {

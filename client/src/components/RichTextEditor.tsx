@@ -33,6 +33,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 import { enrichGapCitationChips, hydrateReasoningGapAnchorsInDom, splitGapLabelParts } from "@/lib/reasoningGapAnchors";
+import { isEditorHtml, repairNameAutolinks } from "@shared/editorHtml";
 import { findFlexibleSpan } from "@shared/noteCorrections";
 import {
   addSpellVocabulary,
@@ -995,6 +996,13 @@ export function RichTextEditor({
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
+        // Autolink treats "Jen.No" as a Norway URL and then steals the click
+        // that should place the cursor. Real links still paste in.
+        link: {
+          autolink: false,
+          openOnClick: false,
+          linkOnPaste: true,
+        },
       }),
       Placeholder.configure({ placeholder: placeholder || 'Start typing...' }),
       Markdown.configure({
@@ -1381,9 +1389,11 @@ export function RichTextEditor({
     const { from, to } = editor.state.selection;
 
     try {
-      if (isTrackedChangesHtml(content)) {
-        // Bypass tiptap-markdown's setContent (which always runs markdown-it) by passing JSON.
-        const withGaps = content.replace(/\{\{RGAP:((?:\\.|[^}])+)\}\}/g, (_match, encoded: string) => {
+      if (isEditorHtml(content) || isTrackedChangesHtml(content)) {
+        // Bypass tiptap-markdown's setContent (which always runs markdown-it, and
+        // with html:false turns a saved <p>… document into literal tags).
+        const repaired = repairNameAutolinks(content);
+        const withGaps = repaired.replace(/\{\{RGAP:((?:\\.|[^}])+)\}\}/g, (_match, encoded: string) => {
           const label = decodeGapTokenLabel(encoded);
           return `<span data-reasoning-gap-token="true" data-gap-label="${encodeURIComponent(label)}"></span>`;
         });
@@ -1426,10 +1436,23 @@ export function RichTextEditor({
           spellBaselineRef.current = editor.getText().length;
           spellHintDismissedRef.current = false;
           setSpellHint(false);
+          // A previous save stored the whole note as HTML without track marks.
+          // Write markdown back so the next open is a normal note, not tags.
+          if (isEditorHtml(content) && !isTrackedChangesHtml(content)) {
+            try {
+              const markdown = editor.storage.markdown.getMarkdown();
+              if (markdown && markdown !== content) {
+                lastEmittedContentRef.current = markdown;
+                onChange(markdown);
+              }
+            } catch (markdownErr) {
+              console.error("[RichTextEditor] Could not convert HTML note back to markdown:", markdownErr);
+            }
+          }
         }
       });
     }
-  }, [editor, content, disabled, hydrateGapAnchors, gapAnchorLabels, trackChangesEnabled, scanForTrackedChanges]);
+  }, [editor, content, disabled, hydrateGapAnchors, gapAnchorLabels, trackChangesEnabled, scanForTrackedChanges, onChange]);
 
   useEffect(() => {
     if (!editor || disabled || !seedReplacements?.length) return;
