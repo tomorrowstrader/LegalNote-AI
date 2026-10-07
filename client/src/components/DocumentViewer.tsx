@@ -604,7 +604,7 @@ interface DocumentViewerProps {
   onLogTime?: () => void;
   /** Linked client id — used to resolve/save email for care-letter acknowledgement. */
   clientId?: string | null;
-  /** Matter relationship. An enquiry has not yet been instructed. */
+  /** enquiry matters open the correction with instructions not yet taken. */
   instructionStatus?: string | null;
 }
 
@@ -847,9 +847,155 @@ function findElementContainingText(root: ParentNode, text: string): HTMLElement 
 function getVisibleNoteRoots(): Element[] {
   return Array.from(
     document.querySelectorAll(
-      "[data-page-view-visible], [data-testid='attendance-note-card'] .ProseMirror, [data-testid='summary-note-card'] .ProseMirror, [data-testid='attendance-note-card'], [data-testid='summary-note-card']",
+      "[data-page-view-visible], [data-testid='attendance-note-card'] .ProseMirror, [data-testid='summary-note-card'] .ProseMirror",
     ),
   ).filter((root) => !isOffscreenOrHidden(root));
+}
+
+function getNoteBodyRoots(cardTestId: "attendance-note-card" | "summary-note-card"): Element[] {
+  return Array.from(
+    document.querySelectorAll(
+      `[data-testid='${cardTestId}'] [data-page-view-visible], [data-testid='${cardTestId}'] .ProseMirror`,
+    ),
+  ).filter((root) => !isOffscreenOrHidden(root));
+}
+
+const NOTE_QUOTE_SKIP =
+  "[data-testid^='panel-verification'], [data-testid^='panel-gap-review'], [data-page-view-measure], [data-testid='selection-correction']";
+
+function escapeQuotePattern(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function findQuoteRange(root: Element, quote: string): Range | null {
+  const needle = quote.trim();
+  if (needle.length < 12) return null;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      const parent = node.parentElement;
+      if (!parent || parent.closest(NOTE_QUOTE_SKIP)) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    },
+  });
+  const parts: Array<{ node: Text; start: number }> = [];
+  let combined = "";
+  let current: Node | null;
+  while ((current = walker.nextNode())) {
+    const text = current.textContent ?? "";
+    if (!text) continue;
+    parts.push({ node: current as Text, start: combined.length });
+    combined += text;
+  }
+  if (!combined) return null;
+  const pattern = escapeQuotePattern(needle).replace(/\s+/g, "\\s+");
+  const match = new RegExp(pattern, "i").exec(combined);
+  if (!match) return null;
+  const locate = (index: number) => {
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const part = parts[i];
+      if (index >= part.start) {
+        return { node: part.node, offset: Math.min(part.node.length, index - part.start) };
+      }
+    }
+    return null;
+  };
+  const start = locate(match.index);
+  const end = locate(match.index + match[0].length);
+  if (!start || !end) return null;
+  const range = document.createRange();
+  range.setStart(start.node, start.offset);
+  range.setEnd(end.node, end.offset);
+  return range;
+}
+
+function findQuoteRangeInRoots(roots: Element[], quote: string): Range | null {
+  const trimmed = quote.trim().replace(/^["“]|["”]$/g, "");
+  const candidates = [quote.trim(), trimmed].filter(
+    (candidate, index, all) => candidate.length >= 12 && all.indexOf(candidate) === index,
+  );
+  for (const candidate of candidates) {
+    for (const root of roots) {
+      const range = findQuoteRange(root, candidate);
+      if (range) return range;
+    }
+  }
+  return null;
+}
+
+let quoteHighlightCleanup: (() => void) | null = null;
+
+function clearNoteQuoteHighlight() {
+  quoteHighlightCleanup?.();
+  quoteHighlightCleanup = null;
+}
+
+function paintNoteQuoteHighlight(range: Range) {
+  clearNoteQuoteHighlight();
+  const layer = document.createElement("div");
+  layer.id = "note-quote-highlight";
+  layer.setAttribute("data-testid", "note-quote-highlight");
+  layer.style.cssText = "position:fixed;inset:0;pointer-events:none;z-index:55;";
+
+  const draw = () => {
+    layer.replaceChildren();
+    const rects = Array.from(range.getClientRects()).filter((rect) => rect.width > 2 && rect.height > 2);
+    for (const rect of rects) {
+      const box = document.createElement("div");
+      box.style.cssText = [
+        "position:fixed",
+        `left:${rect.left - 4}px`,
+        `top:${rect.top - 2}px`,
+        `width:${rect.width + 8}px`,
+        `height:${rect.height + 4}px`,
+        "border:2px solid rgba(217,119,6,0.95)",
+        "background:rgba(251,191,36,0.22)",
+        "border-radius:4px",
+        "box-shadow:0 0 0 3px rgba(251,191,36,0.18)",
+      ].join(";");
+      layer.appendChild(box);
+    }
+  };
+
+  draw();
+  document.body.appendChild(layer);
+  const onMove = () => draw();
+  window.addEventListener("scroll", onMove, true);
+  window.addEventListener("resize", onMove);
+  const timer = window.setTimeout(finish, 3200);
+  function finish() {
+    window.clearTimeout(timer);
+    window.removeEventListener("scroll", onMove, true);
+    window.removeEventListener("resize", onMove);
+    layer.remove();
+    if (quoteHighlightCleanup === finish) quoteHighlightCleanup = null;
+  }
+  quoteHighlightCleanup = finish;
+}
+
+function scrollRangeIntoView(range: Range) {
+  const node = range.startContainer;
+  const el = node instanceof Element ? node : node.parentElement;
+  if (!el) return;
+  const targetRect = range.getBoundingClientRect();
+  const ancestors = findScrollableAncestors(el);
+  if (ancestors.length > 0) {
+    for (const parent of ancestors) {
+      const parentRect = parent.getBoundingClientRect();
+      const stickyOffset = Math.min(140, Math.max(64, parentRect.height * 0.18));
+      const nextTop = parent.scrollTop + (targetRect.top - parentRect.top) - stickyOffset;
+      parent.scrollTo({ top: Math.max(0, nextTop), behavior: "smooth" });
+    }
+    return;
+  }
+  el.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+function revealQuoteInNote(quote: string, roots: Element[]): boolean {
+  const range = findQuoteRangeInRoots(roots, quote);
+  if (!range) return false;
+  scrollRangeIntoView(range);
+  paintNoteQuoteHighlight(range);
+  return true;
 }
 
 /** Jump to Advice given wording for this gap — scoped to its numbered section. */
@@ -880,23 +1026,21 @@ function scrollToGapCitation(citation: string, section?: string, gapIndex?: numb
 
   const match = findBestAdviceMatchInSection(sectionBlocks, cite);
   if (match) {
-    // Prefer the tightest element that still contains the matched quote/sentence
     const quoteNeedle = (match.quote || cite).replace(/…$/, "").trim();
-    let target = match.element;
-    if (quoteNeedle.length >= 12) {
-      const nested = findElementContainingText(match.element, quoteNeedle);
-      if (nested) target = nested;
-    }
-    highlightAndScrollToElement(target);
+    if (quoteNeedle.length >= 12 && revealQuoteInNote(quoteNeedle, [match.element])) return;
+    highlightAndScrollToElement(match.element);
     return;
   }
 
   // Last resort: reasoning marker location (never a bare heading-only fallback)
   if (anchor) {
     const block =
-      (anchor.closest("p, li, h1, h2, h3, h4, h5, blockquote, div") as HTMLElement | null) ??
+      (anchor.closest("p, li, h1, h2, h3, h4, h5, blockquote") as HTMLElement | null) ??
       anchor;
-    highlightAndScrollToElement(block);
+    const range = document.createRange();
+    range.selectNodeContents(block);
+    scrollRangeIntoView(range);
+    paintNoteQuoteHighlight(range);
   }
 }
 
@@ -983,34 +1127,7 @@ function scrollToReasoningGap(sectionName: string, gapIndex?: number) {
 function scrollToDocumentQuote(quote: string, cardTestId: "attendance-note-card" | "summary-note-card") {
   const trimmed = quote.trim();
   if (!trimmed) return false;
-
-  const roots = Array.from(
-    document.querySelectorAll(
-      `[data-page-view-visible], [data-testid='${cardTestId}'] .ProseMirror, [data-testid='${cardTestId}']`,
-    ),
-  ).filter((root) => !isOffscreenOrHidden(root));
-
-  // Try progressively shorter needles so punctuation / truncation still lands nearby
-  const candidates = [
-    trimmed,
-    trimmed.replace(/^["“]|["”]$/g, ""),
-    trimmed.slice(0, Math.min(trimmed.length, 80)),
-    trimmed.slice(0, Math.min(trimmed.length, 40)),
-  ].filter((c, i, arr) => c && c.length >= 12 && arr.indexOf(c) === i);
-
-  let el: HTMLElement | null = null;
-  for (const candidate of candidates) {
-    for (const root of roots) {
-      el = findElementContainingText(root, candidate);
-      if (el) break;
-    }
-    if (el) break;
-  }
-  if (!el) return false;
-
-  const target = el.closest("p, li, h1, h2, h3, h4, h5, blockquote, div") as HTMLElement | null ?? el;
-  highlightAndScrollToElement(target);
-  return true;
+  return revealQuoteInNote(trimmed, getNoteBodyRoots(cardTestId));
 }
 
 function scrollToTranscriptQuote(quote: string) {
@@ -1643,7 +1760,7 @@ function EditableDocumentContent({
   useEffect(() => () => clearDomHits(), []);
 
   const showViewSpellIssue = useCallback((hits: DomWordHit[], index: number, spell: SpellAdapter | null) => {
-    const safeIndex = hits.length === 0 ? 0 : Math.min(index, Math.max(0, hits.length - 1));
+    const safeIndex = hits.length === 0 ? 0 : Math.min(index, hits.length - 1);
     setViewSpellIndex(safeIndex);
     setViewSpellSuggestions(hits[safeIndex] && spell ? spellingSuggestions(hits[safeIndex].word, spell) : []);
     paintDomHits(hits, safeIndex);
@@ -2423,7 +2540,10 @@ export default function DocumentViewer({
       if (result.status !== "proposed" || !result.text) {
         setGapAssists((prev) => ({
           ...prev,
-          [documentId]: { ...(prev[documentId] ?? {}), [key]: { refused: true } },
+          [documentId]: {
+            ...(prev[documentId] ?? {}),
+            [key]: { refused: true },
+          },
         }));
         return;
       }
@@ -2451,7 +2571,11 @@ export default function DocumentViewer({
         ...prev,
         [documentId]: {
           ...(prev[documentId] ?? {}),
-          [key]: { sourceLabel: result.sourceLabel, suggestionText: result.text, refused: false },
+          [key]: {
+            sourceLabel: result.sourceLabel,
+            suggestionText: result.text,
+            refused: false,
+          },
         },
       }));
     } catch (error) {
@@ -2477,7 +2601,10 @@ export default function DocumentViewer({
       ...prev,
       [documentId]: {
         ...(prev[documentId] ?? {}),
-        [key]: { sourceLabel: pending.pendingSourceLabel, suggestionText: pending.pendingText },
+        [key]: {
+          sourceLabel: pending.pendingSourceLabel,
+          suggestionText: pending.pendingText,
+        },
       },
     }));
   };
