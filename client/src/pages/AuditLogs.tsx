@@ -116,6 +116,11 @@ function formatMetadata(eventType: string, metadata: Record<string, any> | null)
     if (metadata.recipient) parts.push(`To: ${metadata.recipient}`);
   } else if (eventType === 'note_correction_proposed' && metadata.instruction) {
     parts.push(String(metadata.instruction));
+  } else if (eventType === 'reasoning_gap_suggestion') {
+    parts.push(metadata.action === 'offered' ? 'Reason suggested' : 'No reason in the record');
+    if (metadata.sourceLabel) parts.push(String(metadata.sourceLabel));
+  } else if (eventType === 'document_gaps_filled' && Array.isArray(metadata.fills)) {
+    parts.push(metadata.fills.map((fill: { outcome?: string }) => fill.outcome || 'written').join(', '));
   } else if (eventType === 'case_updated' && metadata.action === 'instructions_received') {
     parts.push('Instructions received');
   } else if (eventType === 'audio_deleted') {

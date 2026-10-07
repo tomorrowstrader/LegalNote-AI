@@ -45,6 +45,8 @@ const EVENT_ICONS: Record<string, any> = {
   document_generated: FileText,
   document_regenerated: FileText,
   note_correction_proposed: FileText,
+  reasoning_gap_suggestion: FileText,
+  document_gaps_filled: FileText,
   document_exported_pdf: Download,
   document_exported_word: Download,
   document_shared_with_client: Send,
@@ -119,6 +121,8 @@ const EVENT_LABELS: Record<string, string> = {
   document_generated: "Document Produced",
   document_regenerated: "Further Version Produced",
   note_correction_proposed: "Note Correction Proposed",
+  reasoning_gap_suggestion: "Reasoning Suggestion",
+  document_gaps_filled: "Reasoning Gaps Filled",
   document_exported_pdf: "Document Exported (PDF)",
   document_exported_word: "Document Exported (Word)",
   document_shared_with_client: "Document Shared with Client",
@@ -361,6 +365,29 @@ function formatMetadata(eventType: string, metadata: Record<string, any>): strin
 
     case "time_entry_deleted":
       return `Deleted record of ${metadata.durationMinutes ?? 0} minutes (${metadata.units ?? 0} units)`;
+
+    case "reasoning_gap_suggestion": {
+      const label = typeof metadata.gapLabel === "string" ? metadata.gapLabel : "this advice";
+      if (metadata.action === "offered" && typeof metadata.text === "string") {
+        const source = typeof metadata.sourceLabel === "string" ? ` ${metadata.sourceLabel}` : "";
+        return `Suggested a reason for ${label}.${source} ${metadata.text}`;
+      }
+      return `No reason was drafted for ${label}. The record does not state one.`;
+    }
+
+    case "document_gaps_filled": {
+      const fills = Array.isArray(metadata.fills) ? metadata.fills : [];
+      if (fills.length === 0) {
+        return `${metadata.gapsFilled ?? 0} reasoning gap(s) filled`;
+      }
+      return fills.map((fill) => {
+        const record = fill as { outcome?: string; text?: string; sourceLabel?: string };
+        const words = typeof record.text === "string" ? record.text : "";
+        if (record.outcome === "accepted") return `Accepted a suggested reason${record.sourceLabel ? ` (${record.sourceLabel})` : ""}: ${words}`;
+        if (record.outcome === "edited") return `Saved a suggested reason after editing it: ${words}`;
+        return `Recorded a reason: ${words}`;
+      }).join(" ");
+    }
 
     case "note_correction_proposed": {
       const modeLabels: Record<string, string> = {

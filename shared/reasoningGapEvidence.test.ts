@@ -4,8 +4,10 @@ import {
   evidenceForGap,
   parseGapsWithEvidence,
   replaceGapMarkerAndEvidence,
+  replaceUnfilledReasoningGaps,
   resolveGapTranscriptEvidence,
   stripGapEvidenceComments,
+  unfilledReasoningGapSentence,
   utterancesHaveRealTimestamps,
 } from "./reasoningGapEvidence";
 
@@ -129,5 +131,22 @@ describe("evidenceForGap", () => {
   it("falls back to live resolution", () => {
     const live = evidenceForGap(null, "MORTGAGE CONTRIBUTIONS: stop paying the mortgage", UTTERANCES);
     expect(live?.utteranceIndex).toBe(1);
+  });
+});
+
+describe("replaceUnfilledReasoningGaps", () => {
+  it("names the advice point and drops the hidden marker", () => {
+    const file = replaceUnfilledReasoningGaps(
+      "Reasoning behind advice and decisions:\n<!-- REASONING_GAP: MORTGAGE CONTRIBUTIONS: stop paying the mortgage -->\n<!-- RGAP_EVIDENCE: {\"utteranceIndex\":1} -->\n",
+    );
+    expect(file).toContain(unfilledReasoningGapSentence("MORTGAGE CONTRIBUTIONS: stop paying the mortgage"));
+    expect(file).toContain("Reasoning not recorded for: stop paying the mortgage.");
+    expect(file).not.toContain("REASONING_GAP");
+    expect(file).not.toContain("RGAP_EVIDENCE");
+  });
+
+  it("also replaces an editor token", () => {
+    const file = replaceUnfilledReasoningGaps("{{RGAP:WILLS: need for a will now}}");
+    expect(file).toBe("Reasoning not recorded for: need for a will now.");
   });
 });

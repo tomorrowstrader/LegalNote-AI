@@ -4,7 +4,7 @@ import { saveAs } from 'file-saver';
 import type { FirmProfile } from '@shared/schema';
 import { extractLetterhead, resolveBrandingMode, formatLetterheadAddress, formatLetterheadFooterLine } from '@shared/letterhead';
 import { findAttendanceMattersBodyIndex, normalizeAttendanceSectionLabels } from '@shared/attendanceNoteFormat';
-import { stripGapEvidenceComments } from '@shared/reasoningGapEvidence';
+import { replaceUnfilledReasoningGaps, stripGapEvidenceComments } from '@shared/reasoningGapEvidence';
 
 interface DocumentContent {
   summary?: string;
@@ -843,11 +843,7 @@ export async function exportToPDF(content: DocumentContent) {
     }
   };
 
-  const stripGapMarkers = (text: string) =>
-    text
-      .replace(/<!--\s*REASONING_GAP:\s*.+?\s*-->/g, '')
-      .replace(/&lt;!--\s*REASONING_GAP:\s*.+?\s*--&gt;/g, '')
-      .replace(/\{\{RGAP:(?:\\.|[^}])+\}\}/g, '');
+  const stripGapMarkers = (text: string) => replaceUnfilledReasoningGaps(text);
 
   if (usePennAttendanceLayout && content.attendanceNote) {
     const letterheadTop = yPosition;
@@ -1484,11 +1480,7 @@ export async function exportToWord(content: DocumentContent) {
     });
   };
 
-  const stripWordGapMarkers = (text: string) =>
-    text
-      .replace(/<!--\s*REASONING_GAP:\s*.+?\s*-->/g, '')
-      .replace(/&lt;!--\s*REASONING_GAP:\s*.+?\s*--&gt;/g, '')
-      .replace(/\{\{RGAP:(?:\\.|[^}])+\}\}/g, '');
+  const stripWordGapMarkers = (text: string) => replaceUnfilledReasoningGaps(text);
 
   // Summary section — skip if all fields are placeholder text
   if (content.summary && !isEntirelyPlaceholder(content.summary)) {

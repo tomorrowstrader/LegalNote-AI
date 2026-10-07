@@ -31,7 +31,7 @@ import { Input } from "@/components/ui/input";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
-import { enrichGapCitationChips, hydrateReasoningGapAnchorsInDom } from "@/lib/reasoningGapAnchors";
+import { enrichGapCitationChips, hydrateReasoningGapAnchorsInDom, splitGapLabelParts } from "@/lib/reasoningGapAnchors";
 import { findFlexibleSpan } from "@shared/noteCorrections";
 
 function ensureSectionSpacing(content: string): string {
@@ -455,6 +455,84 @@ const LegalFieldNode = Node.create({
   },
 });
 
+function encodeGapTokenLabel(label: string): string {
+  return label.replace(/\\/g, "\\\\").replace(/\}/g, "\\}");
+}
+
+function decodeGapTokenLabel(encoded: string): string {
+  return encoded.replace(/\\\}/g, "}").replace(/\\\\/g, "\\");
+}
+
+/** One locked "Reasoning needed" piece. The editor stores it as {{RGAP:…}} and cannot edit inside it. */
+const ReasoningGapNode = Node.create({
+  name: "reasoningGap",
+  group: "inline",
+  inline: true,
+  atom: true,
+  selectable: true,
+  addAttributes() {
+    return {
+      label: { default: "" },
+    };
+  },
+  parseHTML() {
+    return [{
+      tag: "span[data-reasoning-gap-token]",
+      getAttrs: (element) => {
+        const encoded = (element as HTMLElement).getAttribute("data-gap-label") || "";
+        try {
+          return { label: decodeURIComponent(encoded) };
+        } catch {
+          return { label: encoded };
+        }
+      },
+    }];
+  },
+  renderHTML({ node }) {
+    const { citation } = splitGapLabelParts(node.attrs.label);
+    const encoded = encodeURIComponent(node.attrs.label || "");
+    return ["span", {
+      "data-reasoning-gap-token": "true",
+      "data-gap-label": encoded,
+      contenteditable: "false",
+      class: "inline-flex flex-wrap items-baseline gap-x-1 rounded border border-dashed border-amber-400 bg-amber-50 text-amber-800 text-[11px] px-2 py-0.5 align-baseline",
+    }, `Reasoning needed — “${citation}”`];
+  },
+  renderText({ node }) {
+    return `{{RGAP:${encodeGapTokenLabel(node.attrs.label || "")}}}`;
+  },
+  addStorage() {
+    return {
+      markdown: {
+        serialize(state: { write: (value: string) => void }, node: { attrs: { label?: string } }) {
+          state.write(`{{RGAP:${encodeGapTokenLabel(node.attrs.label || "")}}}`);
+        },
+        parse: {
+          setup(markdownit: {
+            inline: { ruler: { before: (before: string, name: string, rule: (state: any, silent: boolean) => boolean) => void } };
+            __reasoningGap?: boolean;
+          }) {
+            if (markdownit.__reasoningGap) return;
+            markdownit.__reasoningGap = true;
+            markdownit.inline.ruler.before("emphasis", "reasoning_gap", (state, silent) => {
+              const slice = state.src.slice(state.pos);
+              const match = slice.match(/^\{\{RGAP:((?:\\.|[^}])+)\}\}/);
+              if (!match) return false;
+              if (!silent) {
+                const token = state.push("html_inline", "", 0);
+                const label = decodeGapTokenLabel(match[1]);
+                token.content = `<span data-reasoning-gap-token="true" data-gap-label="${encodeURIComponent(label)}"></span>`;
+              }
+              state.pos += match[0].length;
+              return true;
+            });
+          },
+        },
+      },
+    };
+  },
+});
+
 function createTrackChangesPlugin(
   isTrackingRef: React.MutableRefObject<boolean>,
   isUpdatingRef: React.MutableRefObject<boolean>,
@@ -551,6 +629,8 @@ function createTrackChangesPlugin(
             );
             const mark = existingDeletion
               ?? deletionMarkType.create({ user: userNameRef.current, timestamp, changeId });
+
+            if (node.type?.name === "reasoningGap") return false;
 
             if (node.isText) {
               const text = node.text.slice(start - pos, end - pos);
@@ -855,6 +935,7 @@ export function RichTextEditor({
       DeletionMark,
       RedactionMark,
       LegalFieldNode,
+      ReasoningGapNode,
       Extension.create({
         name: 'listKeyboardShortcuts',
         addKeyboardShortcuts() {
@@ -1216,7 +1297,11 @@ export function RichTextEditor({
     try {
       if (isTrackedChangesHtml(content)) {
         // Bypass tiptap-markdown's setContent (which always runs markdown-it) by passing JSON.
-        const json = generateJSON(content, editor.extensionManager.extensions);
+        const withGaps = content.replace(/\{\{RGAP:((?:\\.|[^}])+)\}\}/g, (_match, encoded: string) => {
+          const label = decodeGapTokenLabel(encoded);
+          return `<span data-reasoning-gap-token="true" data-gap-label="${encodeURIComponent(label)}"></span>`;
+        });
+        const json = generateJSON(withGaps, editor.extensionManager.extensions);
         editor.commands.setContent(json, false);
       } else {
         const processedContent = ensureBoldHeadings(content ?? '');

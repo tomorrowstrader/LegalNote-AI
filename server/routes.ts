@@ -3750,6 +3750,11 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         reasoningGapsIdentified: z.number().int().min(0).nullable().optional(),
         reasoningGapsFilled: z.number().int().min(0).nullable().optional(),
         amlConfirmed: z.boolean().optional(),
+        fills: z.array(z.object({
+          text: z.string().max(5000),
+          suggestionText: z.string().max(5000).nullable().optional(),
+          sourceLabel: z.string().max(300).nullable().optional(),
+        })).max(40).optional(),
       });
 
       const validationResult = schema.safeParse(req.body);
@@ -3757,7 +3762,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         return res.status(400).json({ message: "Validation error", errors: validationResult.error.format() });
       }
 
-      const { note, reasoningGapsIdentified, reasoningGapsFilled, amlConfirmed } = validationResult.data;
+      const { note, reasoningGapsIdentified, reasoningGapsFilled, amlConfirmed, fills } = validationResult.data;
 
       const document = await storage.updateReasoningNote(req.params.id, note, userId);
       if (!document) {
@@ -3779,6 +3784,16 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
               action: "fill_reasoning_gaps",
               gapsIdentified: reasoningGapsIdentified,
               gapsFilled: reasoningGapsFilled,
+              fills: (fills ?? []).map((fill) => {
+                const saved = fill.text.trim();
+                const suggested = fill.suggestionText?.trim() ?? "";
+                const outcome = !suggested ? "written" : saved === suggested ? "accepted" : "edited";
+                return {
+                  outcome,
+                  sourceLabel: fill.sourceLabel ?? null,
+                  text: saved.slice(0, 1000),
+                };
+              }),
             },
           });
         }
@@ -4220,6 +4235,126 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       if (error?.name === "NoteCorrectionError") {
         return res.status(error.statusCode || 400).json({ message: error.message });
       }
+      next(error);
+    }
+  });
+
+  /**
+   * Draft a reason into the gap box. Does not change the note.
+   * Refuses when this matter's record does not state the reason.
+   */
+  app.post("/api/cases/:caseId/documents/:documentId/reasoning-gap-suggestions", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { caseId, documentId } = req.params;
+      const gapIndex = req.body?.gapIndex;
+      if (typeof gapIndex !== "number" || !Number.isInteger(gapIndex) || gapIndex < 0) {
+        return res.status(400).json({ message: "Choose a reasoning gap." });
+      }
+
+      const caseData = await storage.getCase(caseId, userId);
+      if (!caseData) return res.status(404).json({ message: "Case not found" });
+      const document = await storage.getDocument(documentId);
+      if (!document || document.caseId !== caseId) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+      const suggestable = new Set(["attendance_note", "meeting_notes", "summary"]);
+      if (!suggestable.has(document.type)) {
+        return res.status(400).json({ message: "A reason can be suggested for an attendance note." });
+      }
+      if (document.status === "approved") {
+        return res.status(400).json({ message: "Unlock the document before suggesting a reason." });
+      }
+
+      const { parseGapsWithEvidence } = await import("@shared/reasoningGapEvidence");
+      const gaps = parseGapsWithEvidence(document.content);
+      const gap = gaps[gapIndex];
+      if (!gap) return res.status(400).json({ message: "That reasoning gap is no longer on the note." });
+
+      const sessions = await storage.getMeetingSessionsByCase(caseId, userId);
+      const activeDocs = await storage.getActiveDocumentsByCase(caseId, userId);
+      const currentSessionId = document.meetingSessionId ?? null;
+      const {
+        draftReasoningFromPassages,
+        normaliseUtterances,
+        noteParagraphs,
+      } = await import("./services/reasoningGapSuggestionService");
+      type GapSuggestionCandidate = import("@shared/reasoningGapSuggestion").GapSuggestionCandidate;
+
+      const formatDate = (value: Date | string | null | undefined) => {
+        const date = value ? new Date(value) : null;
+        if (!date || Number.isNaN(date.getTime())) return "an earlier meeting";
+        return date.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+      };
+
+      const candidates: GapSuggestionCandidate[] = [];
+      for (const session of sessions) {
+        const earlier = currentSessionId
+          ? session.id !== currentSessionId
+          : sessions.length > 1;
+        const dateLabel = formatDate(session.startedAt);
+        const sessionLabel = session.sessionTitle || "Meeting";
+        const transcript = await storage.getTranscriptBySession(session.id);
+        let utterances = normaliseUtterances(transcript?.utterances);
+        if (utterances.length === 0 && transcript?.content?.trim()) {
+          utterances = [{ text: transcript.content.trim(), start: 0, end: 0 }];
+        }
+        if (utterances.length > 0) {
+          candidates.push({
+            sessionId: session.id,
+            sessionLabel,
+            dateLabel,
+            earlier,
+            kind: "transcript",
+            utterances,
+          });
+        }
+        const note = activeDocs.find((item) =>
+          item.id !== document.id &&
+          item.meetingSessionId === session.id &&
+          (item.type === "attendance_note" || item.type === "meeting_notes"),
+        );
+        if (note && earlier) {
+          const paragraphs = noteParagraphs(note.content);
+          if (paragraphs.length > 0) {
+            candidates.push({
+              sessionId: session.id,
+              sessionLabel,
+              dateLabel,
+              earlier: true,
+              kind: "attendance_note",
+              utterances: paragraphs,
+            });
+          }
+        }
+      }
+
+      const suggestion = await draftReasoningFromPassages(gap.label, candidates);
+      await logAuditEvent(userId, "reasoning_gap_suggestion", {
+        caseId,
+        documentId,
+        req,
+        metadata: {
+          action: suggestion.status === "proposed" ? "offered" : "refused",
+          gapLabel: gap.label.slice(0, 500),
+          text: suggestion.status === "proposed" ? suggestion.text.slice(0, 1000) : undefined,
+          sourceLabel: suggestion.status === "proposed" ? suggestion.sourceLabel : undefined,
+          sourceSessionId: suggestion.status === "proposed" ? suggestion.passage.sessionId : undefined,
+        },
+      });
+
+      if (suggestion.status === "insufficient") {
+        return res.json({
+          status: "insufficient",
+          message: "Nothing in this meeting or earlier meetings on this matter states the reasoning. No reason has been drafted.",
+        });
+      }
+      return res.json({
+        status: "proposed",
+        text: suggestion.text,
+        sourceLabel: suggestion.sourceLabel,
+      });
+    } catch (error) {
       next(error);
     }
   });

@@ -651,9 +651,22 @@ function toEditorContent(content: string): string {
   );
 }
 
+/** Convert a locked gap chip saved as HTML back into the stored marker. */
+function gapSpanToMarker(content: string): string {
+  return content.replace(/<span\b[^>]*data-reasoning-gap-token=["']true["'][^>]*>[\s\S]*?<\/span>/gi, (span) => {
+    const match = span.match(/data-gap-label=["']([^"']*)["']/i);
+    if (!match) return "";
+    try {
+      return `<!-- REASONING_GAP: ${decodeURIComponent(match[1])} -->`;
+    } catch {
+      return "";
+    }
+  });
+}
+
 /** Convert editor tokens / escaped litter back to canonical HTML comments. */
 function fromEditorContent(content: string): string {
-  return normalizeReasoningGapMarkers(content);
+  return normalizeReasoningGapMarkers(gapSpanToMarker(content));
 }
 
 function resolveGapContent(activeContent: string | undefined, versions: DocumentVersion[]): string {
@@ -1152,6 +1165,14 @@ function GapTranscriptPeek({
   );
 }
 
+type GapAssist = {
+  sourceLabel?: string;
+  refused?: boolean;
+  pendingText?: string;
+  pendingSourceLabel?: string;
+  suggestionText?: string;
+};
+
 function GapReviewPanel({
   documentId,
   gaps,
@@ -1160,6 +1181,12 @@ function GapReviewPanel({
   onClose,
   onSave,
   isSaving,
+  canSuggest,
+  suggestingIndex,
+  assists,
+  onSuggest,
+  onUsePending,
+  onKeepTyped,
   hasAmlFlag,
   amlAcknowledged,
   onAmlChange,
@@ -1176,6 +1203,12 @@ function GapReviewPanel({
   onClose: () => void;
   onSave: () => void;
   isSaving: boolean;
+  canSuggest?: boolean;
+  suggestingIndex: number | null;
+  assists: Record<string, GapAssist>;
+  onSuggest: (index: number) => void;
+  onUsePending: (index: number) => void;
+  onKeepTyped: (index: number) => void;
   hasAmlFlag?: boolean;
   amlAcknowledged: boolean;
   onAmlChange: (checked: boolean) => void;
@@ -1316,6 +1349,22 @@ function GapReviewPanel({
                           </button>
                         </>
                       )}
+                      {canSuggest && (
+                        <>
+                          <span className="text-[10px] text-muted-foreground/50" aria-hidden>
+                            ·
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => onSuggest(idx)}
+                            disabled={suggestingIndex === idx}
+                            className="text-[10px] font-medium text-foreground underline-offset-2 hover:underline disabled:opacity-60"
+                            data-testid={`button-gap-suggest-${testIdPrefix}-${idx}`}
+                          >
+                            {suggestingIndex === idx ? "Looking…" : "Suggest from the record"}
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1329,6 +1378,26 @@ function GapReviewPanel({
                     onSeekTimestamp={onSeekTimestamp}
                     onClose={() => setOpenPeekIndex(null)}
                   />
+                )}
+
+                {assists[String(idx)]?.pendingText && (
+                  <div className="rounded-md border border-border bg-background px-2 py-1.5 space-y-1" data-testid={`gap-suggest-replace-${testIdPrefix}-${idx}`}>
+                    <p className="text-[11px] text-muted-foreground leading-snug">Replace what you have written in this box?</p>
+                    <div className="flex gap-2">
+                      <button type="button" className="text-[10px] font-medium underline-offset-2 hover:underline" onClick={() => onUsePending(idx)}>Replace</button>
+                      <button type="button" className="text-[10px] text-muted-foreground underline-offset-2 hover:underline" onClick={() => onKeepTyped(idx)}>Keep mine</button>
+                    </div>
+                  </div>
+                )}
+                {assists[String(idx)]?.refused && (
+                  <p className="text-[11px] text-muted-foreground leading-snug" data-testid={`gap-suggest-refused-${testIdPrefix}-${idx}`}>
+                    Nothing in this meeting or earlier meetings on this matter states the reasoning. No reason has been drafted.
+                  </p>
+                )}
+                {assists[String(idx)]?.sourceLabel && !assists[String(idx)]?.pendingText && (
+                  <p className="text-[11px] text-muted-foreground leading-snug" data-testid={`gap-suggest-source-${testIdPrefix}-${idx}`}>
+                    {assists[String(idx)]?.sourceLabel} You can edit this before it is saved into the note.
+                  </p>
                 )}
 
                 <Textarea
@@ -1704,6 +1773,8 @@ export default function DocumentViewer({
   // Reasoning gap state
   const [showGapPanel, setShowGapPanel] = useState<string | null>(null); // document ID
   const [gapInputs, setGapInputs] = useState<Record<string, Record<string, string>>>({}); // docId -> sectionName -> text
+  const [gapAssists, setGapAssists] = useState<Record<string, Record<string, GapAssist>>>({});
+  const [suggestingGap, setSuggestingGap] = useState<{ documentId: string; index: number } | null>(null);
   const [showAdoptFeedback, setShowAdoptFeedback] = useState(false);
   const [reasoningNoteInputs, setReasoningNoteInputs] = useState<Record<string, string>>({}); // docId -> note text
   const [showRationaleSection, setShowRationaleSection] = useState<Record<string, boolean>>({}); // docId -> expanded
@@ -2170,7 +2241,7 @@ export default function DocumentViewer({
 
   // Gap content update mutation (replaces gap markers with solicitor text, keyed by marker index)
   const saveGapMutation = useMutation({
-    mutationFn: async ({ documentId, gaps, amlConfirmed }: { documentId: string; gaps: Record<string, string>; amlConfirmed?: boolean }) => {
+    mutationFn: async ({ documentId, gaps, amlConfirmed, fills }: { documentId: string; gaps: Record<string, string>; amlConfirmed?: boolean; fills?: { text: string; suggestionText: string | null; sourceLabel: string | null }[] }) => {
       const doc = documents.find(d => d.id === documentId);
       if (!doc) throw new Error('Document not found');
       const sourceContent = gapContentByDocIdRef.current[documentId] ?? doc.content;
@@ -2200,6 +2271,7 @@ export default function DocumentViewer({
         reasoningGapsIdentified: identifiedCount,
         reasoningGapsFilled: totalFilled,
         ...(amlConfirmed !== undefined ? { amlConfirmed } : {}),
+        ...(fills ? { fills } : {}),
       });
       return { remainingGaps };
     },
@@ -2214,11 +2286,107 @@ export default function DocumentViewer({
         toast({ title: "Gaps updated", description: `${remainingGaps.length} gap(s) remain`, duration: 3000 });
       }
       setGapInputs(prev => ({ ...prev, [variables.documentId]: {} }));
+      setGapAssists(prev => ({ ...prev, [variables.documentId]: {} }));
     },
     onError: () => {
       toast({ title: "Save Failed", description: "Could not save reasoning gaps", variant: "destructive", duration: 5000 });
     },
   });
+
+  const suggestGap = async (documentId: string, gapIndex: number) => {
+    setSuggestingGap({ documentId, index: gapIndex });
+    const key = String(gapIndex);
+    try {
+      const result = await apiRequest<{ status: "proposed" | "insufficient"; text?: string; sourceLabel?: string }>(
+        "POST",
+        `/api/cases/${caseId}/documents/${documentId}/reasoning-gap-suggestions`,
+        { gapIndex },
+      );
+      if (result.status !== "proposed" || !result.text) {
+        setGapAssists((prev) => ({
+          ...prev,
+          [documentId]: { ...(prev[documentId] ?? {}), [key]: { refused: true } },
+        }));
+        return;
+      }
+      const existing = (gapInputs[documentId] ?? {})[key]?.trim();
+      if (existing) {
+        setGapAssists((prev) => ({
+          ...prev,
+          [documentId]: {
+            ...(prev[documentId] ?? {}),
+            [key]: {
+              ...(prev[documentId]?.[key] ?? {}),
+              refused: false,
+              pendingText: result.text,
+              pendingSourceLabel: result.sourceLabel,
+            },
+          },
+        }));
+        return;
+      }
+      setGapInputs((prev) => ({
+        ...prev,
+        [documentId]: { ...(prev[documentId] ?? {}), [key]: result.text! },
+      }));
+      setGapAssists((prev) => ({
+        ...prev,
+        [documentId]: {
+          ...(prev[documentId] ?? {}),
+          [key]: { sourceLabel: result.sourceLabel, suggestionText: result.text, refused: false },
+        },
+      }));
+    } catch (error) {
+      toast({
+        title: "Could not draft a reason",
+        description: getApiErrorMessage(error, "The box is unchanged."),
+        variant: "destructive",
+      });
+    } finally {
+      setSuggestingGap(null);
+    }
+  };
+
+  const usePendingSuggestion = (documentId: string, gapIndex: number) => {
+    const key = String(gapIndex);
+    const pending = gapAssists[documentId]?.[key];
+    if (!pending?.pendingText) return;
+    setGapInputs((prev) => ({
+      ...prev,
+      [documentId]: { ...(prev[documentId] ?? {}), [key]: pending.pendingText! },
+    }));
+    setGapAssists((prev) => ({
+      ...prev,
+      [documentId]: {
+        ...(prev[documentId] ?? {}),
+        [key]: { sourceLabel: pending.pendingSourceLabel, suggestionText: pending.pendingText },
+      },
+    }));
+  };
+
+  const keepTypedReason = (documentId: string, gapIndex: number) => {
+    const key = String(gapIndex);
+    setGapAssists((prev) => ({
+      ...prev,
+      [documentId]: {
+        ...(prev[documentId] ?? {}),
+        [key]: {
+          ...(prev[documentId]?.[key] ?? {}),
+          pendingText: undefined,
+          pendingSourceLabel: undefined,
+        },
+      },
+    }));
+  };
+
+  const gapFillsFor = (documentId: string, gaps: Record<string, string>) =>
+    Object.entries(gaps)
+      .filter(([, text]) => text.trim())
+      .map(([idx, text]) => ({
+        text: text.trim(),
+        suggestionText: gapAssists[documentId]?.[idx]?.suggestionText ?? null,
+        sourceLabel: gapAssists[documentId]?.[idx]?.sourceLabel ?? null,
+      }));
 
   const requestAcknowledgementMutation = useMutation({
     mutationFn: async ({ documentId, clientEmail }: { documentId: string; clientEmail?: string }) => {
@@ -4042,10 +4210,17 @@ export default function DocumentViewer({
                   saveGapMutation.mutate({
                     documentId: attendanceNote.id,
                     gaps: gapInputs[attendanceNote.id] ?? {},
+                    fills: gapFillsFor(attendanceNote.id, gapInputs[attendanceNote.id] ?? {}),
                     amlConfirmed: hasAmlFlag ? (amlAcknowledged[attendanceNote.id] ?? false) : undefined,
                   })
                 }
                 isSaving={saveGapMutation.isPending}
+                canSuggest={attendanceNote.status !== "approved"}
+                suggestingIndex={suggestingGap?.documentId === attendanceNote.id ? suggestingGap.index : null}
+                assists={gapAssists[attendanceNote.id] ?? {}}
+                onSuggest={(index) => { void suggestGap(attendanceNote.id, index); }}
+                onUsePending={(index) => usePendingSuggestion(attendanceNote.id, index)}
+                onKeepTyped={(index) => keepTypedReason(attendanceNote.id, index)}
                 hasAmlFlag={hasAmlFlag}
                 amlAcknowledged={amlAcknowledged[attendanceNote.id] ?? false}
                 onAmlChange={(checked) =>
@@ -4304,10 +4479,17 @@ export default function DocumentViewer({
                   saveGapMutation.mutate({
                     documentId: summary.id,
                     gaps: gapInputs[summary.id] ?? {},
+                    fills: gapFillsFor(summary.id, gapInputs[summary.id] ?? {}),
                     amlConfirmed: hasAmlFlag ? (amlAcknowledged[summary.id] ?? false) : undefined,
                   })
                 }
                 isSaving={saveGapMutation.isPending}
+                canSuggest={summary.status !== "approved"}
+                suggestingIndex={suggestingGap?.documentId === summary.id ? suggestingGap.index : null}
+                assists={gapAssists[summary.id] ?? {}}
+                onSuggest={(index) => { void suggestGap(summary.id, index); }}
+                onUsePending={(index) => usePendingSuggestion(summary.id, index)}
+                onKeepTyped={(index) => keepTypedReason(summary.id, index)}
                 hasAmlFlag={hasAmlFlag}
                 amlAcknowledged={amlAcknowledged[summary.id] ?? false}
                 onAmlChange={(checked) =>

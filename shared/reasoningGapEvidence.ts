@@ -301,6 +301,31 @@ export function stripGapEvidenceComments(content: string): string {
   return content.replace(EVIDENCE_COMMENT_RE, "").replace(/\n{3,}/g, "\n\n");
 }
 
+/** Sentence written into a PDF or Word file where a gap is still open. */
+export function unfilledReasoningGapSentence(rawLabel: string): string {
+  const { citation } = splitGapLabelForEvidence(rawLabel);
+  const point = citation.replace(/\s+/g, " ").trim() || "this advice";
+  return `Reasoning not recorded for: ${point}.`;
+}
+
+/**
+ * Replace stored gap markers with the sentence a reader of the file should see.
+ * Evidence comments are removed so they are not printed.
+ */
+export function replaceUnfilledReasoningGaps(text: string): string {
+  if (!text) return text;
+  return stripGapEvidenceComments(text)
+    .replace(/<!--\s*REASONING_GAP:\s*(.+?)\s*-->/g, (_m, label: string) =>
+      unfilledReasoningGapSentence(label),
+    )
+    .replace(/&lt;!--\s*REASONING_GAP:\s*(.+?)\s*--&gt;/g, (_m, label: string) =>
+      unfilledReasoningGapSentence(label),
+    )
+    .replace(/\{\{RGAP:((?:\\.|[^}])+)\}\}/g, (_m, encoded: string) =>
+      unfilledReasoningGapSentence(decodeGapLabel(encoded)),
+    );
+}
+
 /**
  * Parse gap markers in order, attaching an immediately-following evidence
  * comment when present.
