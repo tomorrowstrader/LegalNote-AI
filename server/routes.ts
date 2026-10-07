@@ -11855,6 +11855,11 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         return res.status(400).json({ message: "Only recordings awaiting assignment can be discarded" });
       }
 
+      const reason = typeof req.body?.reason === "string" ? req.body.reason.trim().replace(/\s+/g, " ") : "";
+      if (reason.length < 3 || reason.length > 500) {
+        return res.status(400).json({ message: "Write a short reason before deleting this recording." });
+      }
+
       // GDPR: delete the stored recording from object storage BEFORE marking as discarded.
       // This is transactional — if deletion fails we do NOT mark the record discarded and return an error.
       if (importData.audioStoragePath) {
@@ -11877,16 +11882,29 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       await storage.updateMeetingImport(importData.id, {
         status: 'discarded',
         audioStoragePath: null,
-        errorMessage: 'Discarded by user — no matter assigned',
+        errorMessage: `Discarded before assignment: ${reason}`.slice(0, 2000),
       });
 
+      // No caseId: the recording was never filed on a matter, so the entry
+      // is kept against the user and shows in Audit Logs, not on a case file.
       await storage.createAuditLog({
         eventType: 'meeting_import_discarded',
         userId,
         caseId: undefined,
         ipAddress: req.ip || req.socket?.remoteAddress,
-        metadata: { importId: importData.id, audioDeleted: !!importData.audioStoragePath },
-        severity: 'info',
+        metadata: {
+          importId: importData.id,
+          audioDeleted: !!importData.audioStoragePath,
+          reason,
+          unassigned: true,
+          meetingTitle: importData.meetingTitle ?? null,
+          meetingPlatform: importData.meetingPlatform ?? null,
+          meetingStartTime: importData.meetingStartTime
+            ? new Date(importData.meetingStartTime).toISOString()
+            : null,
+          durationSeconds: importData.durationSeconds ?? null,
+        },
+        severity: 'warning',
       });
 
       res.json({ success: true });

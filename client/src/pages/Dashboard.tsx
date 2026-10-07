@@ -7,6 +7,8 @@ import EmptyState from "@/components/EmptyState";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Case } from "@shared/schema";
@@ -86,6 +88,7 @@ export default function Dashboard() {
   const [queueInitialId, setQueueInitialId] = useState<string | null>(null);
   const [discardTarget, setDiscardTarget] = useState<AssignableRecording | null>(null);
   const [discardConfirmed, setDiscardConfirmed] = useState(false);
+  const [discardReason, setDiscardReason] = useState("");
   const [selectedCaseIds, setSelectedCaseIds] = useState<Set<string>>(new Set());
   const [bulkArchiveConfirmOpen, setBulkArchiveConfirmOpen] = useState(false);
 
@@ -108,12 +111,13 @@ export default function Dashboard() {
   };
 
   const discardMutation = useMutation({
-    mutationFn: async (importId: string) =>
-      apiRequest("POST", `/api/recall/import/${importId}/discard`, {}),
+    mutationFn: async (payload: { importId: string; reason: string }) =>
+      apiRequest("POST", `/api/recall/import/${payload.importId}/discard`, { reason: payload.reason }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/recall/imports/unassigned"] });
       setDiscardTarget(null);
       setDiscardConfirmed(false);
+      setDiscardReason("");
       toast({ title: "Recording discarded", description: "The recording and its stored audio have been permanently deleted.", duration: 4000 });
     },
     onError: () => {
@@ -591,7 +595,7 @@ export default function Dashboard() {
                     <Button
                       size="icon"
                       variant="outline"
-                      onClick={() => { setDiscardTarget(imp); setDiscardConfirmed(false); }}
+                      onClick={() => { setDiscardTarget(imp); setDiscardConfirmed(false); setDiscardReason(""); }}
                       disabled={discardMutation.isPending}
                       data-testid={`button-discard-import-${imp.id}`}
                     >
@@ -838,7 +842,7 @@ export default function Dashboard() {
       </Dialog>
 
       {/* Discard GDPR Confirmation Dialog */}
-      <Dialog open={!!discardTarget} onOpenChange={(open) => { if (!open) { setDiscardTarget(null); setDiscardConfirmed(false); } }}>
+      <Dialog open={!!discardTarget} onOpenChange={(open) => { if (!open) { setDiscardTarget(null); setDiscardConfirmed(false); setDiscardReason(""); } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -858,6 +862,21 @@ export default function Dashboard() {
                   : discardTarget ? format(new Date(discardTarget.createdAt), "d MMM yyyy, HH:mm") : ""}
               </p>
             </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="discard-reason">Reason</Label>
+              <Textarea
+                id="discard-reason"
+                value={discardReason}
+                onChange={(event) => setDiscardReason(event.target.value)}
+                placeholder="e.g. Empty join — the other person never connected"
+                rows={2}
+                maxLength={500}
+                data-testid="input-discard-reason"
+              />
+              <p className="text-xs text-muted-foreground">
+                This is written to the audit log. The recording was never filed on a matter, so the entry is kept against your account rather than a case file.
+              </p>
+            </div>
             <label className="flex items-start gap-3 cursor-pointer" htmlFor="discard-confirm-check">
               <input
                 id="discard-confirm-check"
@@ -875,7 +894,7 @@ export default function Dashboard() {
               <Button
                 variant="outline"
                 className="flex-1"
-                onClick={() => { setDiscardTarget(null); setDiscardConfirmed(false); }}
+                onClick={() => { setDiscardTarget(null); setDiscardConfirmed(false); setDiscardReason(""); }}
                 data-testid="button-discard-cancel"
               >
                 Cancel
@@ -883,9 +902,9 @@ export default function Dashboard() {
               <Button
                 variant="destructive"
                 className="flex-1"
-                disabled={!discardConfirmed || discardMutation.isPending}
+                disabled={!discardConfirmed || discardReason.trim().length < 3 || discardMutation.isPending}
                 onClick={() => {
-                  if (discardTarget) discardMutation.mutate(discardTarget.id);
+                  if (discardTarget) discardMutation.mutate({ importId: discardTarget.id, reason: discardReason.trim() });
                 }}
                 data-testid="button-discard-confirm"
               >

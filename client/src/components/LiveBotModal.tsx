@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Select,
@@ -232,6 +233,7 @@ export function LiveBotModal({
   const [postMeetingTitle, setPostMeetingTitle] = useState("");
   const [postMeetingClient, setPostMeetingClient] = useState("");
   const [discardConfirmed, setDiscardConfirmed] = useState(false);
+  const [discardReason, setDiscardReason] = useState("");
   const [assignDone, setAssignDone] = useState(false);
 
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(
@@ -478,9 +480,9 @@ export function LiveBotModal({
   });
 
   const postDiscardMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (reason: string) => {
       if (!importId) throw new Error("No import ID");
-      return apiRequest("POST", `/api/recall/import/${importId}/discard`, {});
+      return apiRequest("POST", `/api/recall/import/${importId}/discard`, { reason });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/recall/imports/unassigned"] });
@@ -1802,6 +1804,21 @@ export function LiveBotModal({
                     <div className="rounded-md bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive">
                       This will permanently delete the stored audio recording. This cannot be undone.
                     </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="post-discard-reason">Reason</Label>
+                      <Textarea
+                        id="post-discard-reason"
+                        value={discardReason}
+                        onChange={(e) => setDiscardReason(e.target.value)}
+                        placeholder="e.g. Empty join — the other person never connected"
+                        rows={2}
+                        maxLength={500}
+                        data-testid="input-post-discard-reason"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        This is written to the audit log. The recording was never filed on a matter, so the entry is kept against your account rather than a case file.
+                      </p>
+                    </div>
                     <label className="flex items-start gap-3 cursor-pointer" htmlFor="post-discard-confirm">
                       <input
                         id="post-discard-confirm"
@@ -1814,12 +1831,12 @@ export function LiveBotModal({
                       <span className="text-sm">I confirm I want to permanently delete this recording and its audio.</span>
                     </label>
                     <div className="flex gap-2">
-                      <Button variant="outline" className="flex-1" onClick={() => { setPostMeetingMode("choose"); setDiscardConfirmed(false); }} data-testid="button-post-back-discard">Back</Button>
+                      <Button variant="outline" className="flex-1" onClick={() => { setPostMeetingMode("choose"); setDiscardConfirmed(false); setDiscardReason(""); }} data-testid="button-post-back-discard">Back</Button>
                       <Button
                         variant="destructive"
                         className="flex-1"
-                        disabled={!discardConfirmed || postDiscardMutation.isPending}
-                        onClick={() => postDiscardMutation.mutate()}
+                        disabled={!discardConfirmed || discardReason.trim().length < 3 || postDiscardMutation.isPending}
+                        onClick={() => postDiscardMutation.mutate(discardReason.trim())}
                         data-testid="button-post-discard-confirm"
                       >
                         {postDiscardMutation.isPending ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Deleting…</> : "Delete permanently"}

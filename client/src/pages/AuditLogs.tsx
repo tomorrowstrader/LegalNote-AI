@@ -79,6 +79,7 @@ const EVENT_LABELS: Record<string, string> = {
   case_handover: "Case Handover",
   case_handover_received: "Case Handover Received",
   external_document_referenced: "External Document Referenced",
+  meeting_import_discarded: "Unassigned Recording Deleted",
 };
 
 function formatEventType(eventType: string): string {
@@ -125,6 +126,14 @@ function formatMetadata(eventType: string, metadata: Record<string, any> | null)
     parts.push('Instructions received');
   } else if (eventType === 'audio_deleted') {
     if (metadata.reason) parts.push(`Reason: ${metadata.reason.replace(/_/g, ' ')}`);
+  } else if (eventType === 'meeting_import_discarded') {
+    const title = typeof metadata.meetingTitle === 'string' && metadata.meetingTitle.trim()
+      ? metadata.meetingTitle.trim()
+      : 'Unassigned recording';
+    parts.push(`${title} — not filed on a matter`);
+    if (typeof metadata.reason === 'string' && metadata.reason.trim()) {
+      parts.push(`Reason: ${metadata.reason.trim()}`);
+    }
   } else if (metadata.documentType) {
     parts.push(`Type: ${metadata.documentType.replace(/_/g, ' ')}`);
   }

@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   DialogDescription,
   DialogHeader,
@@ -67,6 +68,7 @@ export function UnassignedRecordingQueue({
   const [newTitle, setNewTitle] = useState("");
   const [newClient, setNewClient] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteReason, setDeleteReason] = useState("");
 
   const { data: cases = [] } = useQuery<Case[]>({
     queryKey: ["/api/cases"],
@@ -99,6 +101,7 @@ export function UnassignedRecordingQueue({
   useEffect(() => {
     if (!current) return;
     setConfirmDelete(false);
+    setDeleteReason("");
     setMode("existing");
     setNewTitle("");
     setNewClient("");
@@ -177,12 +180,13 @@ export function UnassignedRecordingQueue({
   });
 
   const discardMutation = useMutation({
-    mutationFn: async (importId: string) =>
-      apiRequest("POST", `/api/recall/import/${importId}/discard`, {}),
-    onSuccess: (_data, importId) => {
+    mutationFn: async (payload: { importId: string; reason: string }) =>
+      apiRequest("POST", `/api/recall/import/${payload.importId}/discard`, { reason: payload.reason }),
+    onSuccess: (_data, payload) => {
       invalidate();
-      setDoneIds((prev) => new Set(prev).add(importId));
+      setDoneIds((prev) => new Set(prev).add(payload.importId));
       setConfirmDelete(false);
+      setDeleteReason("");
       toast({
         title: "Recording deleted",
         description: "The stored audio has been permanently deleted.",
@@ -224,6 +228,7 @@ export function UnassignedRecordingQueue({
   const canAssign = mode === "existing"
     ? !!caseId
     : !!newTitle.trim() && !!newClient.trim();
+  const deleteReasonReady = deleteReason.trim().length >= 3;
   const busy = assignMutation.isPending || discardMutation.isPending;
 
   const assign = () => {
@@ -321,28 +326,25 @@ export function UnassignedRecordingQueue({
 
       {recentMatters.length > 0 && (
         <div className="space-y-1.5">
-          <p className="text-xs font-medium text-foreground">Recent matters</p>
-          <div className="flex flex-wrap gap-1.5">
-            {recentMatters.map((matter) => {
-              const selected = mode === "existing" && caseId === matter.id;
-              return (
-                <Button
-                  key={matter.id}
-                  type="button"
-                  size="sm"
-                  variant={selected ? "default" : "outline"}
-                  className="h-7 max-w-full truncate"
-                  onClick={() => {
-                    setMode("existing");
-                    setCaseId(matter.id);
-                  }}
-                  data-testid={`button-recent-matter-${matter.id}`}
-                >
+          <Label htmlFor="queue-recent-matter">Recent matters</Label>
+          <Select
+            value={mode === "existing" && recentMatters.some((matter) => matter.id === caseId) ? caseId : undefined}
+            onValueChange={(id) => {
+              setMode("existing");
+              setCaseId(id);
+            }}
+          >
+            <SelectTrigger id="queue-recent-matter" data-testid="select-recent-matter">
+              <SelectValue placeholder="Choose a recent matter" />
+            </SelectTrigger>
+            <SelectContent>
+              {recentMatters.map((matter) => (
+                <SelectItem key={matter.id} value={matter.id} className="whitespace-normal" data-testid={`option-recent-matter-${matter.id}`}>
                   {matterChoiceLabel(matter.title, matter.clientName)}
-                </Button>
-              );
-            })}
-          </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       )}
 
@@ -426,18 +428,41 @@ export function UnassignedRecordingQueue({
       {confirmDelete ? (
         <div className="space-y-2 rounded-md border border-destructive/30 bg-destructive/5 p-3">
           <p className="text-sm">Delete this recording permanently? The audio cannot be recovered.</p>
+          <div className="space-y-1.5">
+            <Label htmlFor="queue-delete-reason">Reason</Label>
+            <Textarea
+              id="queue-delete-reason"
+              value={deleteReason}
+              onChange={(event) => setDeleteReason(event.target.value)}
+              placeholder="e.g. Empty join — the other person never connected"
+              rows={2}
+              maxLength={500}
+              data-testid="input-delete-recording-reason"
+            />
+            <p className="text-xs text-muted-foreground">
+              This is written to the audit log. The recording was never filed on a matter, so the entry is kept against your account rather than a case file.
+            </p>
+          </div>
           <div className="flex gap-2">
             <Button
               type="button"
               variant="destructive"
               size="sm"
-              disabled={busy}
-              onClick={() => discardMutation.mutate(current.id)}
+              disabled={busy || !deleteReasonReady}
+              onClick={() => discardMutation.mutate({ importId: current.id, reason: deleteReason.trim() })}
               data-testid="button-confirm-delete-recording"
             >
               {discardMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Delete recording"}
             </Button>
-            <Button type="button" variant="ghost" size="sm" onClick={() => setConfirmDelete(false)}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setConfirmDelete(false);
+                setDeleteReason("");
+              }}
+            >
               Cancel
             </Button>
           </div>

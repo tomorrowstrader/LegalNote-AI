@@ -163,6 +163,7 @@ const EVENT_LABELS: Record<string, string> = {
   time_entry_created: "Time Record Created",
   time_entry_updated: "Time Record Updated",
   time_entry_deleted: "Time Record Deleted",
+  meeting_import_discarded: "Unassigned Recording Deleted",
 };
 
 // Helper function to format event type if not in labels
@@ -260,6 +261,16 @@ function formatMetadata(eventType: string, metadata: Record<string, any>): strin
       return metadata.reason 
         ? `Audio removed: ${metadata.reason}`
         : "Audio recording deleted";
+
+    case "meeting_import_discarded": {
+      const title = typeof metadata.meetingTitle === "string" && metadata.meetingTitle.trim()
+        ? metadata.meetingTitle.trim()
+        : "Unassigned recording";
+      const reason = typeof metadata.reason === "string" ? metadata.reason.trim() : "";
+      return reason
+        ? `${title} deleted before it was filed on a matter. Reason: ${reason}`
+        : `${title} deleted before it was filed on a matter.`;
+    }
 
     case "audio_deletion_blocked_litigation_hold":
       return metadata.trigger
