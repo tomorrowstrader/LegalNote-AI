@@ -280,7 +280,7 @@ export default function Capture() {
         }}
         onSelect={handleCaseSelected}
         title="Select a matter"
-        description="Which matter is this capture for?"
+        description="Choose an existing matter, or create a new one to continue."
       />
 
       <LiveBotModal
