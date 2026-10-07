@@ -19,7 +19,7 @@ import ReactMarkdown from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import { normalizeAttendanceSectionLabels } from "@shared/attendanceNoteFormat";
-import { ShareBrandBar, ShareBrandFooter } from "@/components/ShareBrandChrome";
+import { FirmPublicBrandBar, FirmPublicBrandFooter } from "@/components/FirmPublicBrandChrome";
 import { ShareFlagCorrection } from "@/components/ShareFlagCorrection";
 
 interface ShareLinkData {
@@ -338,7 +338,7 @@ export default function ShareLinkView() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
-        <ShareBrandBar />
+        <FirmPublicBrandBar firmProfile={data?.firmProfile} />
         <div className="flex-1 flex items-center justify-center p-4">
           <Card className="w-full max-w-2xl">
             <CardHeader>
@@ -349,7 +349,7 @@ export default function ShareLinkView() {
             </CardHeader>
           </Card>
         </div>
-        <ShareBrandFooter />
+        <FirmPublicBrandFooter firmProfile={data?.firmProfile} />
       </div>
     );
   }
@@ -361,7 +361,7 @@ export default function ShareLinkView() {
 
     return (
       <div className="min-h-screen bg-background flex flex-col">
-        <ShareBrandBar />
+        <FirmPublicBrandBar firmProfile={data?.firmProfile} />
         <div className="flex-1 flex items-center justify-center p-4">
           <Card className="w-full max-w-2xl">
             <CardHeader>
@@ -381,7 +381,7 @@ export default function ShareLinkView() {
             </CardHeader>
           </Card>
         </div>
-        <ShareBrandFooter />
+        <FirmPublicBrandFooter firmProfile={data?.firmProfile} />
       </div>
     );
   }
@@ -389,7 +389,7 @@ export default function ShareLinkView() {
   if (data?.requiresPassword) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
-        <ShareBrandBar />
+        <FirmPublicBrandBar firmProfile={data?.firmProfile} />
         <div className="flex-1 flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardHeader>
@@ -447,7 +447,7 @@ export default function ShareLinkView() {
           </CardContent>
         </Card>
         </div>
-        <ShareBrandFooter />
+        <FirmPublicBrandFooter firmProfile={data?.firmProfile} />
       </div>
     );
   }
@@ -455,7 +455,7 @@ export default function ShareLinkView() {
   if (data?.requiresSmsVerification) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
-        <ShareBrandBar />
+        <FirmPublicBrandBar firmProfile={data?.firmProfile} />
         <div className="flex-1 flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardHeader>
@@ -623,7 +623,7 @@ export default function ShareLinkView() {
           </CardContent>
         </Card>
         </div>
-        <ShareBrandFooter />
+        <FirmPublicBrandFooter firmProfile={data?.firmProfile} />
       </div>
     );
   }
@@ -631,7 +631,7 @@ export default function ShareLinkView() {
   if (!data?.caseData) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
-        <ShareBrandBar />
+        <FirmPublicBrandBar firmProfile={data?.firmProfile} />
         <div className="flex-1 flex items-center justify-center p-4">
           <Card className="w-full max-w-2xl">
             <CardHeader>
@@ -645,7 +645,7 @@ export default function ShareLinkView() {
             </CardHeader>
           </Card>
         </div>
-        <ShareBrandFooter />
+        <FirmPublicBrandFooter firmProfile={data?.firmProfile} />
       </div>
     );
   }
@@ -709,7 +709,7 @@ export default function ShareLinkView() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <ShareBrandBar />
+      <FirmPublicBrandBar firmProfile={data?.firmProfile} />
       <div className="container max-w-5xl mx-auto py-8 px-4 flex-1">
         {/* Header */}
         <Card className="mb-6">
@@ -866,7 +866,7 @@ export default function ShareLinkView() {
           </CardContent>
         </Card>
       </div>
-      <ShareBrandFooter />
+      <FirmPublicBrandFooter firmProfile={data?.firmProfile} />
 
       {/* Download Modal */}
       <DownloadModal

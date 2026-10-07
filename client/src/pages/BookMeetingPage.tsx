@@ -13,7 +13,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
-import { ShareBrandBar, ShareBrandFooter } from "@/components/ShareBrandChrome";
+import { FirmPublicBrandBar, FirmPublicBrandFooter } from "@/components/FirmPublicBrandChrome";
 
 interface PublicBookingSlot {
   id: string;
@@ -33,7 +33,7 @@ interface PublicBookingData {
   slots: PublicBookingSlot[];
   /** Firm name when configured — never a role label like “solicitor”. */
   organiserName: string | null;
-  firmProfile: { firmName: string; logoUrl: string | null } | null;
+  firmProfile: { firmName: string; logoUrl: string | null; phone?: string | null; email?: string | null } | null;
 }
 
 function formatSlotLabel(startsAt: string, endsAt: string): { date: string; time: string } {
@@ -118,16 +118,19 @@ export default function BookMeetingPage() {
     }
   }, [data?.slots, selectedSlotId]);
 
+  const firmProfile = data?.firmProfile ?? null;
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-muted/30 flex flex-col">
-        <ShareBrandBar />
+        <FirmPublicBrandBar firmProfile={null} />
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="text-center space-y-3">
             <Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" />
             <p className="text-sm text-muted-foreground">Loading proposed times…</p>
           </div>
         </div>
+        <FirmPublicBrandFooter firmProfile={null} />
       </div>
     );
   }
@@ -135,7 +138,7 @@ export default function BookMeetingPage() {
   if (isError || !data) {
     return (
       <div className="min-h-screen bg-muted/30 flex flex-col">
-        <ShareBrandBar />
+        <FirmPublicBrandBar firmProfile={null} />
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="bg-card rounded-md border border-border shadow-md max-w-md w-full p-8 text-center space-y-4">
             <AlertCircle className="w-10 h-10 text-destructive mx-auto" />
@@ -146,7 +149,7 @@ export default function BookMeetingPage() {
             </p>
           </div>
         </div>
-        <ShareBrandFooter />
+        <FirmPublicBrandFooter firmProfile={null} />
       </div>
     );
   }
@@ -164,7 +167,7 @@ export default function BookMeetingPage() {
     const when = bookedStartsAt || data.selectedStartsAt;
     return (
       <div className="min-h-screen bg-muted/30 flex flex-col">
-        <ShareBrandBar />
+        <FirmPublicBrandBar firmProfile={firmProfile} />
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="bg-card rounded-md border border-border shadow-md max-w-md w-full p-8 text-center space-y-4">
             <CheckCircle className="w-12 h-12 text-green-500 mx-auto" />
@@ -194,7 +197,7 @@ export default function BookMeetingPage() {
             </p>
           </div>
         </div>
-        <ShareBrandFooter />
+        <FirmPublicBrandFooter firmProfile={null} />
       </div>
     );
   }
@@ -202,7 +205,7 @@ export default function BookMeetingPage() {
   if (alreadyDeclined) {
     return (
       <div className="min-h-screen bg-muted/30 flex flex-col">
-        <ShareBrandBar />
+        <FirmPublicBrandBar firmProfile={firmProfile} />
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="bg-card rounded-md border border-border shadow-md max-w-md w-full p-8 text-center space-y-4">
             <CheckCircle className="w-12 h-12 text-muted-foreground mx-auto" />
@@ -221,7 +224,7 @@ export default function BookMeetingPage() {
             </p>
           </div>
         </div>
-        <ShareBrandFooter />
+        <FirmPublicBrandFooter firmProfile={null} />
       </div>
     );
   }
@@ -229,7 +232,7 @@ export default function BookMeetingPage() {
   if (unavailable) {
     return (
       <div className="min-h-screen bg-muted/30 flex flex-col">
-        <ShareBrandBar />
+        <FirmPublicBrandBar firmProfile={firmProfile} />
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="bg-card rounded-md border border-border shadow-md max-w-md w-full p-8 text-center space-y-4">
             <AlertCircle className="w-10 h-10 text-muted-foreground mx-auto" />
@@ -241,14 +244,14 @@ export default function BookMeetingPage() {
             </p>
           </div>
         </div>
-        <ShareBrandFooter />
+        <FirmPublicBrandFooter firmProfile={null} />
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-muted/30 flex flex-col">
-      <ShareBrandBar />
+      <FirmPublicBrandBar firmProfile={firmProfile} />
       <main className="flex-1 container max-w-lg mx-auto px-4 py-8">
         <div className="space-y-6">
           <div className="space-y-2 text-center">
@@ -400,7 +403,7 @@ export default function BookMeetingPage() {
           </p>
         </div>
       </main>
-      <ShareBrandFooter />
+      <FirmPublicBrandFooter firmProfile={firmProfile} />
     </div>
   );
 }

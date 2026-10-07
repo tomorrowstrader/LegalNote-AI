@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { CheckCircle, FileText, Lock, AlertCircle } from "lucide-react";
+import { CheckCircle, Lock, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
+import { FirmPublicBrandBar, FirmPublicBrandFooter } from "@/components/FirmPublicBrandChrome";
 
 interface AcknowledgeData {
   documentId: string;
@@ -18,7 +19,12 @@ interface AcknowledgeData {
   matterReference: string | null;
   acknowledgedAt: string | null;
   acknowledgedByEmail: string | null;
-  firmProfile: { firmName: string; logoUrl: string | null } | null;
+  firmProfile: {
+    firmName: string;
+    logoUrl: string | null;
+    phone?: string | null;
+    email?: string | null;
+  } | null;
 }
 
 export default function AcknowledgePage() {
@@ -58,12 +64,19 @@ export default function AcknowledgePage() {
     acknowledgeMutation.mutate();
   };
 
+  const firmProfile = data?.firmProfile ?? null;
+  const firmName = firmProfile?.firmName?.trim() || null;
+  const documentLabel = data?.documentLabel || "Client Care Letter";
+
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-muted/30 flex items-center justify-center p-4">
-        <div className="text-center space-y-3">
-          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-sm text-muted-foreground">Loading your document...</p>
+      <div className="min-h-screen bg-muted/30 flex flex-col">
+        <FirmPublicBrandBar firmProfile={null} />
+        <div className="flex-1 flex items-center justify-center p-4">
+          <div className="text-center space-y-3">
+            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+            <p className="text-sm text-muted-foreground">Loading your document...</p>
+          </div>
         </div>
       </div>
     );
@@ -71,21 +84,23 @@ export default function AcknowledgePage() {
 
   if (isError || !data) {
     return (
-      <div className="min-h-screen bg-muted/30 flex items-center justify-center p-4">
-        <div className="bg-card rounded-md border border-border shadow-md max-w-md w-full p-8 text-center space-y-4">
-          <AlertCircle className="w-10 h-10 text-destructive mx-auto" />
-          <h1 className="text-lg font-semibold">Link invalid or expired</h1>
-          <p className="text-sm text-muted-foreground">
-            This acknowledgement link is no longer valid. Please contact your solicitor if you believe this is an error.
-          </p>
+      <div className="min-h-screen bg-muted/30 flex flex-col">
+        <FirmPublicBrandBar firmProfile={null} />
+        <div className="flex-1 flex items-center justify-center p-4">
+          <div className="bg-card rounded-md border border-border shadow-md max-w-md w-full p-8 text-center space-y-4">
+            <AlertCircle className="w-10 h-10 text-destructive mx-auto" />
+            <h1 className="text-lg font-semibold">Link invalid or expired</h1>
+            <p className="text-sm text-muted-foreground">
+              This acknowledgement link is no longer valid. Please contact the person who sent you this link if you believe this is an error.
+            </p>
+          </div>
         </div>
+        <FirmPublicBrandFooter firmProfile={null} />
       </div>
     );
   }
 
   const alreadyAcknowledged = !!data.acknowledgedAt;
-  const firmName = data.firmProfile?.firmName || "Your Solicitors";
-  const documentLabel = data.documentLabel || "Client Care Letter";
 
   if (confirmed || alreadyAcknowledged) {
     const acknowledgedAt = confirmed
@@ -95,46 +110,46 @@ export default function AcknowledgePage() {
       : new Date();
 
     return (
-      <div className="min-h-screen bg-muted/30 flex items-center justify-center p-4">
-        <div className="bg-card rounded-md border border-border shadow-md max-w-md w-full p-8 text-center space-y-4">
-          <CheckCircle className="w-12 h-12 text-green-500 mx-auto" />
-          <h1 className="text-xl font-semibold">Acknowledged</h1>
-          <p className="text-sm text-muted-foreground">
-            Thank you. Your acknowledgement of the {documentLabel} for{" "}
-            <strong>{data.caseTitle}</strong> has been recorded.
-          </p>
-          <div className="text-xs text-muted-foreground bg-muted/50 rounded-md px-4 py-3">
-            Recorded: {format(acknowledgedAt, "d MMMM yyyy 'at' HH:mm")}
+      <div className="min-h-screen bg-muted/30 flex flex-col">
+        <FirmPublicBrandBar firmProfile={firmProfile} />
+        <div className="flex-1 flex items-center justify-center p-4">
+          <div className="bg-card rounded-md border border-border shadow-md max-w-md w-full p-8 text-center space-y-4">
+            <CheckCircle className="w-12 h-12 text-green-500 mx-auto" />
+            <h1 className="text-xl font-semibold">Acknowledged</h1>
+            <p className="text-sm text-muted-foreground">
+              Thank you. Your acknowledgement of the {documentLabel} for{" "}
+              <strong>{data.caseTitle}</strong> has been recorded.
+            </p>
+            <div className="text-xs text-muted-foreground bg-muted/50 rounded-md px-4 py-3">
+              Recorded: {format(acknowledgedAt, "d MMMM yyyy 'at' HH:mm")}
+            </div>
+            {firmName && (
+              <p className="text-xs text-muted-foreground">
+                A copy of this record has been sent to <strong>{firmName}</strong>. Please retain this
+                page or take a screenshot for your records.
+              </p>
+            )}
           </div>
-          <p className="text-xs text-muted-foreground">
-            A copy of this record has been sent to <strong>{firmName}</strong>. Please retain this
-            page or take a screenshot for your records.
-          </p>
         </div>
+        <FirmPublicBrandFooter firmProfile={firmProfile} />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-muted/30">
-      {/* Header */}
-      <header className="bg-card border-b border-border sticky top-0 z-50">
-        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2 min-w-0">
-            <FileText className="w-5 h-5 text-primary shrink-0" />
-            <div className="min-w-0">
-              <p className="text-sm font-semibold truncate">{firmName}</p>
-              <p className="text-xs text-muted-foreground truncate">{data.caseTitle}</p>
-            </div>
+    <div className="min-h-screen bg-muted/30 flex flex-col">
+      <FirmPublicBrandBar firmProfile={firmProfile} />
+
+      <main className="flex-1 max-w-3xl mx-auto px-4 py-8 space-y-8 w-full">
+        <div className="flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-xs text-muted-foreground truncate">{data.caseTitle}</p>
           </div>
           <Badge variant="outline" className="gap-1 shrink-0">
             <Lock className="w-3 h-3" />
             Secure
           </Badge>
         </div>
-      </header>
-
-      <main className="max-w-3xl mx-auto px-4 py-8 space-y-8">
         {/* Instruction banner */}
         <div className="bg-card rounded-md border border-border p-5 space-y-2">
           <h2 className="text-base font-semibold">{documentLabel}</h2>
@@ -200,10 +215,11 @@ export default function AcknowledgePage() {
 
           <p className="text-[11px] text-muted-foreground">
             Your IP address and the time of confirmation will be recorded as part of the audit trail
-            held by {firmName}. This is required by SRA regulations.
+            {firmName ? ` held by ${firmName}` : ""}. This is required by SRA regulations.
           </p>
         </div>
       </main>
+      <FirmPublicBrandFooter firmProfile={firmProfile} />
     </div>
   );
 }
