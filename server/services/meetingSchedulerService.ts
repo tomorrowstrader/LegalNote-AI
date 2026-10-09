@@ -4,6 +4,7 @@ import { storage } from '../storage';
 import type { ScheduledMeeting, InsertScheduledMeeting, CalendarIntegration } from '@shared/schema';
 import { recallService } from './recallService';
 import { sendPreConsentEmail, sendMeetingReminderEmail, sendClientMeetingReminderEmail, publicFacingDisplayName } from '../email';
+import { senderLabelForUser } from '../clientFacingSender';
 import { ensureFreshOutlookToken } from '../oauth';
 import { randomBytes } from 'crypto';
 import {
@@ -475,10 +476,11 @@ export class MeetingSchedulerService {
     const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://legalnote.ai';
     const consentUrl = `${baseUrl}/consent/${consentToken}`;
 
-    // Stored copy only — outbound HTML is owned by sendPreConsentEmail (no matter titles / PII).
+    // Stored copy only - outbound HTML is owned by sendPreConsentEmail (no matter titles / PII).
+    const sender = await senderLabelForUser(meeting.userId);
     const emailSubject = 'Recording consent request';
     const emailBody = [
-      'Your solicitor has requested recording consent for an upcoming meeting.',
+      `${sender.capitalised} has requested recording consent for an upcoming meeting.`,
       'Respond via the LegalNote consent link. No matter details are included in this email.',
       consentUrl,
     ].join('\n\n');
@@ -505,6 +507,7 @@ export class MeetingSchedulerService {
         recipientName: resolvedRecipientName,
         consentUrl,
         scheduledMeetingTime: meeting.startTime,
+        senderLabel: sender.capitalised,
       });
 
       await storage.updatePreConsentEmail(preConsentEmail.id, { emailStatus: 'sent' });

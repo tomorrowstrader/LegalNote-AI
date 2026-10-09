@@ -11,14 +11,13 @@ import {
 import type { IStorage } from "../storage";
 import { logAuditEvent } from "../auditMiddleware";
 import {
-  PRIMARY_ROLE_LABELS,
-  type PrimaryRole,
   type User,
   type MeetingSession,
   type InsertDocument,
   type InsertActionItem,
   type Transcript,
 } from "@shared/schema";
+import { noteRoleTitle } from "@shared/professionalIdentity";
 import { isFeatureVisible } from "@shared/featureVisibility";
 import { repairRtfTranscriptContent } from "./normalizeUploadedTranscript";
 import { generateDocumentHash } from "../utils/documentHash";
@@ -91,18 +90,8 @@ function formatDurationMinutes(totalMinutes: number): string {
   return `${hours} hour${hours === 1 ? "" : "s"} ${mins} minutes`;
 }
 
-function resolveFeeEarnerTitle(user: User): string {
-  if (user.primaryRole === "custom" && user.customRoleLabel?.trim()) {
-    return user.customRoleLabel.trim();
-  }
-  if (user.primaryRole && user.primaryRole in PRIMARY_ROLE_LABELS) {
-    return PRIMARY_ROLE_LABELS[user.primaryRole as PrimaryRole];
-  }
-  if (user.role?.trim()) {
-    const r = user.role.trim();
-    return r.charAt(0).toUpperCase() + r.slice(1);
-  }
-  return "Solicitor";
+function resolveFeeEarnerTitle(user: User): string | null {
+  return noteRoleTitle(user);
 }
 
 function buildFeeEarnerInitials(user: User): string {
@@ -120,17 +109,18 @@ function buildFeeEarnerDisplayName(user: User, showFullSolicitorName: boolean): 
     const name =
       [user.firstName, user.lastName].filter(Boolean).join(" ").trim() ||
       user.email ||
-      "Solicitor";
-    return `${name}, ${title}`;
+      "Fee earner";
+    return title ? `${name}, ${title}` : name;
   }
-  return `${buildFeeEarnerInitials(user)}, ${title}`;
+  const initials = buildFeeEarnerInitials(user);
+  return title ? `${initials}, ${title}` : initials;
 }
 
 function buildFeeEarnerPlainName(user: User): string {
   return (
     [user.firstName, user.lastName].filter(Boolean).join(" ").trim() ||
     user.email ||
-    "Solicitor"
+    "Fee earner"
   );
 }
 
@@ -187,6 +177,7 @@ async function buildMetadata(
     ? buildFeeEarnerDisplayName(feeEarnerUser, params.showFullSolicitorName)
     : undefined;
   const feeEarnerName = feeEarnerUser ? buildFeeEarnerPlainName(feeEarnerUser) : undefined;
+  const feeEarnerTitle = feeEarnerUser ? resolveFeeEarnerTitle(feeEarnerUser) ?? undefined : undefined;
 
   const meetingTimestamp =
     params.meetingTimestamp ??
@@ -223,6 +214,7 @@ async function buildMetadata(
     durationDisplay,
     units,
     feeEarnerDisplayName,
+    feeEarnerTitle,
     feeEarnerName,
     firmName: params.firmName,
     templateId: params.caseData.templateId || undefined,
@@ -669,7 +661,9 @@ export async function deriveDocumentsFromTranscript(
           clientName: caseData.clientName,
           matterReference: caseData.matterReference || undefined,
           recordingDate: new Date().toISOString().split("T")[0],
-        });
+          feeEarnerName: metadata.feeEarnerName,
+          feeEarnerTitle: metadata.feeEarnerTitle,
+        }, { internalMeeting: recordingType === "internal_meeting" });
         for (const item of obligationResult.items) {
           await storage.createActionItem({
             caseId,

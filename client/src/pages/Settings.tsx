@@ -511,9 +511,9 @@ function FirmProfileForm() {
                 render={({ field }) => (
                   <FormItem className="flex items-center justify-between rounded-lg border p-4">
                     <div className="space-y-0.5">
-                      <FormLabel className="text-base">Show Full Solicitor Name</FormLabel>
+                      <FormLabel className="text-base">Show full name on notes</FormLabel>
                       <p className="text-sm text-muted-foreground">
-                        Display full name and title, or initials only for privacy
+                        Display the fee earner's full name and title, or initials only
                       </p>
                     </div>
                     <FormControl>

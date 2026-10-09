@@ -168,6 +168,7 @@ import {
   renderConsentExpiredPage,
   renderConsentNotFoundPage,
 } from "./consentPublicPage";
+import { senderLabelForUser } from "./clientFacingSender";
 import { assembleSraReportData, buildSraReportPreview } from "./services/sraReportService";
 import { compileSraReportPdf } from "./services/sraReportPdf";
 import { logPersonnelMatterAccess } from "./personnelAccessAudit";
@@ -1987,8 +1988,11 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
       const recentCount = await storage.countShareFeedbackForLink(linkId, since);
       if (recentCount >= 10) {
+        const sender = shareLink.createdBy
+          ? await senderLabelForUser(shareLink.createdBy)
+          : { phrase: "the person who sent this", capitalised: "The person who sent this" };
         return res.status(429).json({
-          message: "Too many correction flags from this link today. Please contact your solicitor directly.",
+          message: `Too many correction flags from this link today. Please contact ${sender.phrase} directly.`,
         });
       }
 
@@ -8539,14 +8543,21 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       const { DocumentService } = await import("./services/documentService");
       const documentService = new DocumentService();
       
+      const feeEarner = await storage.getUser(userId);
+      const { noteRoleTitle } = await import("@shared/professionalIdentity");
+      const matterKind = String(caseData.matterKind || "client");
       const metadata = {
         title: caseData.title,
         clientName: caseData.clientName,
         matterReference: caseData.matterReference || undefined,
         recordingDate: new Date().toISOString().split('T')[0],
+        feeEarnerTitle: feeEarner ? noteRoleTitle(feeEarner) ?? undefined : undefined,
+        feeEarnerName: [feeEarner?.firstName, feeEarner?.lastName].filter(Boolean).join(" ").trim() || undefined,
       };
       
-      const result = await documentService.extractActionItems(transcript.content, metadata);
+      const result = await documentService.extractActionItems(transcript.content, metadata, {
+        internalMeeting: matterKind === "internal" || matterKind === "firm",
+      });
       
       // Store extracted action items with originalDescription for audit trail
       const createdItems = [];
@@ -12122,9 +12133,10 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
 
       const recipientName = contactName || "Client";
       const recipientEmail = contactEmail || `sms-${consentToken.substring(0, 8)}@placeholder.invalid`;
+      const sender = await senderLabelForUser(userId);
       const emailSubject = "Recording consent request";
       const emailBody = [
-        "Your solicitor has requested recording consent for a meeting.",
+        `${sender.capitalised} has requested recording consent for a meeting.`,
         "Respond via the LegalNote consent link. No matter details are included in this email.",
         consentUrl,
       ].join("\n\n");
@@ -12151,6 +12163,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
             to: contactEmail,
             recipientName,
             consentUrl,
+            senderLabel: sender.capitalised,
           });
 
           if (!result.success) {
@@ -12171,7 +12184,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         try {
           const { formatUKPhoneNumber, sendSmsMessage } = await import("./sms");
           const formattedPhone = formatUKPhoneNumber(contactMobile);
-          const smsBody = `Your solicitor requests consent to record a meeting. Tap to respond: ${consentUrl}`;
+          const smsBody = `${sender.capitalised} requests consent to record a meeting. Tap to respond: ${consentUrl}`;
 
           const smsResult = await sendSmsMessage(formattedPhone, smsBody);
           if (!smsResult.success) {
@@ -12722,10 +12735,11 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       const consentUrl = `${baseUrl}/consent/${consentToken}`;
       const scheduledAt = scheduledMeetingTime ? new Date(scheduledMeetingTime) : undefined;
 
-      // Stored copy only — outbound HTML is owned by sendPreConsentEmail (no matter / meeting URL PII).
+      // Stored copy only - outbound HTML is owned by sendPreConsentEmail (no matter / meeting URL PII).
+      const sender = await senderLabelForUser(userId);
       const emailSubject = "Recording consent request";
       const emailBody = [
-        "Your solicitor has requested recording consent for an upcoming meeting.",
+        `${sender.capitalised} has requested recording consent for an upcoming meeting.`,
         "Respond via the LegalNote consent link. No matter details are included in this email.",
         consentUrl,
       ].join("\n\n");
@@ -12753,6 +12767,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
           recipientName,
           consentUrl,
           scheduledMeetingTime: scheduledAt,
+          senderLabel: sender.capitalised,
         });
 
         if (!result.success) {
@@ -12955,11 +12970,12 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         console.error('[CONSENT] Failed to send SSE notification:', sseError);
       }
       
+      const sender = await senderLabelForUser(consentEmail.userId);
       const responseMessage = status === 'granted' 
         ? "Thank you for acknowledging the recording consent"
         : status === 'declined'
-        ? "Your response has been recorded. The solicitor has been notified that consent was declined."
-        : "Your reschedule request has been sent to the solicitor.";
+        ? `Your response has been recorded. ${sender.capitalised} has been notified that consent was declined.`
+        : `Your reschedule request has been sent to ${sender.phrase}.`;
       
       res.json({ 
         success: true, 
@@ -12993,10 +13009,12 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       }
       
       if (consentEmail.expiresAt && new Date(consentEmail.expiresAt) < new Date()) {
-        return res.send(renderConsentExpiredPage());
+        const sender = await senderLabelForUser(consentEmail.userId);
+        return res.send(renderConsentExpiredPage(sender.phrase));
       }
       
-      res.send(renderConsentDecisionPage(token));
+      const sender = await senderLabelForUser(consentEmail.userId);
+      res.send(renderConsentDecisionPage(token, sender.capitalised));
     } catch (error) {
       next(error);
     }
@@ -13819,11 +13837,16 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       if (meeting.clientEmail) {
         try {
           const { sendBrandedClientNoticeEmail } = await import("./email");
+          const sender = await senderLabelForUser(userId);
+          const who = sender.phrase
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
           await sendBrandedClientNoticeEmail({
             to: meeting.clientEmail,
             subject: "Meeting cancelled",
             heading: "Meeting cancelled",
-            messageHtml: `<p style="margin:0 0 12px;">A meeting with your solicitor has been cancelled.${reason ? " Please contact them if you need further details." : ""}</p><p style="margin:0;">If you have questions, reply to your solicitor directly.</p>`,
+            messageHtml: `<p style="margin:0 0 12px;">A meeting with ${who} has been cancelled.${reason ? " Please contact them if you need further details." : ""}</p><p style="margin:0;">If you have questions, reply to ${who} directly.</p>`,
           });
         } catch (emailErr) {
           console.log(`[MEETING_CANCEL] Notification email failed (non-blocking): ${emailErr}`);

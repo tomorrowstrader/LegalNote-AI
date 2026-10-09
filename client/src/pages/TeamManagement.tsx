@@ -36,6 +36,7 @@ const PRIMARY_ROLES = [
   { value: "paralegal", label: "Paralegal" },
   { value: "licensed_conveyancer", label: "Licensed Conveyancer" },
   { value: "costs_lawyer", label: "Costs Lawyer" },
+  { value: "barrister", label: "Barrister" },
   { value: "practice_manager", label: "Practice Manager" },
   { value: "compliance_manager", label: "Compliance Manager" },
   { value: "accounts_finance", label: "Accounts and Finance" },

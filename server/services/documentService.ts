@@ -8,6 +8,7 @@ import {
   formatMeetingCastInstructions,
   type MeetingCast,
 } from '@shared/meetingCast';
+import { professionalActionLabel } from '@shared/professionalIdentity';
 import { attendanceEnquiryRule } from '@shared/instructionStatus';
 import type { PracticeArea } from '@shared/schema';
 import { getPracticeAreaPromptContext } from './practiceAreaConfig';
@@ -91,6 +92,7 @@ function ensureBoldHeadings(content: string): string {
     'Risk Assessment',
     'Enhanced Due Diligence (EDD)',
     'Solicitor Confirmation',
+    'Fee earner confirmation',
   ];
   
   let result = content;
@@ -139,7 +141,7 @@ function ensureSectionSpacing(content: string): string {
 }
 
 const VERIFICATION_PARSE_FALLBACK =
-  'Verification response could not be parsed — solicitor review is required before this document is added to the client file';
+  'Verification response could not be parsed - review is required before this document is added to the client file';
 
 function verificationFailureWarning(message: string): VerificationWarning {
   return createVerificationWarning({
@@ -330,7 +332,7 @@ function normalizeStructuredVerificationItem(
   if (typeof item === 'string') {
     const trimmed = item.trim();
     if (!trimmed || shouldDropVerifierNonDefectEntry(trimmed, 'string')) return null;
-    const sep = trimmed.includes(' — ') ? ' — ' : trimmed.includes(' – ') ? ' – ' : null;
+    const sep = trimmed.includes(' - ') ? ' - ' : trimmed.includes(' – ') ? ' – ' : null;
     const documentQuote = sep ? trimmed.slice(0, trimmed.indexOf(sep)).trim() : trimmed;
     const explanation = sep
       ? trimmed.slice(trimmed.indexOf(sep) + sep.length).trim()
@@ -686,6 +688,14 @@ export interface DocumentGenerationResult {
   verificationWarnings?: VerificationWarning[];
 }
 
+function actionSideLabel(metadata: CaseMetadata): string {
+  return professionalActionLabel(metadata.feeEarnerTitle, metadata.feeEarnerName);
+}
+
+function preparedByLine(metadata: CaseMetadata): string {
+  return metadata.feeEarnerDisplayName ?? metadata.feeEarnerName ?? "Not recorded";
+}
+
 export interface CaseMetadata {
   title: string;
   clientName: string;
@@ -700,6 +710,8 @@ export interface CaseMetadata {
   durationDisplay?: string;
   units?: number;
   feeEarnerDisplayName?: string;
+  /** Team-role title. Absent when no team role is set. Never inferred from the legacy solicitor default. */
+  feeEarnerTitle?: string;
   /** Plain name for first-person voice instruction (no title) */
   feeEarnerName?: string;
   /** Client on the matter, before a meeting cast overrides the note. */
@@ -835,7 +847,7 @@ export class DocumentService {
       includeClientConfirmation: firmPreferences?.includeClientConfirmation ?? false,
     };
 
-    let systemPrompt = `You are a UK-qualified solicitor specializing in creating professional attendance notes compliant with Solicitors Regulation Authority (SRA) standards and English law practice requirements.
+    let systemPrompt = `You are preparing a professional attendance note for a UK legal practice. The fee earner is ${metadata.feeEarnerName ?? "the fee earner"}${metadata.feeEarnerTitle ? ` (${metadata.feeEarnerTitle})` : ""}. Write to the standard of a file note that can be stood behind, including the reasoning behind advice where the SRA expects it of a solicitor's file.
 
 ${DERIVATION_ENGINE_RULES}
 
@@ -908,7 +920,7 @@ The system supplies the attendance note header (centred title ATTENDANCE NOTE, t
 
    **Reasoning behind advice and decisions:**
 
-   [State the reasoning and thinking behind the advice given and any decisions made — as evident from the conversation. For example: "I advised the client to [action], having considered [factor 1], [factor 2], and [factor 3]." Only if the fee earner did not state the reasoning FOR THIS ADVICE anywhere in this section (see rules 5–7 above), emit a marker whose detail quotes or closely paraphrases the specific unreasoned advice from Advice given above (a topic being discussed elsewhere in the meeting is not a reason having been given for this advice): <!-- REASONING_GAP: [FIRST MAJOR TOPIC]: [specific advice point from Advice given] --> — never bare "Reasoning behind advice", and never where you have already explained the advice here]
+   [State the reasoning and thinking behind the advice given and any decisions made - as evident from the conversation. For example: "I advised the client to [action], having considered [factor 1], [factor 2], and [factor 3]." Only if the fee earner did not state the reasoning FOR THIS ADVICE anywhere in this section (see rules 5–7 above), emit a marker whose detail quotes or closely paraphrases the specific unreasoned advice from Advice given above (a topic being discussed elsewhere in the meeting is not a reason having been given for this advice): <!-- REASONING_GAP: [FIRST MAJOR TOPIC]: [specific advice point from Advice given] --> - never bare "Reasoning behind advice", and never where you have already explained the advice here]
 
    **Client's instructions and response:**
 
@@ -930,7 +942,7 @@ The system supplies the attendance note header (centred title ATTENDANCE NOTE, t
 
    **Reasoning behind advice and decisions:**
 
-   [State the reasoning and thinking behind the advice — as evident from the conversation. Only if the fee earner did not state the reasoning FOR THIS ADVICE anywhere in this section (see rules 5–7 above), emit: <!-- REASONING_GAP: [SECOND MAJOR TOPIC]: [specific advice point from Advice given] --> — never bare "Reasoning behind advice", and never where you have already explained the advice here]
+   [State the reasoning and thinking behind the advice - as evident from the conversation. Only if the fee earner did not state the reasoning FOR THIS ADVICE anywhere in this section (see rules 5–7 above), emit: <!-- REASONING_GAP: [SECOND MAJOR TOPIC]: [specific advice point from Advice given] --> - never bare "Reasoning behind advice", and never where you have already explained the advice here]
 
    **Client's instructions and response:**
 
@@ -944,7 +956,7 @@ The system supplies the attendance note header (centred title ATTENDANCE NOTE, t
 
    [Each action has a description and a Due entry. If a timing was given at the meeting, it belongs in the Due entry, NOT inside the action description. Write the action as the thing to be done, and put the timing, however it was expressed, in Due. Do not write the timing in both places, and never write a timing in the description and then record Due as not discussed.]
 
-   Solicitor to action:
+   ${actionSideLabel(metadata)} to action:
    1. [First action step with clear description]
       Due: [The date or timing stated at the meeting, exactly as given (e.g. "24 March 2026", "tonight", "within 10 working days of submission"), or "${NOT_DISCUSSED_PHRASE}" only if no timing of any kind was given]
    
@@ -982,7 +994,7 @@ FORMATTING GUIDELINES:
 - Define a term once, then use the shorthand thereafter (e.g. parental responsibility ("PR"))
 - If the client has vulnerabilities or special circumstances, note them where relevant to the legal position
 
-IMPORTANT: This attendance note must be reviewed and verified by the supervising solicitor before being added to the client file. All legal advice and action items should be confirmed against current UK law and SRA guidance.
+IMPORTANT: This attendance note must be reviewed and verified by the fee earner before being added to the client file. All legal advice and action items should be confirmed against current UK law and, where the fee earner is a solicitor, SRA guidance.
 
 Adhere strictly to the facts from the meeting. Where information is missing, use the exact phrase "${NOT_DISCUSSED_PHRASE}" rather than inventing details.`;
 
@@ -1017,7 +1029,7 @@ The AML COMPLIANCE SUMMARY section MUST follow this exact structure:
 **Enhanced Due Diligence (EDD):**
 [Note whether EDD was considered necessary and the reasoning. If not addressed, state: "${NOT_DISCUSSED_PHRASE}"]
 
-**Solicitor Confirmation:**
+**Fee earner confirmation:**
 [Note whether you confirmed you are satisfied to proceed with the matter on the basis of the information provided. If not addressed, state: "${NOT_DISCUSSED_PHRASE}"]
 
 CRITICAL: For each field, extract ONLY what was actually said. Where an area was not covered in the meeting, you MUST state "${NOT_DISCUSSED_PHRASE}" — do NOT fabricate or assume compliance information.`;
@@ -1111,7 +1123,7 @@ ${transcript}`,
     metadata: CaseMetadata,
     revision?: DocumentRevisionContext,
   ): Promise<DocumentGenerationResult> {
-    const systemPrompt = `You are a UK-qualified SRA-regulated solicitor writing a post-meeting confirmation letter to your client, under English and Welsh law.
+    const systemPrompt = `You are the fee earner writing a post-meeting confirmation letter to your client, under English and Welsh law.${metadata.feeEarnerTitle && /solicitor/i.test(metadata.feeEarnerTitle) ? " You are a UK-qualified solicitor regulated by the SRA." : ""}
 
 YOU ARE THE FEE EARNER. Write to the client directly, in the second person ("you", "your"). This letter is the written confirmation of the meeting that you will review, approve, and send. Write as yourself in the first person when describing what you said or did ("I advised you", "I explained").
 
@@ -1302,7 +1314,7 @@ List each distinct defect once. Never repeat a statement. Never restate the same
       return {
         warnings: [
           verificationFailureWarning(
-            'Automated verification failed — solicitor review is required before this document is added to the client file',
+            'Automated verification failed - review is required before this document is added to the client file',
           ),
         ],
         inputTokens: 0,
@@ -1433,15 +1445,9 @@ Continue seamlessly from the cutoff.`,
     firmPreferences?: FirmPreferences,
     revision?: DocumentRevisionContext,
   ): Promise<DocumentGenerationResult> {
-    const prefs = {
-      showFullSolicitorName: firmPreferences?.showFullSolicitorName ?? true,
-    };
-
-    const solicitorFormat = prefs.showFullSolicitorName
-      ? '{Solicitor full name and title from transcript, or "Not recorded"}'
-      : '{Solicitor initials from transcript, or "Not recorded"}';
-
-    const systemPrompt = `You are a UK-qualified solicitor creating a telephone attendance note compliant with SRA standards.
+    const owner = actionSideLabel(metadata);
+    const preparedBy = preparedByLine(metadata);
+    const systemPrompt = `You are preparing a telephone attendance note for a UK legal practice. The fee earner is ${metadata.feeEarnerName ?? "the fee earner"}${metadata.feeEarnerTitle ? ` (${metadata.feeEarnerTitle})` : ""}. Where the fee earner is a solicitor, the note should meet the standard of an SRA file.
 
 ${DERIVATION_ENGINE_RULES}
 
@@ -1467,7 +1473,7 @@ File Reference:  ${metadata.matterReference || 'TBD'}
 Date:           ${metadata.recordingDate}
 Time:           {Call time from transcript, or "Not recorded"}
 Duration:       {Call duration, or "Not recorded"}
-Solicitor:      ${solicitorFormat}
+Advisor:        ${preparedBy}
 
 **MATTER:**     ${metadata.title}
 **CLIENT:**     ${metadata.clientName}
@@ -1478,7 +1484,7 @@ Solicitor:      ${solicitorFormat}
 
 **ACTION POINTS**
 
-Solicitor:
+${owner}:
 1. [Action if any]
 
 Client:
@@ -1486,7 +1492,7 @@ Client:
 
 This telephone attendance note is subject to legal professional privilege.
 
-Prepared by: ${solicitorFormat}
+Prepared by: ${preparedBy}
 Date Prepared: ${metadata.recordingDate}
 
 FORMATTING: Use **bold** for headings. Keep the entire note to approximately half a page. Be factual and concise.`;
@@ -1511,7 +1517,7 @@ ${transcript}`,
     metadata: CaseMetadata,
     revision?: DocumentRevisionContext,
   ): Promise<DocumentGenerationResult> {
-    const systemPrompt = `You are a UK-qualified solicitor creating a brief file note.
+    const systemPrompt = `You are preparing a brief file note for a UK legal practice. The fee earner is ${metadata.feeEarnerName ?? "the fee earner"}${metadata.feeEarnerTitle ? ` (${metadata.feeEarnerTitle})` : ""}.
 
 ${DERIVATION_ENGINE_RULES}
 
@@ -1559,7 +1565,7 @@ ${transcript}`,
     metadata: CaseMetadata,
     revision?: DocumentRevisionContext,
   ): Promise<DocumentGenerationResult> {
-    const systemPrompt = `You are a UK-qualified solicitor creating professional minutes of an internal meeting (not a client attendance).
+    const systemPrompt = `You are preparing professional minutes of a meeting that is not a client attendance. The note-taker is ${metadata.feeEarnerName ?? "the note-taker"}${metadata.feeEarnerTitle ? ` (${metadata.feeEarnerTitle})` : ""}. Do not describe them as a solicitor unless that is their role.
 
 ${DERIVATION_ENGINE_RULES}
 
@@ -1616,15 +1622,9 @@ ${transcript}`;
     firmPreferences?: FirmPreferences,
     revision?: DocumentRevisionContext,
   ): Promise<DocumentGenerationResult> {
-    const prefs = {
-      showFullSolicitorName: firmPreferences?.showFullSolicitorName ?? true,
-    };
-
-    const solicitorFormat = prefs.showFullSolicitorName
-      ? '{Solicitor full name and title from transcript, or "Not recorded"}'
-      : '{Solicitor initials from transcript, or "Not recorded"}';
-
-    const systemPrompt = `You are a UK-qualified solicitor creating a court attendance note compliant with SRA standards.
+    const owner = actionSideLabel(metadata);
+    const preparedBy = preparedByLine(metadata);
+    const systemPrompt = `You are preparing a court attendance note for a UK legal practice. The fee earner is ${metadata.feeEarnerName ?? "the fee earner"}${metadata.feeEarnerTitle ? ` (${metadata.feeEarnerTitle})` : ""}. Where the fee earner is a solicitor, meet the standard of an SRA file.
 
 ${DERIVATION_ENGINE_RULES}
 
@@ -1678,7 +1678,7 @@ Case Number:    {Case number from transcript, or "Not recorded"}
 
 **NEXT STEPS**
 
-Solicitor to action:
+${owner} to action:
 1. [Action with deadline]
 
 Client to action:
@@ -1688,7 +1688,7 @@ Next hearing: [Date if scheduled, or "To be listed"]
 
 This court attendance note is subject to legal professional privilege.
 
-Prepared by: ${solicitorFormat}
+Prepared by: ${preparedBy}
 Date Prepared: ${metadata.recordingDate}
 
 FORMATTING: Use **bold** for all section headings. Be thorough but concise.`;
@@ -1714,15 +1714,9 @@ ${transcript}`,
     firmPreferences?: FirmPreferences,
     revision?: DocumentRevisionContext,
   ): Promise<DocumentGenerationResult> {
-    const prefs = {
-      showFullSolicitorName: firmPreferences?.showFullSolicitorName ?? true,
-    };
-
-    const solicitorFormat = prefs.showFullSolicitorName
-      ? '{Solicitor full name and title from transcript, or "Not recorded"}'
-      : '{Solicitor initials from transcript, or "Not recorded"}';
-
-    const systemPrompt = `You are a UK-qualified solicitor creating a police station attendance record compliant with PACE (Police and Criminal Evidence Act 1984) requirements and SRA standards.
+    const owner = actionSideLabel(metadata);
+    const preparedBy = preparedByLine(metadata);
+    const systemPrompt = `You are preparing a police station attendance record compliant with PACE (Police and Criminal Evidence Act 1984). The fee earner is ${metadata.feeEarnerName ?? "the fee earner"}${metadata.feeEarnerTitle ? ` (${metadata.feeEarnerTitle})` : ""}. Where the fee earner is a solicitor, also meet SRA standards.
 
 ${DERIVATION_ENGINE_RULES}
 
@@ -1779,7 +1773,7 @@ Departure Time:     {Time of departure from transcript, or "Not recorded"}
 
 **7. FOLLOW-UP ACTIONS**
 
-Solicitor:
+${owner}:
 1. [Action required]
 
 Client:
@@ -1787,7 +1781,7 @@ Client:
 
 This police station attendance record is subject to legal professional privilege.
 
-Prepared by: ${solicitorFormat}
+Prepared by: ${preparedBy}
 Date Prepared: ${metadata.recordingDate}
 
 FORMATTING: Use **bold** for all section headings. Be thorough and PACE-compliant.`;
@@ -1879,15 +1873,23 @@ ${transcript}`,
    */
   async extractActionItems(
     transcript: string,
-    metadata: CaseMetadata
+    metadata: CaseMetadata,
+    options?: { internalMeeting?: boolean },
   ): Promise<{ items: ExtractedActionItem[], cost: number, inputTokens: number, outputTokens: number }> {
-    const systemPrompt = `You are a legal assistant specializing in extracting action items and follow-ups from legal meeting transcripts.
+    const internalMeeting = options?.internalMeeting === true;
+    const who = internalMeeting
+      ? `Who should do it: the person's name if the conversation names them, otherwise "Unassigned". Do not use Solicitor or Client.`
+      : `Who should do it (${actionSideLabel(metadata)}, Client, or a specific name if mentioned)`;
+    const assigneeShape = internalMeeting
+      ? `"assignee": "person's name" | "Unassigned"`
+      : `"assignee": "${actionSideLabel(metadata)}" | "Client" | "specific name"`;
+    const systemPrompt = `You are a legal assistant specializing in extracting action items and follow-ups from meeting transcripts.
 
 TASK: Extract all action items, tasks, follow-ups, and deadlines mentioned in the transcript.
 
 For each action item, identify:
 1. A clear description of what needs to be done
-2. Who should do it (Solicitor, Client, or specific name if mentioned)
+2. ${who}
 3. Any deadline or timeframe mentioned (convert to ISO date format YYYY-MM-DD if possible)
 4. Priority level based on urgency words used (high, medium, low)
 
@@ -1896,13 +1898,13 @@ IMPORTANT RULES:
 - Do not invent or assume action items not mentioned in the transcript
 - Capture follow-up calls, document requests, deadline commitments, research tasks
 - Be conservative - when in doubt, mark as "medium" priority
-
+${internalMeeting ? "- This is not a client attendance. Name the person who took the action. Do not invent a client or a solicitor.\n" : ""}
 OUTPUT FORMAT: Return a JSON object with an "items" array:
 {
   "items": [
     {
       "description": "Brief description of the action item",
-      "assignee": "Solicitor" | "Client" | "specific name",
+      ${assigneeShape},
       "dueDate": "YYYY-MM-DD" | null,
       "priority": "high" | "medium" | "low"
     }
@@ -2042,7 +2044,7 @@ Generate the briefing document:`;
     const { getClientCareLetterPrompt } = require('./practiceAreaConfig');
     const systemPrompt = getClientCareLetterPrompt(params);
 
-    const userPrompt = `Generate the client care letter now based on the details provided. Output the complete letter in professional format ready for solicitor review.`;
+    const userPrompt = `Generate the client care letter now based on the details provided. Output the complete letter in professional format ready for review.`;
 
     return this.generateDocument(systemPrompt, userPrompt);
   }
@@ -2053,7 +2055,7 @@ Generate the briefing document:`;
   ): Promise<{ items: ExtractedUndertaking[], cost: number, inputTokens: number, outputTokens: number }> {
     const systemPrompt = `You are a UK legal compliance assistant specializing in identifying undertakings in legal meeting transcripts.
 
-TASK: Identify all undertakings — binding commitments given by a solicitor on behalf of their firm — in the transcript.
+TASK: Identify all undertakings - binding commitments given by the fee earner on behalf of their organisation - in the transcript.
 
 Undertaking language includes phrases such as:
 - "we undertake to..."
@@ -2064,7 +2066,7 @@ Undertaking language includes phrases such as:
 - "this firm undertakes..."
 - "we give our undertaking..."
 - "I/we confirm that we will..."
-- Any promise or commitment by the solicitor to do something specific, especially with a deadline
+- Any promise or commitment by the fee earner to do something specific, especially with a deadline
 
 For each undertaking found, extract:
 1. The precise wording of the undertaking commitment
@@ -2073,7 +2075,7 @@ For each undertaking found, extract:
 4. Any deadline mentioned (convert to ISO date format YYYY-MM-DD if possible)
 
 IMPORTANT RULES:
-- Only extract genuine undertakings — binding professional commitments by the solicitor or firm
+- Only extract genuine undertakings - binding professional commitments by the fee earner or their organisation
 - Do NOT include general action items, to-do lists, or informal promises
 - Focus on language that creates a binding professional obligation
 - Be conservative — when in doubt, do NOT include it
@@ -2084,7 +2086,7 @@ OUTPUT FORMAT: Return a JSON object with an "items" array:
   "items": [
     {
       "wording": "Clear description of the undertaking commitment",
-      "speaker": "Solicitor" | "specific name",
+      "speaker": "Fee earner" | "specific name",
       "sourceQuote": "Exact quoted text from transcript",
       "deadline": "YYYY-MM-DD" | null
     }

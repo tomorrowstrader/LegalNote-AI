@@ -137,6 +137,7 @@ export default function InviteAccept() {
     trainee_solicitor: "Trainee Solicitor",
     legal_executive: "Legal Executive (CILEx)",
     consultant: "Consultant Solicitor",
+    barrister: "Barrister",
     paralegal: "Paralegal",
     licensed_conveyancer: "Licensed Conveyancer",
     costs_lawyer: "Costs Lawyer",

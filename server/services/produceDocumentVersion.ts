@@ -11,7 +11,7 @@ import {
 import { logAuditEvent } from "../auditMiddleware";
 import type { IStorage } from "../storage";
 import type { Document, Case, AudioRecording, MeetingSession, User } from "@shared/schema";
-import { PRIMARY_ROLE_LABELS, type PrimaryRole } from "@shared/schema";
+import { noteRoleTitle } from "@shared/professionalIdentity";
 
 const PRODUCIBLE_TYPES = new Set([
   "attendance_note",
@@ -56,18 +56,8 @@ function formatDurationMinutes(totalMinutes: number): string {
   return `${hours} hour${hours === 1 ? "" : "s"} ${mins} minutes`;
 }
 
-function resolveFeeEarnerTitle(user: User): string {
-  if (user.primaryRole === "custom" && user.customRoleLabel?.trim()) {
-    return user.customRoleLabel.trim();
-  }
-  if (user.primaryRole && user.primaryRole in PRIMARY_ROLE_LABELS) {
-    return PRIMARY_ROLE_LABELS[user.primaryRole as PrimaryRole];
-  }
-  if (user.role?.trim()) {
-    const r = user.role.trim();
-    return r.charAt(0).toUpperCase() + r.slice(1);
-  }
-  return "Solicitor";
+function resolveFeeEarnerTitle(user: User): string | null {
+  return noteRoleTitle(user);
 }
 
 function buildFeeEarnerInitials(user: User): string {
@@ -85,17 +75,18 @@ function buildFeeEarnerDisplayName(user: User, showFullSolicitorName: boolean): 
     const name =
       [user.firstName, user.lastName].filter(Boolean).join(" ").trim() ||
       user.email ||
-      "Solicitor";
-    return `${name}, ${title}`;
+      "Fee earner";
+    return title ? `${name}, ${title}` : name;
   }
-  return `${buildFeeEarnerInitials(user)}, ${title}`;
+  const initials = buildFeeEarnerInitials(user);
+  return title ? `${initials}, ${title}` : initials;
 }
 
 function buildFeeEarnerPlainName(user: User): string {
   return (
     [user.firstName, user.lastName].filter(Boolean).join(" ").trim() ||
     user.email ||
-    "Solicitor"
+    "Fee earner"
   );
 }
 
@@ -149,6 +140,7 @@ async function buildMetadata(
     feeEarnerDisplayName: feeEarnerUser
       ? buildFeeEarnerDisplayName(feeEarnerUser, showFullSolicitorName)
       : undefined,
+    feeEarnerTitle: feeEarnerUser ? resolveFeeEarnerTitle(feeEarnerUser) ?? undefined : undefined,
     feeEarnerName: feeEarnerUser ? buildFeeEarnerPlainName(feeEarnerUser) : undefined,
     firmName: firmProfile?.firmName ?? undefined,
     templateId: caseData.templateId || undefined,

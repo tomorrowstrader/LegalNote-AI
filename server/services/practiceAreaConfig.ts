@@ -643,5 +643,5 @@ ${params.matterReference ? `Matter Reference: ${params.matterReference}` : ''}
 
 Date: ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
 
-Format the letter professionally with clear headings. Use formal but accessible language. The letter should be ready for the solicitor to review, personalise if needed, and send to the client.`;
+Format the letter professionally with clear headings. Use formal but accessible language. The letter should be ready for review, personalised if needed, and sent to the client.`;
 }

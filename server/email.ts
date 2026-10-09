@@ -1,6 +1,7 @@
 import { Resend } from 'resend';
 import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
 import { MATTER_KIND_PARTY_LABELS } from '@shared/matterKinds';
+import { clientFacingSender } from '@shared/professionalIdentity';
 import { formatEvaluationCalendarDate } from '@shared/evaluationAccess';
 import type { FirmRiskDigest } from './storage';
 import type { SupportTicket } from '@shared/schema';
@@ -663,6 +664,8 @@ interface SendPreConsentEmailParams {
   to: string;
   /** Display name only — never an email address. Omitted from greeting if missing/email-like. */
   recipientName?: string;
+  /** Already resolved: firm name, else the person's name. Never a job title. */
+  senderLabel?: string;
   consentUrl: string;
   /** Optional schedule context (date/time only — never matter title or client identifiers). */
   scheduledMeetingTime?: Date;
@@ -687,7 +690,8 @@ export { publicFacingDisplayName };
  * Schedule date/time may be included; all matter detail stays behind the consent link.
  */
 export async function sendPreConsentEmail(params: SendPreConsentEmailParams): Promise<{ success: boolean; messageId?: string; error?: string }> {
-  const { to, recipientName, consentUrl, scheduledMeetingTime } = params;
+  const { to, recipientName, consentUrl, scheduledMeetingTime, senderLabel } = params;
+  const sender = senderLabel?.trim() || "The person who sent this";
 
   const displayName = publicFacingDisplayName(recipientName);
   const greeting = displayName ? `Hi ${escapeHtmlPlain(displayName)},` : "Hi,";
@@ -737,7 +741,7 @@ export async function sendPreConsentEmail(params: SendPreConsentEmailParams): Pr
                           ${greeting}
                         </p>
                         <p style="margin:0 0 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;line-height:1.55;color:#1a1a1a;">
-                          Your solicitor has asked for your consent to record an upcoming meeting${whenLine}, so accurate attendance notes can be prepared.
+                          ${escapeHtmlPlain(sender)} has asked for your consent to record an upcoming meeting${whenLine}, so accurate attendance notes can be prepared.
                         </p>
                         <p style="margin:0 0 28px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;line-height:1.55;color:#555555;">
                           Continue on LegalNote to consent or decline. No matter details are included in this email.
@@ -1882,11 +1886,16 @@ export async function sendAcknowledgementRequestEmail(
   const baseUrl = process.env.APP_URL?.replace(/\/$/, '') || 'https://legalnote.ai';
   const acknowledgeUrl = `${baseUrl}/acknowledge/${token}`;
 
-  const firmName = firmProfile?.firmName || 'Your Solicitors';
+  const sender = clientFacingSender({ firmName: firmProfile?.firmName });
+  const firmName = firmProfile?.firmName?.trim() || "";
+  const portalLabel = firmName
+    ? `${escapeHtml(firmName)} · Secure Document Portal`
+    : "Secure Document Portal";
+  const footerName = firmName ? escapeHtml(firmName) : escapeHtml(sender.capitalised);
   const isCareLetter = documentLabel === "Client Care Letter";
   const noticeWhy = isCareLetter
     ? "SRA regulations require us to confirm that our clients have received and understood the terms of our engagement. Your acknowledgement creates a secure record for your protection as well as ours."
-    : "Your solicitor has asked you to confirm that you have received and read this letter. Your acknowledgement creates a secure record for your protection as well as theirs.";
+    : `${escapeHtml(sender.capitalised)} has asked you to confirm that you have received and read this letter. Your acknowledgement creates a secure record for your protection as well as theirs.`;
 
   const emailHtml = `
     <!DOCTYPE html>
@@ -1910,7 +1919,7 @@ export async function sendAcknowledgementRequestEmail(
     <body>
       ${legalNoteBrandHeaderHtml()}
       <div class="content" style="padding:36px 40px;background:#fff;">
-        <p style="margin:0 0 8px;font-size:13px;color:#8a7d72;text-transform:uppercase;letter-spacing:0.06em;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">${firmName} · Secure Document Portal</p>
+        <p style="margin:0 0 8px;font-size:13px;color:#8a7d72;text-transform:uppercase;letter-spacing:0.06em;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">${portalLabel}</p>
         <h2>Your ${documentLabel} is ready</h2>
         <p>Dear ${clientName},</p>
         <p>We have prepared your ${documentLabel} in connection with the matter: <strong>${caseTitle}</strong>.${matterReference ? ` (Ref: ${matterReference})` : ''}</p>
@@ -1924,7 +1933,7 @@ export async function sendAcknowledgementRequestEmail(
         <p class="url-fallback">If the button does not work, copy and paste this link into your browser:<br>${acknowledgeUrl}</p>
       </div>
       <div class="footer">
-        <p>${firmName}${firmProfile?.phone ? ` &bull; ${firmProfile.phone}` : ''}${firmProfile?.email ? ` &bull; ${firmProfile.email}` : ''}</p>
+        <p>${footerName}${firmProfile?.phone ? ` &bull; ${firmProfile.phone}` : ''}${firmProfile?.email ? ` &bull; ${firmProfile.email}` : ''}</p>
         <p>This email was sent to ${to}. If you believe you received this in error, please contact us immediately.</p>
       </div>
     </body>
@@ -2283,7 +2292,7 @@ export async function sendMeetingInviteConfirmationEmail(
             <a href="${escapeHtml(safeJoinUrl)}" style="color:#1e3a5f;">${escapeHtml(safeJoinUrl)}</a>
           </p>
           <hr style="margin:32px 0;border:none;border-top:1px solid #e8e4df;">
-          <p style="margin:0;font-size:12px;color:#8a7d72;">Sent via LegalNote — Meeting to Matter. A calendar invitation may also arrive from your solicitor&apos;s calendar provider.</p>
+          <p style="margin:0;font-size:12px;color:#8a7d72;">Sent via LegalNote - Meeting to Matter. A calendar invitation may also arrive from ${firmName?.trim() ? `${escapeHtml(firmName.trim())}'s` : "the organiser's"} calendar provider.</p>
         </div>
       </div>
     </body>

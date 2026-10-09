@@ -21,6 +21,7 @@ import remarkGfm from "remark-gfm";
 import { normalizeAttendanceSectionLabels } from "@shared/attendanceNoteFormat";
 import { FirmPublicBrandBar, FirmPublicBrandFooter } from "@/components/FirmPublicBrandChrome";
 import { ShareFlagCorrection } from "@/components/ShareFlagCorrection";
+import { clientFacingSender } from "@shared/professionalIdentity";
 
 interface ShareLinkData {
   requiresSmsVerification: boolean;
@@ -143,7 +144,7 @@ export default function ShareLinkView() {
       
       if (isPhoneMismatch) {
         title = "Incorrect Phone Number";
-        description = `Please use the mobile number that ${data?.recipientName || "the solicitor"} specified when sharing these documents with you. If you're unsure, please contact them directly.`;
+        description = `Please use the mobile number that ${data?.recipientName || clientFacingSender({ firmName: data?.firmProfile?.firmName }).phrase} specified when sharing these documents with you. If you're unsure, please contact them directly.`;
         duration = 10000;
       } else if (isRateLimit) {
         title = "Too Many Attempts";
@@ -373,7 +374,7 @@ export default function ShareLinkView() {
               </div>
               <CardDescription>
                 {isExpired
-                  ? "This secure document link has expired. Please contact your solicitor for a new link."
+                  ? `This secure document link has expired. Please contact ${clientFacingSender({ firmName: data?.firmProfile?.firmName }).phrase} for a new link.`
                   : isNotFound
                   ? "The document link you're trying to access could not be found."
                   : errorMessage}
@@ -422,7 +423,7 @@ export default function ShareLinkView() {
                 data-testid="input-password"
               />
               <p className="text-xs text-muted-foreground">
-                Enter the password provided by your solicitor
+                Enter the password provided by {clientFacingSender({ firmName: data?.firmProfile?.firmName }).phrase}
               </p>
             </div>
 
@@ -617,7 +618,7 @@ export default function ShareLinkView() {
             <Alert className="border-amber-500 bg-amber-50 dark:bg-amber-950">
               <AlertCircle className="h-4 w-4 text-amber-600" />
               <AlertDescription className="text-xs text-amber-800 dark:text-amber-200">
-                <strong>Confidential Legal Documents:</strong> These documents contain privileged attorney-client communications. Unauthorized access or disclosure is prohibited.
+                <strong>Confidential:</strong> These documents are confidential. Do not open or share them unless this link was sent to you.
               </AlertDescription>
             </Alert>
           </CardContent>
@@ -640,7 +641,7 @@ export default function ShareLinkView() {
                 <CardTitle>Unable to load documents</CardTitle>
               </div>
               <CardDescription>
-                Verification succeeded, but the shared documents could not be loaded. Please try the link again or contact your solicitor.
+                Verification succeeded, but the shared documents could not be loaded. Please try the link again or contact {clientFacingSender({ firmName: data?.firmProfile?.firmName }).phrase}.
               </CardDescription>
             </CardHeader>
           </Card>
@@ -718,9 +719,14 @@ export default function ShareLinkView() {
               <div>
                 <CardTitle className="text-2xl mb-2">{caseData.title}</CardTitle>
                 <CardDescription className="text-base">
-                  Client: {caseData.clientName}
+                  {caseData.clientName && caseData.clientName !== "Non-client" && (
+                    <span>Client: {caseData.clientName}</span>
+                  )}
                   {caseData.matterReference && (
-                    <> • Matter: {caseData.matterReference}</>
+                    <span>
+                      {caseData.clientName && caseData.clientName !== "Non-client" ? " • " : ""}
+                      Matter: {caseData.matterReference}
+                    </span>
                   )}
                 </CardDescription>
               </div>
@@ -749,8 +755,8 @@ export default function ShareLinkView() {
             <Alert className="mt-4">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription className="text-sm">
-                <strong>Confidential Legal Documents:</strong> This information is privileged and confidential. 
-                Unauthorized disclosure, copying, or distribution is strictly prohibited.
+                <strong>Confidential:</strong> This information is confidential.
+                Do not copy or share it unless this link was sent to you.
               </AlertDescription>
             </Alert>
           </CardContent>
@@ -784,6 +790,8 @@ export default function ShareLinkView() {
               linkId={linkId!}
               activeDocumentId={activeDocument?.id}
               activeDocumentType={activeDocumentType}
+              senderPhrase={clientFacingSender({ firmName: data?.firmProfile?.firmName }).phrase}
+              senderName={clientFacingSender({ firmName: data?.firmProfile?.firmName }).capitalised}
             />
             <Tabs
               value={["attendance", "summary", "care-letter", "transcript"].includes(activeDocTab) ? activeDocTab : defaultTab}

@@ -35,6 +35,8 @@ import type { ActionItem } from "@shared/schema";
 interface ActionItemsViewerProps {
   caseId: string;
   hasTranscript: boolean;
+  matterKind?: string;
+  professionalLabel?: string;
 }
 
 type ObligationParty = "solicitor" | "client";
@@ -288,11 +290,21 @@ function ObligationColumn({
   );
 }
 
-export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItemsViewerProps) {
+export default function ActionItemsViewer({
+  caseId,
+  hasTranscript,
+  matterKind,
+  professionalLabel,
+}: ActionItemsViewerProps) {
+  const internal = matterKind === "internal";
+  const sideLabel = professionalLabel?.trim() || "Fee earner";
+  const professionalColumnTitle = internal ? "Action points" : `${sideLabel} obligations`;
+  const professionalEmpty = internal ? "No action points" : `No ${sideLabel.toLowerCase()} obligations`;
+  const professionalSubtitle = internal ? "Who will do it" : "Actions for the fee earner";
   const [isExtracting, setIsExtracting] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newDescription, setNewDescription] = useState("");
-  const [newAssignee, setNewAssignee] = useState<"Solicitor" | "Client">("Solicitor");
+  const [newAssignee, setNewAssignee] = useState("Solicitor");
   const [newPriority, setNewPriority] = useState("medium");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const { toast } = useToast();
@@ -494,7 +506,7 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
     if (!newDescription.trim()) return;
     createManualMutation.mutate({
       description: newDescription.trim(),
-      assignee: newAssignee,
+      assignee: internal ? (newAssignee.trim() || "Unassigned") : newAssignee,
       priority: newPriority,
     });
   };
@@ -650,19 +662,31 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
               </div>
               <div className="flex gap-2 flex-wrap">
                 <div className="flex-1 min-w-[140px]">
-                  <Label htmlFor="new-assignee" className="text-xs text-muted-foreground">Assigned to</Label>
+                  <Label htmlFor="new-assignee" className="text-xs text-muted-foreground">
+                    {internal ? "Owner" : "Assigned to"}
+                  </Label>
+                  {internal ? (
+                    <Input
+                      id="new-assignee"
+                      value={newAssignee === "Solicitor" ? "" : newAssignee}
+                      onChange={(e) => setNewAssignee(e.target.value)}
+                      placeholder="Name"
+                      data-testid="input-new-action-owner"
+                    />
+                  ) : (
                   <Select
-                    value={newAssignee}
-                    onValueChange={(value: "Solicitor" | "Client") => setNewAssignee(value)}
+                    value={newAssignee === "Client" ? "Client" : "Solicitor"}
+                    onValueChange={setNewAssignee}
                   >
                     <SelectTrigger id="new-assignee" data-testid="select-new-action-assignee">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Solicitor">Solicitor</SelectItem>
+                      <SelectItem value="Solicitor">{sideLabel}</SelectItem>
                       <SelectItem value="Client">Client</SelectItem>
                     </SelectContent>
                   </Select>
+                  )}
                 </div>
                 <div className="w-[120px]">
                   <Label htmlFor="new-priority" className="text-xs text-muted-foreground">Priority</Label>
@@ -725,13 +749,13 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
         )}
 
         {items && items.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className={internal ? "grid grid-cols-1 gap-3" : "grid grid-cols-1 md:grid-cols-2 gap-3"}>
             <ObligationColumn
-              title="Solicitor Obligations"
-              subtitle="Actions for the fee earner / firm"
+              title={professionalColumnTitle}
+              subtitle={professionalSubtitle}
               icon={Scale}
-              items={solicitorItems}
-              emptyLabel="No solicitor obligations"
+              items={internal ? (items || []) : solicitorItems}
+              emptyLabel={professionalEmpty}
               testIdPrefix="solicitor-obligation"
               onToggle={handleToggle}
               onApprove={(id) => approveMutation.mutate(id)}
@@ -740,6 +764,7 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
               approvePending={approveMutation.isPending}
               deletePending={deleteMutation.isPending}
             />
+            {!internal && (
             <ObligationColumn
               title="Client Obligations"
               subtitle="Actions for the client"
@@ -754,6 +779,7 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
               approvePending={approveMutation.isPending}
               deletePending={deleteMutation.isPending}
             />
+            )}
           </div>
         )}
       </CardContent>
@@ -771,13 +797,13 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
               )}
             </DialogTitle>
           </DialogHeader>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 flex-1 min-h-0 overflow-hidden">
+          <div className={internal ? "grid grid-cols-1 gap-3 flex-1 min-h-0 overflow-hidden" : "grid grid-cols-1 md:grid-cols-2 gap-3 flex-1 min-h-0 overflow-hidden"}>
             <ObligationColumn
-              title="Solicitor Obligations"
-              subtitle="Actions for the fee earner / firm"
+              title={professionalColumnTitle}
+              subtitle={professionalSubtitle}
               icon={Scale}
-              items={solicitorItems}
-              emptyLabel="No solicitor obligations"
+              items={internal ? (items || []) : solicitorItems}
+              emptyLabel={professionalEmpty}
               testIdPrefix="modal-solicitor-obligation"
               onToggle={handleToggle}
               onApprove={(id) => approveMutation.mutate(id)}
@@ -786,6 +812,7 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
               approvePending={approveMutation.isPending}
               deletePending={deleteMutation.isPending}
             />
+            {!internal && (
             <ObligationColumn
               title="Client Obligations"
               subtitle="Actions for the client"
@@ -800,6 +827,7 @@ export default function ActionItemsViewer({ caseId, hasTranscript }: ActionItems
               approvePending={approveMutation.isPending}
               deletePending={deleteMutation.isPending}
             />
+            )}
           </div>
         </DialogContent>
       </Dialog>

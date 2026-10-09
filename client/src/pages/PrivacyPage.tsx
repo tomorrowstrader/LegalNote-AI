@@ -128,10 +128,10 @@ export default function PrivacyPage() {
                 ]}
               />
               <p className="leading-relaxed mt-4">
-                If you are a client of a law firm using LegalNote, please contact
-                your solicitor for privacy requests about your matter data. Your
-                solicitor is the controller for that data; we act only as
-                processor on their instructions.
+                If you are a client of an organisation using LegalNote, contact that
+                organisation about privacy requests for your matter data. They are
+                the controller for that data; we act only as processor on their
+                instructions.
               </p>
             </section>
 
@@ -474,8 +474,8 @@ export default function PrivacyPage() {
                 <a href="mailto:privacy@legalnote.ai" className={legalLinkClass}>
                   privacy@legalnote.ai
                 </a>
-                . Client or matter data: contact your solicitor, who is the
-                controller; LegalNote will assist them under the DPA. You may
+                . Client or matter data: contact the organisation using LegalNote,
+                which is the controller; LegalNote will assist them under the DPA. You may
                 also complain to the ICO at{" "}
                 <a
                   href="https://ico.org.uk/make-a-complaint"

@@ -885,7 +885,7 @@ export function RichTextEditor({
   const isUpdatingRef = useRef(false);
   const isTrackingRef = useRef(trackChangesEnabled);
   const { user } = useAuth();
-  const userNameRef = useRef<string>('Solicitor');
+  const userNameRef = useRef<string>('Fee earner');
   const composingRef = useRef<boolean>(false);
   const [structuralNotice, setStructuralNotice] = useState(false);
   const structuralNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -893,7 +893,7 @@ export function RichTextEditor({
   useEffect(() => {
     userNameRef.current = (user?.firstName && user?.lastName)
       ? `${user.firstName} ${user.lastName}`
-      : (user?.email ? user.email.split('@')[0] : 'Solicitor');
+      : (user?.email ? user.email.split('@')[0] : 'Fee earner');
   }, [user]);
 
   useEffect(() => () => {

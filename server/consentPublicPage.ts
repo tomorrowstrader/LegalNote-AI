@@ -145,7 +145,7 @@ export function renderConsentNotFoundPage(): string {
     title: "Consent not found",
     body: `
       <h1>Link not found</h1>
-      <p>This consent link is invalid or has been removed. Please contact your solicitor if you still need to respond.</p>
+      <p>This consent link is invalid or has been removed. Please contact the person who sent this link if you still need to respond.</p>
     `,
   });
 }
@@ -160,23 +160,23 @@ export function renderConsentAlreadyRespondedPage(statusLabel: string, responded
   });
 }
 
-export function renderConsentExpiredPage(): string {
+export function renderConsentExpiredPage(senderPhrase = "the person who sent this link"): string {
   return pageShell({
     title: "Consent expired",
     body: `
       <h1>This link has expired</h1>
-      <p>Please contact your solicitor if you still need to give or decline recording consent.</p>
+      <p>Please contact ${escapeHtml(senderPhrase)} if you still need to give or decline recording consent.</p>
     `,
   });
 }
 
-export function renderConsentDecisionPage(token: string): string {
+export function renderConsentDecisionPage(token: string, senderName = "The person who sent this"): string {
   const safeToken = escapeHtml(token);
   return pageShell({
     title: "Recording consent",
     body: `
       <h1>Recording consent</h1>
-      <p>Your solicitor would like to record your meeting to prepare accurate attendance notes. Audio is kept confidential and deleted within 7 days.</p>
+      <p>${escapeHtml(senderName)} would like to record your meeting to prepare accurate attendance notes. Audio is kept confidential and deleted within 7 days.</p>
       <p>Please choose one option below.</p>
       <div class="actions" id="actions">
         <button type="button" class="btn-primary" onclick="submitResponse('granted')" data-testid="button-grant-consent">I consent</button>

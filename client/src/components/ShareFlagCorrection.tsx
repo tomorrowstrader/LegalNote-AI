@@ -30,6 +30,8 @@ interface ShareFlagCorrectionProps {
   activeDocumentId?: string | null;
   activeDocumentType?: string | null;
   className?: string;
+  senderPhrase?: string;
+  senderName?: string;
 }
 
 export function ShareFlagCorrection({
@@ -37,6 +39,8 @@ export function ShareFlagCorrection({
   activeDocumentId,
   activeDocumentType,
   className,
+  senderPhrase = "the person who sent this",
+  senderName = "The person who sent this",
 }: ShareFlagCorrectionProps) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -67,14 +71,14 @@ export function ShareFlagCorrection({
       setCategory("correction");
       toast({
         title: "Correction sent",
-        description: "Your solicitor has been notified. The document itself is not changed.",
+        description: `${senderName} has been notified. The document itself is not changed.`,
         duration: 5000,
       });
     },
     onError: (error: unknown) => {
       toast({
         title: "Could not send",
-        description: getApiErrorMessage(error, "Please try again or contact your solicitor directly."),
+        description: getApiErrorMessage(error, `Please try again or contact ${senderPhrase} directly.`),
         variant: "destructive",
         duration: 6000,
       });
@@ -102,7 +106,7 @@ export function ShareFlagCorrection({
           <DialogHeader>
             <DialogTitle>Flag a correction</DialogTitle>
             <DialogDescription className="leading-relaxed">
-              Tell your solicitor if a date or detail looks wrong. This notifies them only — it does not edit the document.
+              Tell {senderPhrase} if a date or detail looks wrong. This notifies them only - it does not edit the document.
             </DialogDescription>
           </DialogHeader>
 
@@ -174,7 +178,7 @@ export function ShareFlagCorrection({
                   Sending…
                 </>
               ) : (
-                "Send to solicitor"
+                "Send"
               )}
             </Button>
           </DialogFooter>

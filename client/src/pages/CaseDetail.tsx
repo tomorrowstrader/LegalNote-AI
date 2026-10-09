@@ -70,6 +70,7 @@ import type { Case, AudioRecording, ConsentLog, MeetingSession, Transcript, Docu
 import { RECORDING_TYPE_LABELS, type RecordingType } from "@shared/schema";
 import { PRACTICE_AREA_LABELS, PRACTICE_AREAS, type PracticeArea } from "@shared/schema";
 import { isClientMatterKind, normalizeMatterKind, requiresParticipantConsent, requiresSealedConsentForProcessing } from "@shared/matterKinds";
+import { noteRoleTitle, professionalActionLabel } from "@shared/professionalIdentity";
 import { CONSENT_DISCLAIMER_TEXT, CONSENT_DISCLAIMER_VERSION } from "@shared/consent";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { isFeatureVisible } from "@/lib/features";
@@ -2317,7 +2318,15 @@ export default function CaseDetail() {
 
           {activeSection === 'obligations' && (
             <div className="max-w-3xl">
-              <ActionItemsViewer caseId={caseId!} hasTranscript={!!transcript?.content} />
+              <ActionItemsViewer
+                caseId={caseId!}
+                hasTranscript={!!transcript?.content}
+                matterKind={normalizeMatterKind(caseData.matterKind)}
+                professionalLabel={professionalActionLabel(
+                  noteRoleTitle(user ?? {}),
+                  [user?.firstName, user?.lastName].filter(Boolean).join(" "),
+                )}
+              />
             </div>
           )}
 
