@@ -29,7 +29,7 @@ function formatParsedUtterances(utterances: ParsedUtterance[]): string {
 
 /**
  * Parse common speaker-labelled transcript formats into utterances.
- * Timestamps are left at 0 when absent — never fabricate timing from wall-clock.
+ * Timestamps are left at 0 when absent - never fabricate timing from wall-clock.
  */
 export function parseSpeakerUtterances(content: string): ParsedUtterance[] {
   const lines = content.split("\n");
@@ -47,7 +47,7 @@ export function parseSpeakerUtterances(content: string): ParsedUtterance[] {
     if (!current) return;
     const text = current.text.trim();
     if (text) {
-      // Ordinal indices for identity/redaction only — not wall-clock ms.
+      // Ordinal indices for identity/redaction only - not wall-clock ms.
       // Uploaded transcripts have no audio timeline; UI must not show these as times.
       const ordinal = utterances.length;
       utterances.push({

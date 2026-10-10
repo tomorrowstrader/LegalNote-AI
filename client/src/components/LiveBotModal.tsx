@@ -96,10 +96,10 @@ interface LiveBotModalProps {
   caseTitle?: string;
   /** Prefill the meeting URL (e.g. from an upcoming scheduled meeting). */
   initialMeetingUrl?: string | null;
-  /** Client name from the calendar/meeting invite — used to suggest the likely matter. */
+  /** Client name from the calendar/meeting invite - used to suggest the likely matter. */
   suggestedClientName?: string | null;
   /**
-   * Skip matter selection and join without a case — recording can be allocated
+   * Skip matter selection and join without a case - recording can be allocated
    * after the call (same pattern as Quick Recording).
    */
   allocateLater?: boolean;
@@ -160,13 +160,13 @@ interface BotPollResponse {
 
 const STATUS_LABELS: Record<string, string> = {
   joining_call: "Joining the call...",
-  in_waiting_room: "In the waiting room — admit LegalNote to begin",
+  in_waiting_room: "In the waiting room - admit LegalNote to begin",
   in_call_not_recording: "In the call (starting recording...)",
   in_call_recording: "Recording in progress",
-  call_ended: "Call ended — collecting recording",
+  call_ended: "Call ended - collecting recording",
   done: "Recording complete",
   fatal: "Bot encountered an error",
-  left_consent_declined: "Left call — consent declined",
+  left_consent_declined: "Left call - consent declined",
   left_user_cancelled: "Cancelled",
 };
 
@@ -320,7 +320,7 @@ export function LiveBotModal({
             queryClient.invalidateQueries({ queryKey: ["/api/recall/meetings"] });
           }
         } catch {
-          // Ignore poll errors — connection may be briefly interrupted
+          // Ignore poll errors - connection may be briefly interrupted
         }
       }, 5000);
 
@@ -335,7 +335,7 @@ export function LiveBotModal({
     };
   }, [step, botId, caseId, selectedCaseId]);
 
-  // Recording elapsed timer — starts only when bot is actually recording
+  // Recording elapsed timer - starts only when bot is actually recording
   useEffect(() => {
     if (recordingStarted && step === "live") {
       recordingTimerRef.current = setInterval(() => {
@@ -564,7 +564,7 @@ export function LiveBotModal({
       if (!notesWin) {
         toast({
           title: "Notes window blocked",
-          description: "Allow pop-ups for LegalNote to keep notes beside your call — or use the pop-out control on the live panel.",
+          description: "Allow pop-ups for LegalNote to keep notes beside your call - or use the pop-out control on the live panel.",
           duration: 7000,
         });
       }
@@ -576,7 +576,7 @@ export function LiveBotModal({
             userConfirmsVerbalConsent: true,
           });
         } catch {
-          // Non-fatal — consent can be added after
+          // Non-fatal - consent can be added after
         }
       }
 
@@ -593,7 +593,7 @@ export function LiveBotModal({
         } else if (lower.includes('teams.microsoft.com') || lower.includes('teams.live.com')) {
           deepLink = meetingUrl.replace('https://', 'msteams://');
         }
-        // Google Meet has no reliable deep-link scheme — open in browser tab
+        // Google Meet has no reliable deep-link scheme - open in browser tab
         if (deepLink) {
           window.location.href = deepLink;
           // Fallback to browser tab after 2s if scheme did not open
@@ -616,7 +616,7 @@ export function LiveBotModal({
         const parsed = JSON.parse(withoutStatus);
         if (parsed?.message) display = parsed.message;
       } catch {
-        // Not JSON — use as-is
+        // Not JSON - use as-is
       }
       display = display.replace(/<[^>]+>/g, " ").replace(/\s{2,}/g, " ").trim();
       const isHtmlPage = display.toLowerCase().includes("doctype") || display.toLowerCase().includes("we couldn");
@@ -656,7 +656,7 @@ export function LiveBotModal({
         toast({
           title: left ? "LegalNote is leaving the call" : "Consent declined",
           description: left
-            ? "Client declined consent. The bot is being removed from the meeting now — you don't need to eject it manually."
+            ? "Client declined consent. The bot is being removed from the meeting now - you don't need to eject it manually."
             : "Consent decline was recorded. If the bot is still visible, remove it from the meeting or contact support.",
           duration: 6000,
         });
@@ -693,7 +693,7 @@ export function LiveBotModal({
   });
 
   const handleSendBot = () => {
-    // Reserve the notes companion in this click gesture — async deploy would otherwise be blocked.
+    // Reserve the notes companion in this click gesture - async deploy would otherwise be blocked.
     discardReservedMeetingNotesPopout(reservedNotesPopoutRef.current);
     reservedNotesPopoutRef.current = reserveMeetingNotesPopout();
     deployMutation.mutate();
@@ -740,7 +740,7 @@ export function LiveBotModal({
         title: waiting ? "LegalNote still waiting" : "Bot still running",
         description: waiting
           ? "LegalNote is still trying to join. Use Cancel LegalNote on the status pill if the meeting won’t start."
-          : "LegalNote is still recording. Watch the status pill in the bottom-right — it will update when the call ends and notes are produced.",
+          : "LegalNote is still recording. Watch the status pill in the bottom-right - it will update when the call ends and notes are produced.",
         duration: 6000,
       });
     }
@@ -765,7 +765,7 @@ export function LiveBotModal({
       }
     }
     return () => liveBotSession.setLiveBotModalOpen(false);
-    // Intentionally only react to open — phase/session read at close time
+    // Intentionally only react to open - phase/session read at close time
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -944,7 +944,7 @@ export function LiveBotModal({
                     onClick={continueWithoutCase}
                     data-testid="button-allocate-matter-later-suggested"
                   >
-                    Join now — allocate to matter later
+                    Join now - allocate to matter later
                   </Button>
                 </div>
               </div>
@@ -1040,7 +1040,7 @@ export function LiveBotModal({
                     onClick={continueWithoutCase}
                     data-testid="button-allocate-matter-later"
                   >
-                    Join now — allocate to matter later
+                    Join now - allocate to matter later
                   </Button>
                 </div>
               </>
@@ -1088,8 +1088,8 @@ export function LiveBotModal({
                     id="new-case-title"
                     placeholder={
                       isClientMatterKind(newCaseMatterKind)
-                        ? "e.g. Smith v Jones — Conveyancing"
-                        : "e.g. Partners meeting — Q3 planning"
+                        ? "e.g. Smith v Jones - Conveyancing"
+                        : "e.g. Partners meeting - Q3 planning"
                     }
                     value={newCaseTitle}
                     onChange={(e) => setNewCaseTitle(e.target.value)}
@@ -1136,7 +1136,7 @@ export function LiveBotModal({
                         ...(isClientMatterKind(newCaseMatterKind)
                           ? {
                               conflictCheckCompleted: false,
-                              conflictCheckNote: "Deferred — matter opened from live video join",
+                              conflictCheckNote: "Deferred - matter opened from live video join",
                               practiceArea: "corporate_commercial",
                               instructionStatus: "enquiry" as const,
                             }
@@ -1313,7 +1313,7 @@ export function LiveBotModal({
                   )}
                   {isWaiting && (
                     <p className="text-xs text-muted-foreground text-center">
-                      Zoom, Teams, or Meet may label the participant as &quot;unverified&quot;. That is the meeting platform&apos;s default for third-party recording bots — not a LegalNote security warning. Removing it requires platform publisher verification (Zoom Marketplace / Microsoft / Google), not a setting in this app.
+                      Zoom, Teams, or Meet may label the participant as &quot;unverified&quot;. That is the meeting platform&apos;s default for third-party recording bots - not a LegalNote security warning. Removing it requires platform publisher verification (Zoom Marketplace / Microsoft / Google), not a setting in this app.
                     </p>
                   )}
                   <Button
@@ -1330,7 +1330,7 @@ export function LiveBotModal({
                         setStep("error");
                         setErrorMessage(
                           result.errorMessage ||
-                            "Cancelled — LegalNote left before the meeting started.",
+                            "Cancelled - LegalNote left before the meeting started.",
                         );
                         toast({
                           title: "LegalNote cancelled",
@@ -1503,13 +1503,13 @@ export function LiveBotModal({
               </div>
             )}
 
-            {/* Consent declined — bot is ejected automatically */}
+            {/* Consent declined - bot is ejected automatically */}
             {consentDeclined && (
               <div className="space-y-2" data-testid="alert-consent-declined">
                 <div className="flex items-start gap-2 p-3 bg-destructive/10 border border-destructive/30 rounded-md">
                   <AlertCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-destructive font-medium">Client declined consent — LegalNote is leaving</p>
+                    <p className="text-sm text-destructive font-medium">Client declined consent - LegalNote is leaving</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       The refusal has been logged. The bot is being removed from the call automatically. No attendance note will be produced from this session.
                     </p>
@@ -1535,7 +1535,7 @@ export function LiveBotModal({
               <div className="flex items-center gap-2 text-xs text-muted-foreground p-3 bg-muted/30 rounded-md">
                 <Clock className="w-3.5 h-3.5 shrink-0" />
                 <span>
-                  You can close this panel — LegalNote keeps recording. A status pill stays in the bottom-right and will open Meeting-to-Matter when the call ends.
+                  You can close this panel - LegalNote keeps recording. A status pill stays in the bottom-right and will open Meeting-to-Matter when the call ends.
                 </span>
               </div>
             )}
@@ -1550,7 +1550,7 @@ export function LiveBotModal({
           <div className="flex flex-col items-center py-8 gap-4 text-center">
             <Loader2 className="w-10 h-10 animate-spin text-muted-foreground" />
             <div>
-              <p className="font-semibold">Call ended — producing your documents</p>
+              <p className="font-semibold">Call ended - producing your documents</p>
               <p className="text-sm text-muted-foreground mt-1">Transcribing and generating your attendance note. This may take a few minutes.</p>
             </div>
             <Button variant="outline" onClick={handleClose} data-testid="button-close-processing">
@@ -1641,7 +1641,7 @@ export function LiveBotModal({
                           {cases?.filter(c => !c.archived).map((c) => (
                             <SelectItem key={c.id} value={c.id}>
                               {c.title}
-                              {c.clientName ? ` — ${c.clientName}` : ""}
+                              {c.clientName ? ` - ${c.clientName}` : ""}
                               {c.matterKind && c.matterKind !== "client"
                                 ? ` (${MATTER_KIND_LABELS[normalizeMatterKind(c.matterKind)]})`
                                 : ""}
@@ -1730,8 +1730,8 @@ export function LiveBotModal({
                         id="post-matter-title"
                         placeholder={
                           isClientMatterKind(postMeetingMatterKind)
-                            ? "e.g. Smith v Jones — contract dispute"
-                            : "e.g. Team catch-up — litigation group"
+                            ? "e.g. Smith v Jones - contract dispute"
+                            : "e.g. Team catch-up - litigation group"
                         }
                         value={postMeetingTitle}
                         onChange={(e) => setPostMeetingTitle(e.target.value)}
@@ -1810,7 +1810,7 @@ export function LiveBotModal({
                         id="post-discard-reason"
                         value={discardReason}
                         onChange={(e) => setDiscardReason(e.target.value)}
-                        placeholder="e.g. Empty join — the other person never connected"
+                        placeholder="e.g. Empty join - the other person never connected"
                         rows={2}
                         maxLength={500}
                         data-testid="input-post-discard-reason"

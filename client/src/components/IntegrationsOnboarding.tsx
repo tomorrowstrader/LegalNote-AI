@@ -168,7 +168,7 @@ export default function IntegrationsOnboarding() {
     },
   });
 
-  // Open wizard when prefs say it is incomplete — after display name is confirmed
+  // Open wizard when prefs say it is incomplete - after display name is confirmed
   useEffect(() => {
     if (prefsLoading || authLoading || !preferences || hasOpened) return;
     if (preferences.completedIntegrationsOnboarding === true) return;
@@ -242,7 +242,7 @@ export default function IntegrationsOnboarding() {
   const goBack = () => setStepIndex((i) => Math.max(i - 1, 0));
 
   const handleRemindLater = () => {
-    // Do not mark complete — wizard returns on next login / app load
+    // Do not mark complete - wizard returns on next login / app load
     sessionStorage.removeItem(STEP_STORAGE_KEY);
     setOpen(false);
   };
@@ -570,7 +570,7 @@ export default function IntegrationsOnboarding() {
                     ) : syncMeetingsMutation.isSuccess ? (
                       <>
                         <CheckCircle2 className="mr-2 h-4 w-4" />
-                        Synced — sync again
+                        Synced - sync again
                       </>
                     ) : (
                       <>
@@ -619,7 +619,7 @@ export default function IntegrationsOnboarding() {
           )}
         </div>
 
-        {/* Plain footer — avoid DialogFooter's space-x + justify-between overflow clip */}
+        {/* Plain footer - avoid DialogFooter's space-x + justify-between overflow clip */}
         <div className="flex w-full min-w-0 flex-col gap-3 border-t border-border/60 pt-5 sm:flex-row sm:items-center sm:justify-between">
           <Button
             variant="ghost"

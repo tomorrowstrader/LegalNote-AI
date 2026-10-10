@@ -219,7 +219,7 @@ export async function createDpaEnvelope(
 
   const { documentBase64, fileName } = await buildDpaDocxBase64({
     firmName: input.firmName,
-    sraNumber: input.sraNumber || "—",
+    sraNumber: input.sraNumber || "-",
     signerName: input.signerName,
     signerTitle: input.signerTitle,
   });
@@ -229,7 +229,7 @@ export async function createDpaEnvelope(
   const accountId = process.env.DOCUSIGN_ACCOUNT_ID!;
 
   const envelopeDefinition = {
-    emailSubject: "LegalNote Data Processing Agreement — please sign",
+    emailSubject: "LegalNote Data Processing Agreement - please sign",
     documents: [
       {
         documentBase64,

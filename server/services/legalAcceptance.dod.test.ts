@@ -25,7 +25,7 @@ import type { LegalAgreementAcceptance } from "@shared/schema";
 
 const TEST_KEY = "test-audit-signing-key-for-legal-acceptance-dod";
 
-describe("legal click-to-accept — definition of done", () => {
+describe("legal click-to-accept - definition of done", () => {
   beforeEach(() => {
     process.env.AUDIT_SIGNING_KEY = TEST_KEY;
     clearLegalDocumentCache();
@@ -76,8 +76,8 @@ describe("legal click-to-accept — definition of done", () => {
       documentSlug: "evaluation",
     });
 
-    // Mutate masters (redeploy) — live loader must see new hashes.
-    fs.writeFileSync(dpaPath, "MUTATED DPA TEXT v2 — should not replace snapshot\n", "utf8");
+    // Mutate masters (redeploy) - live loader must see new hashes.
+    fs.writeFileSync(dpaPath, "MUTATED DPA TEXT v2 - should not replace snapshot\n", "utf8");
     fs.writeFileSync(evalPath, "MUTATED EVAL TEXT v2\n", "utf8");
     clearLegalDocumentCache();
 

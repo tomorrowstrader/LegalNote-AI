@@ -1068,10 +1068,10 @@ export async function sendMeetingBookingProposalUpdatedEmail(params: {
 export async function sendMeetingBookingResponseNotification(params: {
   to: string;
   recipientFirstName?: string | null;
-  responseStatus: "booked" | "declined";
+  responseStatus: "booked" | "declined" | "email_added";
   meetingTitle: string;
   clientName?: string | null;
-  clientEmail: string;
+  clientEmail?: string | null;
   startsAt?: Date | null;
   clientMessage?: string | null;
   caseId?: string | null;
@@ -1090,9 +1090,8 @@ export async function sendMeetingBookingResponseNotification(params: {
 
   const baseUrl = process.env.APP_URL?.replace(/\/$/, "") || "https://legalnote.ai";
   const greetName = publicFacingDisplayName(recipientFirstName) || "there";
-  const who =
-    publicFacingDisplayName(clientName) ||
-    (clientEmail.includes("@") ? clientEmail : "The recipient");
+  const emailLabel = clientEmail?.includes("@") ? clientEmail : null;
+  const who = publicFacingDisplayName(clientName) || emailLabel || "The recipient";
 
   const whenStr =
     startsAt && !isNaN(startsAt.getTime())
@@ -1108,11 +1107,18 @@ export async function sendMeetingBookingResponseNotification(params: {
       : null;
 
   const isBooked = responseStatus === "booked";
-  const statusColor = isBooked ? "#22c55e" : "#f59e0b";
-  const heading = isBooked ? "Meeting time booked" : "No proposed times worked";
-  const subject = isBooked
-    ? `Meeting booked: ${meetingTitle}`
-    : `Booking response: none of the times worked — ${meetingTitle}`;
+  const isDetailsAdded = responseStatus === "email_added";
+  const statusColor = isBooked || isDetailsAdded ? "#22c55e" : "#f59e0b";
+  const heading = isDetailsAdded
+    ? "Guest added their email"
+    : isBooked
+      ? "Meeting time booked"
+      : "No proposed times worked";
+  const subject = isDetailsAdded
+    ? `Guest email added: ${meetingTitle}`
+    : isBooked
+      ? `Meeting booked: ${meetingTitle}`
+      : `Booking response: none of the times worked — ${meetingTitle}`;
 
   const messageSection = clientMessage
     ? `
@@ -1141,12 +1147,15 @@ export async function sendMeetingBookingResponseNotification(params: {
           </div>
           <p>Hi ${escapeHtmlPlain(greetName)},</p>
           <p>
-            <strong>${escapeHtmlPlain(who)}</strong>
-            (${escapeHtmlPlain(clientEmail)})
+            <strong>${escapeHtmlPlain(who)}</strong>${
+              emailLabel ? ` (${escapeHtmlPlain(emailLabel)})` : ""
+            }
             ${
-              isBooked
-                ? " chose a time from your proposed options."
-                : " could not make any of the proposed times."
+              isDetailsAdded
+                ? " added their email from your meeting link. It is now on the meeting and the calendar event."
+                : isBooked
+                  ? " chose a time from your proposed options."
+                  : " could not make any of the proposed times."
             }
           </p>
           <div style="background:#f8f9fa;border-radius:6px;padding:16px;margin:16px 0;">
@@ -1155,9 +1164,11 @@ export async function sendMeetingBookingResponseNotification(params: {
           </div>
           ${messageSection}
           ${
-            isBooked
-              ? "<p>The meeting has been added to your calendar with a join link. You can manage it from Upcoming Meetings in LegalNote.</p>"
-              : "<p>Please propose new times or follow up directly when convenient.</p>"
+            isDetailsAdded
+              ? "<p>They can join from the link you sent. You can manage the meeting from Upcoming Meetings in LegalNote.</p>"
+              : isBooked
+                ? "<p>The meeting has been added to your calendar with a join link. You can manage it from Upcoming Meetings in LegalNote.</p>"
+                : "<p>Please propose new times or follow up directly when convenient.</p>"
           }
           ${caseLink}
           <hr style="margin:24px 0;border:none;border-top:1px solid #e5e5e5;" />

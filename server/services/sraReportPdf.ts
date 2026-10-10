@@ -160,7 +160,7 @@ export function compileSraReportPdf(data: SraReportData): Buffer {
   pdf.setFillColor(...ACCENT);
   pdf.rect(0, 0, pageWidth, 50, "F");
 
-  // Firm logo — rendered if a URL is available (data URI or base64 not applicable in server-side PDF)
+  // Firm logo - rendered if a URL is available (data URI or base64 not applicable in server-side PDF)
   // We attempt logo rendering via addImage only if the logoUrl is a data URI (base64-encoded)
   const logoUrl = data.firmProfileData?.logoUrl;
   let logoRendered = false;

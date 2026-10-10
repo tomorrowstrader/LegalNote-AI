@@ -37,12 +37,12 @@ export function getLegalNotePersonnelUserIds(): Set<string> {
   return ids;
 }
 
-/** True only for LegalNote Technologies staff — not Controllers' firm-admins. */
+/** True only for LegalNote Technologies staff - not Controllers' firm-admins. */
 export function isLegalNotePersonnel(userId: string): boolean {
   return getLegalNotePersonnelUserIds().has(userId);
 }
 
-/** Static allowlist / admin only — no DB lookups. */
+/** Static allowlist / admin only - no DB lookups. */
 export function isUserOnStaticAllowlist(userId: string, email?: string | null): boolean {
   if (userId === getAdminUserId()) return true;
   const allowlist = getAccessAllowlist();

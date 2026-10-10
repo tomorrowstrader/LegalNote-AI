@@ -245,7 +245,7 @@ export default function ClientNameAutocomplete({
             ))
           ) : (
             <div className="px-3 py-2 text-sm text-muted-foreground">
-              {searching ? "No matching clients" : "No clients yet — type a name to add one"}
+              {searching ? "No matching clients" : "No clients yet - type a name to add one"}
             </div>
           )}
           {showCreate && (

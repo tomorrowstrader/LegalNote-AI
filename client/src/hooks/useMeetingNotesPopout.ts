@@ -30,7 +30,7 @@ export function useMeetingNotesPopout(
   optsRef.current = opts;
 
   // Close the previous companion when the draft key is cleared or replaced
-  // (e.g. recording reset) — otherwise a stale timer keeps ticking in the old window.
+  // (e.g. recording reset) - otherwise a stale timer keeps ticking in the old window.
   useEffect(() => {
     const prev = lastDraftKeyRef.current;
     if (prev && prev !== draftKey) {

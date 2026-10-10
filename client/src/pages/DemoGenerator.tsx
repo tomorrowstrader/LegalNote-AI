@@ -94,15 +94,15 @@ function buildLinkedInSnippet(values: FormValues, url: string): string {
   const areaLabel = PRACTICE_AREA_LABELS[values.practiceArea as PracticeAreaKey] || values.practiceArea;
   return `Hi ${values.firstName},
 
-I put together a quick preview of what LegalNote looks like for a ${areaLabel} practice — personalised with your firm name.
+I put together a quick preview of what LegalNote looks like for a ${areaLabel} practice - personalised with your firm name.
 
 It shows you exactly the kind of compliance visibility your team would have: overdue obligations, matter-level risk, and your readiness score.
 
-No login, no setup — just the real product, shaped around ${values.firmName}.
+No login, no setup - just the real product, shaped around ${values.firmName}.
 
 Have a look: ${url}
 
-Happy to walk you through it live — 15 minutes, no pitch, just the tool.
+Happy to walk you through it live - 15 minutes, no pitch, just the tool.
 
 [Your name]`;
 }
@@ -174,7 +174,7 @@ export default function DemoGenerator() {
         </div>
         <p className="text-muted-foreground text-sm">
           Generate a personalised public demo URL for a prospect. Each link creates a
-          compliance dashboard tailored to their firm, practice area, and name — no login required.
+          compliance dashboard tailored to their firm, practice area, and name - no login required.
         </p>
       </div>
 

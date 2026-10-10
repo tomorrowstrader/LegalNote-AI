@@ -44,7 +44,7 @@ export interface IncompleteVideoImport {
 
 /** Persist dismissals so the recovery prompt does not reappear every login for the same import+status. */
 const DISMISS_PREFIX = "ln-video-bot-recovery-dismissed:";
-/** Snapshot of imports that triggered the prompt — used if the modal query has not loaded yet when dismissing. */
+/** Snapshot of imports that triggered the prompt - used if the modal query has not loaded yet when dismissing. */
 const PENDING_SNAPSHOT_KEY = "ln-video-bot-recovery-pending-snapshot";
 
 function dismissKey(importId: string, status: string): string {
@@ -60,7 +60,7 @@ export function isVideoBotRecoveryDismissed(importId: string, status: string): b
   }
 }
 
-/** Exported for unit tests. Permanent ack — will not show again for this import+status. */
+/** Exported for unit tests. Permanent ack - will not show again for this import+status. */
 export function markVideoBotRecoveryDismissed(importId: string, status: string): void {
   try {
     localStorage.setItem(dismissKey(importId, status), "1");
@@ -148,7 +148,7 @@ function toAssignable(imp: IncompleteVideoImport): AssignableRecording {
 
 /**
  * Resolve which imports to acknowledge. Prefer an explicit list, then currently
- * visible rows, then the pre-open snapshot / a fresh fetch — so Dismiss never
+ * visible rows, then the pre-open snapshot / a fresh fetch - so Dismiss never
  * no-ops while the modal query is still loading (which caused the prompt to
  * return on every subsequent login).
  */
@@ -183,7 +183,7 @@ function statusLabel(imp: IncompleteVideoImport): string {
   if (imp.status === "pending") return "Ready to process";
   if (imp.status === "live") {
     const done = ["done", "recording_done", "call_ended"].includes(imp.botStatus || "");
-    return done ? "Call ended — ready to process" : "Bot still in meeting";
+    return done ? "Call ended - ready to process" : "Bot still in meeting";
   }
   return imp.status;
 }
@@ -304,7 +304,7 @@ export function VideoBotRecoveryModal({ open, onOpenChange }: VideoBotRecoveryMo
           await processMutation.mutateAsync(imp.importId);
         } catch (err: any) {
           const msg = String(err?.message || "");
-          // Still in meeting — resume tracking only
+          // Still in meeting - resume tracking only
           if (!msg.includes("still in the meeting")) {
             throw err;
           }

@@ -77,7 +77,7 @@ export function FunnelMiniCalculator() {
           <span className="text-2xl font-medium text-muted-foreground ml-1">hrs</span>
         </p>
         <p className="text-xs text-muted-foreground mt-3 max-w-xs mx-auto leading-relaxed">
-          That's {formatCurrency(valuePerYear)} in capacity — for clients, new business, or training your team. Pays back in {paybackDays} days.
+          That's {formatCurrency(valuePerYear)} in capacity - for clients, new business, or training your team. Pays back in {paybackDays} days.
         </p>
       </motion.div>
     </div>

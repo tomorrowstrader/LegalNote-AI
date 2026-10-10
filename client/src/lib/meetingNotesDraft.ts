@@ -148,12 +148,12 @@ function formatMeetingNoteHeader(caseTitle?: string | null): string {
     minute: "2-digit",
   });
   const matter = caseTitle?.trim() ? ` · ${caseTitle.trim()}` : "";
-  return `Meeting notes — ${when}${matter}`;
+  return `Meeting notes - ${when}${matter}`;
 }
 
 /**
  * Posts a non-empty draft to the case Notes section (quick_notes) and clears local storage.
- * Safe to call multiple times — only flushes once per draft key.
+ * Safe to call multiple times - only flushes once per draft key.
  */
 export async function flushMeetingNotesToCase(opts: {
   caseId: string;

@@ -211,7 +211,7 @@ export function UnassignedRecordingQueue({
   const hints = recordingListenHints(current);
   const reconnects = sameCallCount(current, recordings);
   if (reconnects > 1) {
-    hints.push("This call was recorded more than once — usually a reconnect. Keep the one with the conversation and delete the others.");
+    hints.push("This call was recorded more than once - usually a reconnect. Keep the one with the conversation and delete the others.");
   }
   const selectedCase = cases.find((item) => item.id === caseId);
   const typeOptions = recordingTypesForMatterKind(selectedCase?.matterKind ?? "client");
@@ -392,7 +392,7 @@ export function UnassignedRecordingQueue({
               id="queue-new-title"
               value={newTitle}
               onChange={(event) => setNewTitle(event.target.value)}
-              placeholder="e.g. Smith v Jones — contract dispute"
+              placeholder="e.g. Smith v Jones - contract dispute"
               data-testid="input-new-matter-title"
             />
           </div>
@@ -434,7 +434,7 @@ export function UnassignedRecordingQueue({
               id="queue-delete-reason"
               value={deleteReason}
               onChange={(event) => setDeleteReason(event.target.value)}
-              placeholder="e.g. Empty join — the other person never connected"
+              placeholder="e.g. Empty join - the other person never connected"
               rows={2}
               maxLength={500}
               data-testid="input-delete-recording-reason"
@@ -517,7 +517,7 @@ export function UnassignedRecordingQueue({
         onClick={onNotNow}
         data-testid="button-assignment-not-now"
       >
-        Not now — leave {visible.length === 1 ? "it" : "them"} on the dashboard
+        Not now - leave {visible.length === 1 ? "it" : "them"} on the dashboard
       </Button>
     </div>
   );

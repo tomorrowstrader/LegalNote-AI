@@ -27,7 +27,7 @@ interface RecallBotResponse {
   meeting_url: string | { meeting_id?: string; platform?: string; meeting_password?: string };
   // New API: status_changes array replaces the single `status` field
   status_changes: RecallBotStatusChange[];
-  // Legacy field — may be absent in v2 responses
+  // Legacy field - may be absent in v2 responses
   status?: {
     code: string;
     message?: string;
@@ -103,7 +103,7 @@ export class RecallService {
     return !!getRecallApiKey();
   }
 
-  /** Extract the latest status code from a bot — handles both old `status.code` and new `status_changes[]` */
+  /** Extract the latest status code from a bot - handles both old `status.code` and new `status_changes[]` */
   getBotStatusCode(bot: RecallBotResponse): string | undefined {
     if (bot.status_changes?.length) {
       return bot.status_changes[bot.status_changes.length - 1].code;
@@ -113,7 +113,7 @@ export class RecallService {
 
   getBotSubCode(bot: RecallBotResponse): string | undefined {
     if (bot.status_changes?.length) {
-      // Prefer the latest non-empty sub_code — call_ended often carries the timeout
+      // Prefer the latest non-empty sub_code - call_ended often carries the timeout
       // reason while a later "done" entry may omit it.
       for (let i = bot.status_changes.length - 1; i >= 0; i--) {
         const sub = bot.status_changes[i].sub_code;
@@ -178,7 +178,7 @@ export class RecallService {
           if (fieldErrors) errorMessage = fieldErrors;
         }
       } catch {
-        if (rawBody) errorMessage = `${errorMessage} — ${rawBody.slice(0, 200)}`;
+        if (rawBody) errorMessage = `${errorMessage} - ${rawBody.slice(0, 200)}`;
       }
       console.error(`[Recall.ai] ${response.status} from ${url}: ${errorMessage} | region=${RECALL_REGION} | key_len=${apiKey.length} | key_prefix=${apiKey.substring(0,4)}... | www-auth=${response.headers.get('www-authenticate') || 'none'}`);
       throw new Error(errorMessage);
@@ -193,7 +193,7 @@ export class RecallService {
       body: JSON.stringify({
         meeting_url: meetingUrl,
         bot_name: botName,
-        // Audio-only capture — LegalNote does not retain meeting video (GDPR / data-minimisation).
+        // Audio-only capture - LegalNote does not retain meeting video (GDPR / data-minimisation).
         recording_config: {
           video_mixed_layout: 'audio_only',
           audio_mixed_mp3: {},

@@ -109,7 +109,7 @@ const toneStyles: Record<
 };
 
 /**
- * Bottom-right meeting control center — shared shell for Quick Record,
+ * Bottom-right meeting control center - shared shell for Quick Record,
  * live video bots, and any in-progress capture session.
  *
  * Always opaque (`bg-card`) so theme switches mid-call keep readable contrast.
@@ -149,7 +149,7 @@ export default function RecordingControlCenter({
       : null;
 
   const isCollapsed = collapsible && collapsed && !forceExpanded;
-  // Conditional `{cond && <Node />}` children are still a truthy array — only count real nodes
+  // Conditional `{cond && <Node />}` children are still a truthy array - only count real nodes
   const hasNotepadBody = Children.toArray(children).some(Boolean);
   const displayTitle =
     title?.trim() || (icon === "video" ? "Video meeting" : "Quick Record");
@@ -380,7 +380,7 @@ export default function RecordingControlCenter({
                   <TooltipContent side="top" className="max-w-[240px] text-xs">
                     {safeguards?.isUploading
                       ? "Uploading the latest audio chunk to secure storage."
-                      : "Offline — chunks are saved locally and will upload when you reconnect."}
+                      : "Offline - chunks are saved locally and will upload when you reconnect."}
                   </TooltipContent>
                 </Tooltip>
               )}
@@ -414,7 +414,7 @@ export default function RecordingControlCenter({
                     </span>
                   </TooltipTrigger>
                   <TooltipContent side="top" className="max-w-[240px] text-xs">
-                    Low battery. Recording remains protected — consider plugging in.
+                    Low battery. Recording remains protected - consider plugging in.
                   </TooltipContent>
                 </Tooltip>
               )}

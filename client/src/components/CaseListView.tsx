@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useCallback } from "react";
 import { format, isPast, differenceInDays } from "date-fns";
 import { ChevronRight, Shield } from "lucide-react";
 import { motion } from "framer-motion";
@@ -41,6 +41,22 @@ interface CaseListViewProps {
   selectedIds?: Set<string>;
   onSelectionChange?: (ids: Set<string>) => void;
   selectionEnabled?: boolean;
+  /** Case ids to pulse after an attention chip is pressed. */
+  spotlightIds?: string[];
+  /** Bumps on each press so the same row can pulse again. */
+  spotlightToken?: number;
+  spotlightTone?: "overdue" | "review";
+}
+
+function scrollRowIntoAttention(row: HTMLElement) {
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // Nearest only moves a scroller when the row is actually out of view,
+  // including the case-list panel when the matter sits below its fold.
+  row.scrollIntoView({
+    behavior: reduce ? "auto" : "smooth",
+    block: "nearest",
+    inline: "nearest",
+  });
 }
 
 type CaseStatus = "completed" | "processing" | "pending" | "review_required" | "failed";
@@ -130,6 +146,9 @@ export default function CaseListView({
   selectedIds,
   onSelectionChange,
   selectionEnabled = false,
+  spotlightIds,
+  spotlightToken,
+  spotlightTone = "overdue",
 }: CaseListViewProps) {
   const [, setLocation] = useLocation();
   const [selectedCase, setSelectedCase] = useState<Case | null>(null);
@@ -142,6 +161,38 @@ export default function CaseListView({
   const selection = selectedIds ?? new Set<string>();
   const allSelected = cases.length > 0 && cases.every((c) => selection.has(c.id));
   const someSelected = cases.some((c) => selection.has(c.id)) && !allSelected;
+  const spotlightSet = new Set(spotlightIds ?? []);
+  const spotlightClass = spotlightTone === "review" ? "case-row-spotlight-amber" : "case-row-spotlight";
+
+  useLayoutEffect(() => {
+    if (spotlightToken == null || spotlightSet.size === 0) return;
+    const rows: HTMLElement[] = [];
+    let first: HTMLElement | null = null;
+    cases.forEach((caseItem, index) => {
+      const el = rowRefs.current[index];
+      if (!el || !spotlightSet.has(caseItem.id)) return;
+      if (!first) first = el;
+      rows.push(el);
+    });
+    if (!first) return;
+
+    // Restart the pulse before paint so a second tap replays it cleanly.
+    rows.forEach((el) => {
+      el.style.animation = "none";
+    });
+    void first.offsetWidth;
+    rows.forEach((el) => {
+      el.style.animation = "";
+    });
+
+    const target = first;
+    const frame = window.requestAnimationFrame(() => {
+      scrollRowIntoAttention(target);
+    });
+    return () => window.cancelAnimationFrame(frame);
+    // Restart only when the user presses an attention chip again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spotlightToken]);
 
   const handleToggleSelect = useCallback((caseId: string, checked: boolean) => {
     if (!onSelectionChange) return;
@@ -283,6 +334,7 @@ export default function CaseListView({
           const isSelected = selectedCase?.id === caseItem.id && isDrawerOpen;
           const isFocused = focusedIndex === index;
           const isChecked = selection.has(caseItem.id);
+          const isSpotlight = spotlightSet.has(caseItem.id);
 
           return (
             <motion.div
@@ -311,11 +363,13 @@ export default function CaseListView({
                 gridCols,
                 isSelected && "bg-primary/5 border-l-2 border-l-primary",
                 isFocused && !isSelected && "bg-muted/30",
-                isChecked && "bg-primary/5"
+                isChecked && "bg-primary/5",
+                isSpotlight && spotlightClass,
               )}
               role="option"
               aria-selected={selectionEnabled ? isChecked : isSelected}
               data-testid={`row-case-${caseItem.id}`}
+              data-spotlight={isSpotlight ? spotlightTone : undefined}
             >
               {selectionEnabled && (
                 <div
@@ -377,7 +431,7 @@ export default function CaseListView({
                     {PRACTICE_AREA_LABELS[caseItem.practiceArea as PracticeArea] || caseItem.practiceArea}
                   </Badge>
                 ) : (
-                  <span className="text-muted-foreground/50 text-xs">—</span>
+                  <span className="text-muted-foreground/50 text-xs">-</span>
                 )}
               </div>
 
@@ -390,7 +444,7 @@ export default function CaseListView({
                     {format(new Date(caseItem.deadline), "d MMM")}
                   </span>
                 ) : (
-                  <span className="text-muted-foreground/50">—</span>
+                  <span className="text-muted-foreground/50">-</span>
                 )}
               </div>
 

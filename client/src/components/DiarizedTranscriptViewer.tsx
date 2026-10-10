@@ -42,7 +42,7 @@ interface DiarizedTranscriptViewerProps {
   onRemoveRedaction?: (start: number, end: number, textStart?: number, textEnd?: number) => void;
   canRedact?: boolean;
   initialTimestamp?: number;
-  /** Hide clock times — used for uploaded/external transcripts with no audio timeline */
+  /** Hide clock times - used for uploaded/external transcripts with no audio timeline */
   hideTimestamps?: boolean;
   /** Fee-earner uploaded/pasted transcript (not AssemblyAI from LegalNote audio) */
   isExternalUpload?: boolean;
@@ -76,7 +76,7 @@ function formatTimestamp(ms: number): string {
 function formatReasonType(reasonType: string | undefined): string {
   switch (reasonType) {
     case 'redaction_gdpr':
-      return 'GDPR — Personal Data';
+      return 'GDPR - Personal Data';
     case 'redaction_privilege':
       return 'Legal Privilege';
     case 'redaction_third_party':
@@ -237,11 +237,11 @@ export default function DiarizedTranscriptViewer({
     ? Math.max(...utterances.map((u) => u.end || 0))
     : 0;
 
-  // Prefer the longer of stored full content vs speaker segments — incomplete
+  // Prefer the longer of stored full content vs speaker segments - incomplete
   // diarization or a truncated correction must never hide the fuller capture.
   // Ignore attendance headers and speaker-label formatting when comparing lengths
   // so sample/seeded matters with named speakers still use the coloured layout.
-  // Never collapse a single timed utterance into plain text — keep coloured UI + scrub.
+  // Never collapse a single timed utterance into plain text - keep coloured UI + scrub.
   const utteranceTextLen = plainTranscriptLength(utterances.map((u) => u.text).join(" "));
   const fallbackTextLen = fallbackContent
     ? plainTranscriptLength(dialogueBodyForCompare(fallbackContent))

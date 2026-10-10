@@ -250,7 +250,7 @@ export default function AdminProvisionFirmPage() {
       toast({
         title: "Choose an email type",
         description:
-          "Tick Send evaluation confirmation or Send end-date update only — same options as Save schedule.",
+          "Tick Send evaluation confirmation or Send end-date update only - same options as Save schedule.",
         variant: "destructive",
       });
       return;
@@ -425,7 +425,7 @@ export default function AdminProvisionFirmPage() {
             </CardTitle>
             <CardDescription>
               For firms awaiting first login, this sends a sign-in invite. For active firms it sends a
-              schedule-update email instead — their account, firm details, and matters are never reset.
+              schedule-update email instead - their account, firm details, and matters are never reset.
               Correct the evaluation end date before sending.
             </CardDescription>
           </CardHeader>
@@ -448,7 +448,7 @@ export default function AdminProvisionFirmPage() {
                   <SelectContent>
                     {firms.filter((f) => f.provisionedLeadEmail).map((firm) => (
                       <SelectItem key={firm.id} value={firm.id}>
-                        {firm.name} — {firm.provisionedLeadEmail}
+                        {firm.name} - {firm.provisionedLeadEmail}
                         {firm.provisionedLeadUserId ? " (active)" : " (awaiting login)"}
                       </SelectItem>
                     ))}
@@ -544,7 +544,7 @@ export default function AdminProvisionFirmPage() {
                   {firms.map((firm) => (
                     <TableRow key={firm.id}>
                       <TableCell className="font-medium">{firm.name}</TableCell>
-                      <TableCell>{firm.provisionedLeadEmail ?? "—"}</TableCell>
+                      <TableCell>{firm.provisionedLeadEmail ?? "-"}</TableCell>
                       <TableCell>{firm.seatLimit ?? "Unlimited"}</TableCell>
                       <TableCell>
                         <div className="flex flex-col gap-2 min-w-[11rem]">
@@ -652,7 +652,7 @@ export default function AdminProvisionFirmPage() {
                       <TableCell className="text-muted-foreground text-sm">
                         {firm.provisionedAt
                           ? format(new Date(firm.provisionedAt), "dd MMM yyyy")
-                          : "—"}
+                          : "-"}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex flex-col items-end gap-2">

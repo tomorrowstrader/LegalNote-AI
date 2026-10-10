@@ -53,7 +53,7 @@ type PanelPhase =
   | "error";
 
 /**
- * Bottom-left voice command trigger — LegalNote mark, not the red record mic.
+ * Bottom-left voice command trigger - LegalNote mark, not the red record mic.
  * Captures mic audio and transcribes via AssemblyAI EU (/api/transcribe).
  */
 export function VoiceCommandTrigger() {
@@ -87,7 +87,7 @@ export function VoiceCommandTrigger() {
         toast({
           title: "Using device voice",
           description:
-            "Polly isn’t available yet — enable polly:SynthesizeSpeech on the EU AWS role for a natural UK voice.",
+            "Polly isn’t available yet - enable polly:SynthesizeSpeech on the EU AWS role for a natural UK voice.",
         });
       }
     });
@@ -100,7 +100,7 @@ export function VoiceCommandTrigger() {
         toast({
           title: "Using device voice",
           description:
-            "Polly isn’t available yet — enable polly:SynthesizeSpeech on the EU AWS role for a natural UK voice.",
+            "Polly isn’t available yet - enable polly:SynthesizeSpeech on the EU AWS role for a natural UK voice.",
         });
       }
     });
@@ -120,7 +120,7 @@ export function VoiceCommandTrigger() {
           };
           setAskAnswer(answer);
           setPanelPhase("answer");
-          setStatusLine("I can pull file status — not legal advice");
+          setStatusLine("I can pull file status - not legal advice");
           speakAnswer(answer);
           return;
         }
@@ -224,7 +224,7 @@ export function VoiceCommandTrigger() {
 
           setMatterChoices(ranked);
           setPanelPhase("choose_matter");
-          setStatusLine(`Found ${ranked.length} close matches — tap one to open`);
+          setStatusLine(`Found ${ranked.length} close matches - tap one to open`);
           speakAck(`Found ${ranked.length} close matches. Tap one to open.`);
           return;
         }
@@ -280,7 +280,7 @@ export function VoiceCommandTrigger() {
     setMatterChoices([]);
     setPendingView(null);
     setAskAnswer(null);
-    setStatusLine("Speak your command — stops when you pause");
+    setStatusLine("Speak your command - stops when you pause");
     void recognition.start();
   }, [recognition]);
 
@@ -425,7 +425,7 @@ export function VoiceCommandTrigger() {
     setAskAnswer(null);
     setHeardText("");
     setPanelPhase("listening");
-    setStatusLine("Speak your command — stops when you pause");
+    setStatusLine("Speak your command - stops when you pause");
     void recognition.start();
   };
 
@@ -693,7 +693,7 @@ export function VoiceCommandTrigger() {
             )}
 
             <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
-              File status only — not legal advice. Stops automatically when you pause; tap Done now
+              File status only - not legal advice. Stops automatically when you pause; tap Done now
               if you need to cut early.
             </p>
           </div>
@@ -704,7 +704,7 @@ export function VoiceCommandTrigger() {
 }
 
 async function searchMatters(query: string) {
-  // Use the case list (client/title/ref) — not enhanced search, which also
+  // Use the case list (client/title/ref) - not enhanced search, which also
   // matches transcript body and returns unrelated matters.
   const response = await fetch("/api/cases", { credentials: "include" });
   if (!response.ok) throw new Error("Search failed");

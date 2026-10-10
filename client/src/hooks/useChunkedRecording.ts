@@ -115,9 +115,9 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
-  /** Cloud session — null while provisional/local-only. */
+  /** Cloud session - null while provisional/local-only. */
   const chunkSessionRef = useRef<ChunkSession | null>(null);
-  /** IndexedDB backup key — always set while recording. */
+  /** IndexedDB backup key - always set while recording. */
   const localBackupSessionIdRef = useRef<string | null>(null);
   const chunkNumberRef = useRef(0);
   const audioFormatRef = useRef(getSupportedMimeType());
@@ -179,7 +179,7 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
       }
 
       if (!chunkSessionRef.current) {
-        // Still local-only — durable on device, waiting for cloud session
+        // Still local-only - durable on device, waiting for cloud session
         pendingChunksRef.current.set(chunkNumber, chunkBlob);
         setPendingChunksCount(pendingChunksRef.current.size);
         return false;
@@ -627,7 +627,7 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
   } | null> => {
     if (!chunkSessionRef.current) {
       // Local-only: consent UI still happened; cloud seal happens after sync
-      console.warn("Consent noted locally — cloud consent mark deferred until online");
+      console.warn("Consent noted locally - cloud consent mark deferred until online");
       return {
         success: true,
         consentChunk: Math.max(0, chunkNumberRef.current - 1),
@@ -657,7 +657,7 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
       const synced = await ensureCloudSynced();
       if (!synced || !chunkSessionRef.current) {
         throw new Error(
-          "Still offline or cloud session unavailable. Your recording is saved on this device — reconnect and try again.",
+          "Still offline or cloud session unavailable. Your recording is saved on this device - reconnect and try again.",
         );
       }
 

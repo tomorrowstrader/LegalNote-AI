@@ -13,7 +13,7 @@ function userOrIpKey(req: any): string {
   return ipKeyGenerator(req.ip ?? "unknown");
 }
 
-// General API rate limit — per-user when session exists, per-IP otherwise.
+// General API rate limit - per-user when session exists, per-IP otherwise.
 // Dashboard + polling can exceed 100/15min on a single IP during normal use.
 export const generalApiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -54,7 +54,7 @@ export const presignedUrlLimiter = rateLimit({
 });
 
 // Completed audio uploads (multipart file upload per recording).
-// Do NOT apply this to per-chunk endpoints — 10s chunked recording would
+// Do NOT apply this to per-chunk endpoints - 10s chunked recording would
 // exhaust 60/hour in ~10 minutes and break Quick Record on save.
 export const audioUploadLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
@@ -68,7 +68,7 @@ export const audioUploadLimiter = rateLimit({
   skip: (req: any) => !req.user,
 });
 
-// Chunked / recovery chunk uploads — many requests per recording session.
+// Chunked / recovery chunk uploads - many requests per recording session.
 // At 1 chunk / 10s, 1800/hour ≈ 5 hours of continuous recording.
 export const audioChunkLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
@@ -94,7 +94,7 @@ export const authLimiter = rateLimit({
 });
 
 /**
- * IP limiter for GET /api/auth/user — must run BEFORE isAuthenticated.
+ * IP limiter for GET /api/auth/user - must run BEFORE isAuthenticated.
  * /api/auth/user is exempt from generalApiLimiter (a 429 there logs the SPA out),
  * so this is the throttle for unauthenticated floods against session/DB lookups.
  * Ceiling is high: this route is cheap and the SPA only hits it a few times per
@@ -102,7 +102,7 @@ export const authLimiter = rateLimit({
  */
 export const authUserIpLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 60, // 60/min/IP — ~1/sec sustained; far above legitimate SPA use
+  max: 60, // 60/min/IP - ~1/sec sustained; far above legitimate SPA use
   message: "Too many authentication identity checks, please try again later",
   standardHeaders: true,
   legacyHeaders: false,

@@ -1,5 +1,5 @@
 /**
- * Global console sanitisation — patches console.log/error/warn/info on import.
+ * Global console sanitisation - patches console.log/error/warn/info on import.
  * Side-effect module; must be imported before any other server code that logs.
  */
 

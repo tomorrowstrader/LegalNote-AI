@@ -33,7 +33,7 @@ export function isProduceVersionStep(currentStep?: string): boolean {
   );
 }
 
-/** Late pipeline steps are short LLM calls — ETA must stay tight. */
+/** Late pipeline steps are short LLM calls - ETA must stay tight. */
 function isLatePipelineStep(currentStep?: string): boolean {
   if (!currentStep) return false;
   const s = currentStep.toLowerCase();
@@ -105,7 +105,7 @@ export function estimateRemainingSeconds(params: {
     produceVersion,
   });
 
-  // Late phases (client letter / verify) are short — hard-cap so early elapsed
+  // Late phases (client letter / verify) are short - hard-cap so early elapsed
   // time from transcription/doc-gen cannot invent a multi-minute ETA at 99%.
   if (latePhase) {
     const lateCap = progress >= 85 ? 25 : produceVersion ? 40 : 45;
@@ -118,7 +118,7 @@ export function estimateRemainingSeconds(params: {
 
   const projectedTotal = elapsedSec / (progress / 100);
   const velocityRemaining = projectedTotal - elapsedSec;
-  // Light velocity blend only — never let a stalled milestone inflate ETA
+  // Light velocity blend only - never let a stalled milestone inflate ETA
   // past ~1.35× the baseline for this step.
   const velocityWeight = Math.min(0.35, progress / 100);
   const blended =
@@ -139,7 +139,7 @@ export function formatEtaCountdown(seconds: number): string {
 }
 
 /**
- * Human ETA copy. "Almost done…" only when real server progress is near the end —
+ * Human ETA copy. "Almost done…" only when real server progress is near the end -
  * never from a mid-run countdown floor while the bar is still creeping (e.g. 54%).
  */
 export function formatEtaLabel(seconds: number, progress?: number): string {

@@ -11,7 +11,7 @@ import { AuthEmailCollisionError, AuthEmailRequiredError, storage } from "./stor
 const SESSION_TTL = 4 * 60 * 60 * 1000;
 const MICROSOFT_LOGIN_SCOPES = "openid profile email https://graph.microsoft.com/User.Read";
 
-/** Reject open redirects — only same-origin relative paths are allowed. */
+/** Reject open redirects - only same-origin relative paths are allowed. */
 function sanitizeReturnTo(value: unknown): string | null {
   if (typeof value !== "string" || !value) return null;
   let path = value;
@@ -94,7 +94,7 @@ export async function resolveUserAccessAllowed(
   const emailToCheck = (email ?? dbUser?.email)?.trim().toLowerCase();
   if (emailToCheck) {
     const waitlistEntry = await storage.getWaitlistEntryByEmail(emailToCheck);
-    // Schema statuses: pending | invited | active | declined — treat invited/active as granted.
+    // Schema statuses: pending | invited | active | declined - treat invited/active as granted.
     if (
       waitlistEntry?.status === "approved" ||
       waitlistEntry?.status === "invited" ||
@@ -122,7 +122,7 @@ function isIntentionalFirmAccess(
   if (firm.convertedAt) return true;
   const status = String(firm.subscriptionStatus || "").toLowerCase();
   if (status === "active" || status === "trialing") return true;
-  // Team invite: firm admin invited this user — do not require env allowlist edits per hire.
+  // Team invite: firm admin invited this user - do not require env allowlist edits per hire.
   if (user.invitedBy) return true;
   return false;
 }
@@ -130,7 +130,7 @@ function isIntentionalFirmAccess(
 /**
  * Paths that may proceed past the allowlist after a valid session exists.
  * Everything else that uses isAuthenticated is denied with 403.
- * Logout is not listed — it never uses isAuthenticated.
+ * Logout is not listed - it never uses isAuthenticated.
  */
 function isAllowlistExemptPath(method: string, path: string): boolean {
   if (path === "/api/auth/user") return true;
@@ -238,7 +238,7 @@ function completeOAuthLogin(
   }
 
   // Passport ≥0.6 regenerates the session inside logIn. Do not call
-  // req.session.regenerate() first — that races with Passport and can
+  // req.session.regenerate() first - that races with Passport and can
   // leave a cookie for an empty session → /api/auth/user 401 after redirect.
   req.logIn(sessionUser, (loginErr) => {
     if (loginErr) {
@@ -259,7 +259,7 @@ export async function setupAuth(app: Express) {
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
   if (!clientID || !clientSecret) {
-    console.warn("[AUTH] GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET not set — Google OAuth disabled");
+    console.warn("[AUTH] GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET not set - Google OAuth disabled");
   } else {
     const callbackURL = getCallbackURL();
     console.log(`[AUTH] Google OAuth configured with callback: ${callbackURL}`);
@@ -297,7 +297,7 @@ export async function setupAuth(app: Express) {
 
   if (!microsoftClientId || !microsoftClientSecret) {
     console.warn(
-      "[AUTH] MICROSOFT_LOGIN_CLIENT_ID or MICROSOFT_LOGIN_CLIENT_SECRET not set — Microsoft login disabled",
+      "[AUTH] MICROSOFT_LOGIN_CLIENT_ID or MICROSOFT_LOGIN_CLIENT_SECRET not set - Microsoft login disabled",
     );
   } else {
     const microsoftCallbackURL = getMicrosoftLoginCallbackURL();
@@ -453,7 +453,7 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
 
   // Sliding expiry: authenticated activity extends the in-session TTL so long
   // Meeting-to-Matter runs don't strand the SPA on a cached "processing" card.
-  // (Cookie rolling alone is not enough — this custom expires_at gate must move too.)
+  // (Cookie rolling alone is not enough - this custom expires_at gate must move too.)
   const slideThresholdSec = 5 * 60;
   const sessionTtlSec = SESSION_TTL / 1000;
   const remainingSec = typeof user.expires_at === "number" ? user.expires_at - now : 0;

@@ -91,7 +91,7 @@ export default function CaseSelectorModal({
           status: "pending",
           priority: "normal",
           conflictCheckCompleted: false,
-          conflictCheckNote: "Deferred — matter opened from capture selector",
+          conflictCheckNote: "Deferred - matter opened from capture selector",
           practiceArea: "corporate_commercial",
           instructionStatus: "enquiry",
         });
@@ -116,7 +116,7 @@ export default function CaseSelectorModal({
       onOpenChange(false);
       toast({
         title: "Matter created",
-        description: `"${newCase.title}" is ready — continue with your capture.`,
+        description: `"${newCase.title}" is ready - continue with your capture.`,
       });
     },
     onError: (error: Error) => {
@@ -203,7 +203,7 @@ export default function CaseSelectorModal({
                 id="selector-new-case-title"
                 placeholder={
                   isClientMatterKind(newCaseMatterKind)
-                    ? "e.g. Smith v Jones — Conveyancing"
+                    ? "e.g. Smith v Jones - Conveyancing"
                     : "e.g. Sample transcript test"
                 }
                 value={newCaseTitle}

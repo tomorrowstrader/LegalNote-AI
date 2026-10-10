@@ -17,7 +17,7 @@ export function formatMeetingDurationLabel(durationSeconds: number | null | unde
 
 /**
  * Estimate traditional note-up time vs meeting length (conservative heuristic).
- * Used only for soft value pulses — never billed figures.
+ * Used only for soft value pulses - never billed figures.
  */
 export function estimateNoteUpMinutes(durationSeconds: number | null | undefined): number | null {
   if (durationSeconds == null || !Number.isFinite(durationSeconds) || durationSeconds < 60) {
@@ -42,7 +42,7 @@ export function buildValuePulseCopy(
       title: kind === "produce" ? "Notes ready to review" : "Matter review complete",
       description:
         kind === "produce"
-          ? "Your session documents are ready — adopt when you are satisfied."
+          ? "Your session documents are ready - adopt when you are satisfied."
           : "Your adopted notes are locked and ready to share when you need them.",
     };
   }

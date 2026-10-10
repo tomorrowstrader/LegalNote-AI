@@ -2301,7 +2301,7 @@ export default function Landing() {
               LegalNote BlackBox
             </h2>
             <p className="text-base sm:text-lg text-[hsl(220,10%,70%)] max-w-2xl mx-auto" style={{ fontFamily: "'Lora', Georgia, serif" }}>
-              Built to protect browser recordings (Quick Record and Capture) through network dropouts, crashes, and interrupted sessions. Chunks sync to EU cloud storage as you record—and recovery is available when you&apos;re back online.
+              Built to protect browser recordings (Quick Record and Capture) through network dropouts, crashes, and interrupted sessions. Chunks sync to EU cloud storage as you record-and recovery is available when you&apos;re back online.
             </p>
           </motion.div>
 
@@ -2315,7 +2315,7 @@ export default function Landing() {
               {
                 icon: HardDrive,
                 title: "Triple-Layer Redundancy",
-                description: "Local device cache, EU cloud object storage, and database session tracking. Browser recordings are stored locally and in the cloud as you record—so interrupted sessions remain recoverable."
+                description: "Local device cache, EU cloud object storage, and database session tracking. Browser recordings are stored locally and in the cloud as you record-so interrupted sessions remain recoverable."
               },
               {
                 icon: Shield,
@@ -2383,7 +2383,7 @@ export default function Landing() {
             data-testid="blackbox-livebot-note"
           >
             Video meetings use a separate path: LegalNote&apos;s meeting bot records in the cloud via Recall.ai.
-            After the call ends, import and processing are recoverable in LegalNote—closing your browser does not stop the bot.
+            After the call ends, import and processing are recoverable in LegalNote-closing your browser does not stop the bot.
           </p>
         </div>
       </div>

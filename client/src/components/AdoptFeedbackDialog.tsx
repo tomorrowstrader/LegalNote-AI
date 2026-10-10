@@ -78,7 +78,7 @@ export function AdoptFeedbackDialog({
       if (!vars.dismissed) {
         toast({
           title: "Thanks",
-          description: "Your feedback helps us improve LegalNote — no client details were stored.",
+          description: "Your feedback helps us improve LegalNote - no client details were stored.",
           duration: 4000,
         });
       }
@@ -127,7 +127,7 @@ export function AdoptFeedbackDialog({
         <DialogHeader>
           <DialogTitle className="font-heading text-lg">Quick pulse</DialogTitle>
           <DialogDescription className="text-sm leading-relaxed">
-            How was this attendance note? One tap is enough — nothing confidential is collected.
+            How was this attendance note? One tap is enough - nothing confidential is collected.
           </DialogDescription>
         </DialogHeader>
 
@@ -186,7 +186,7 @@ export function AdoptFeedbackDialog({
               id="adopt-feedback-comment"
               value={comment}
               onChange={(e) => setComment(e.target.value.slice(0, 280))}
-              placeholder="Keep it general — no names or matter references"
+              placeholder="Keep it general - no names or matter references"
               rows={2}
               className="resize-none text-sm"
               data-testid="input-feedback-comment"

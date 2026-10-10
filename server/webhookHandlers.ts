@@ -83,7 +83,7 @@ export class WebhookHandlers {
     const sync = await getStripeSync();
     await sync.processWebhook(payload, signature, uuid);
 
-    // Signature already verified by sync — safely parse for firm unlock side effects.
+    // Signature already verified by sync - safely parse for firm unlock side effects.
     try {
       const event = JSON.parse(payload.toString('utf8')) as {
         type?: string;

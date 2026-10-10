@@ -343,7 +343,7 @@ body {
     @apply font-sans antialiased text-foreground;
   }
 
-  /* Refined warm cream — document-grade light mode */
+  /* Refined warm cream - document-grade light mode */
   :root body.app-body {
     /* ORIGINAL: background: hsl(40, 20%, 98%); */
     background: linear-gradient(180deg,
@@ -369,7 +369,7 @@ body {
     box-shadow:
       0 1px 3px hsl(30 20% 20% / 0.04),
       0 4px 16px hsl(30 20% 20% / 0.06);
-    /* ORIGINAL: (no explicit border-color — inherited border-border) */
+    /* ORIGINAL: (no explicit border-color - inherited border-border) */
     border-color: hsl(36 20% 90%);
   }
 
@@ -589,7 +589,7 @@ body.app-body {
   );
 }
 
-/* Editor text selection colour — brand-consistent, both modes */
+/* Editor text selection colour - brand-consistent, both modes */
 .legal-document-editor .ProseMirror ::selection {
   background-color: hsl(25 60% 55% / 0.25);
 }
@@ -669,7 +669,7 @@ html.dark {
     inset 0 1px 0 hsl(210 30% 50% / 0.12);
 }
 
-/* Glass effect for inputs (exclude top-nav global search — needs solid white in light mode) */
+/* Glass effect for inputs (exclude top-nav global search - needs solid white in light mode) */
 input:not([type="checkbox"]):not([type="radio"]):not(.global-search-input),
 textarea,
 select {
@@ -798,7 +798,7 @@ nav.sticky {
   box-sizing: border-box;
   width: var(--rm-page-width);
   max-width: 100%;
-  /* Vertical padding must stay 0 — pagination widgets own top/bottom margins. */
+  /* Vertical padding must stay 0 - pagination widgets own top/bottom margins. */
   padding-top: 0 !important;
   padding-bottom: 0 !important;
   /* Fixed 1" gutters so text never sits on the page border (Word/Docs default). */
@@ -987,7 +987,7 @@ nav.sticky {
   text-align: justify;
 }
 
-/* Title line: bold + centred — only the first page / document start,
+/* Title line: bold + centred - only the first page / document start,
    not the first paragraph of every paginated page. */
 .legal-document-justified .ProseMirror > p:first-child,
 .legal-document-justified [data-page-view-visible][data-page="1"] > p:first-child,
@@ -1222,7 +1222,7 @@ nav.sticky {
   background-color: rgba(239, 68, 68, 0.25);
 }
 
-/* LegalNote navbar — deep glass in dark mode */
+/* LegalNote navbar - deep glass in dark mode */
 .dark .legalnote-nav {
   background: hsl(220, 32%, 7%) !important;
   backdrop-filter: blur(20px);
@@ -1291,7 +1291,7 @@ nav.sticky {
   border: 1px solid hsl(var(--border)) !important;
 }
 
-/* Voice command mark — idle breathe + listening halo */
+/* Voice command mark - idle breathe + listening halo */
 @keyframes ln-mark-breathe {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.04); }
@@ -1330,6 +1330,95 @@ nav.sticky {
   .ln-mark-breathe,
   .ln-mark-halo {
     animation: none !important;
+  }
+}
+
+/* Case-list spotlight: two soft pulses, a short hold, then fade. */
+@keyframes case-row-spotlight {
+  0% {
+    background-color: transparent;
+    box-shadow: inset 0 0 0 0 transparent, 0 0 0 0 transparent;
+  }
+  14%, 40% {
+    background-color: hsl(0 72% 51% / 0.16);
+    box-shadow:
+      inset 0 0 0 2px hsl(0 72% 51% / 0.55),
+      0 0 0 4px hsl(0 72% 51% / 0.12);
+  }
+  26% {
+    background-color: hsl(0 72% 51% / 0.05);
+    box-shadow:
+      inset 0 0 0 2px hsl(0 72% 51% / 0.2),
+      0 0 0 0 transparent;
+  }
+  58%, 78% {
+    background-color: hsl(0 72% 51% / 0.11);
+    box-shadow:
+      inset 0 0 0 2px hsl(0 72% 51% / 0.4),
+      0 0 0 3px hsl(0 72% 51% / 0.08);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: inset 0 0 0 0 transparent, 0 0 0 0 transparent;
+  }
+}
+
+@keyframes case-row-spotlight-amber {
+  0% {
+    background-color: transparent;
+    box-shadow: inset 0 0 0 0 transparent, 0 0 0 0 transparent;
+  }
+  14%, 40% {
+    background-color: hsl(38 92% 50% / 0.18);
+    box-shadow:
+      inset 0 0 0 2px hsl(32 90% 42% / 0.5),
+      0 0 0 4px hsl(38 92% 50% / 0.12);
+  }
+  26% {
+    background-color: hsl(38 92% 50% / 0.06);
+    box-shadow:
+      inset 0 0 0 2px hsl(32 90% 42% / 0.18),
+      0 0 0 0 transparent;
+  }
+  58%, 78% {
+    background-color: hsl(38 92% 50% / 0.12);
+    box-shadow:
+      inset 0 0 0 2px hsl(32 90% 42% / 0.36),
+      0 0 0 3px hsl(38 92% 50% / 0.08);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: inset 0 0 0 0 transparent, 0 0 0 0 transparent;
+  }
+}
+
+.case-row-spotlight,
+.case-row-spotlight-amber {
+  position: relative;
+  z-index: 1;
+  scroll-margin-top: 5rem;
+  scroll-margin-bottom: 1.5rem;
+}
+
+.case-row-spotlight {
+  animation: case-row-spotlight 3.2s ease-in-out forwards;
+}
+
+.case-row-spotlight-amber {
+  animation: case-row-spotlight-amber 3.2s ease-in-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .case-row-spotlight {
+    animation: none;
+    background-color: hsl(0 72% 51% / 0.14);
+    box-shadow: inset 0 0 0 2px hsl(0 72% 51% / 0.45);
+  }
+
+  .case-row-spotlight-amber {
+    animation: none;
+    background-color: hsl(38 92% 50% / 0.16);
+    box-shadow: inset 0 0 0 2px hsl(32 90% 42% / 0.45);
   }
 }
 

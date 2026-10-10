@@ -400,7 +400,7 @@ export async function ensureFreshOutlookToken(
 
   if (connection.expiresAt && isTokenExpiringSoon(connection.expiresAt)) {
     if (!connection.refreshToken) {
-      throw new Error('Cannot refresh Outlook token — no refresh token available');
+      throw new Error('Cannot refresh Outlook token - no refresh token available');
     }
 
     const newTokens = await refreshMicrosoftToken(connection.refreshToken, baseUrl);

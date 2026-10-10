@@ -48,7 +48,7 @@ export function AnimatedLegalNoteMark({
   );
 }
 
-/** Standalone live waveform — used in the voice command panel. */
+/** Standalone live waveform - used in the voice command panel. */
 export function VoiceWaveform({
   state = "listening",
   className,

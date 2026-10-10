@@ -31,10 +31,10 @@ const FUNNEL_SECTIONS = [
 ] as const;
 
 const SCENARIO_STEPS: { id: ScenarioStep; label: string; headline: string }[] = [
-  { id: "inception", label: "01", headline: "Client meeting captured — attendance note on the matter in minutes" },
-  { id: "meeting", label: "02", headline: "Partner reviews the timeline — gaps visible in week two, not at completion" },
-  { id: "mlro", label: "03", headline: "Required conversation happens early — while client trust is intact" },
-  { id: "timeline", label: "04", headline: "Six months of meetings, one place — referral-ready from day one" },
+  { id: "inception", label: "01", headline: "Client meeting captured - attendance note on the matter in minutes" },
+  { id: "meeting", label: "02", headline: "Partner reviews the timeline - gaps visible in week two, not at completion" },
+  { id: "mlro", label: "03", headline: "Required conversation happens early - while client trust is intact" },
+  { id: "timeline", label: "04", headline: "Six months of meetings, one place - referral-ready from day one" },
 ];
 
 const STACK_LAYERS = [
@@ -53,7 +53,7 @@ const GROWTH_PAIN_CARDS = [
     role: "Senior Partner",
   },
   {
-    quote: "When we grow, quality slips. Clients notice before we do — and referrals dry up.",
+    quote: "When we grow, quality slips. Clients notice before we do - and referrals dry up.",
     role: "Founder, 5 fee earners",
   },
 ];
@@ -62,12 +62,12 @@ const TRUST_PILLARS = [
   {
     icon: Users,
     title: "Same standard, every fee earner",
-    body: "Structured attendance notes from every client meeting — whether it's you, a new starter, or your third hire.",
+    body: "Structured attendance notes from every client meeting - whether it's you, a new starter, or your third hire.",
   },
   {
     icon: TrendingUp,
     title: "Catch gaps early, not at completion",
-    body: "See what was — and wasn't — discussed in every meeting. Review the timeline before a matter reaches the cliff edge.",
+    body: "See what was - and wasn't - discussed in every meeting. Review the timeline before a matter reaches the cliff edge.",
   },
   {
     icon: Shield,
@@ -191,7 +191,7 @@ export default function CampaignFunnel() {
         >
           <motion.div variants={fadeUp} custom={0} className="funnel-badge mb-8">
             <Sparkles className="h-3 w-3" />
-            LegalNote v2.0 — founding firm cohort
+            LegalNote v2.0 - founding firm cohort
           </motion.div>
 
           <motion.h1
@@ -208,7 +208,7 @@ export default function CampaignFunnel() {
             custom={2}
             className="funnel-subhead mt-6 max-w-xl text-balance"
           >
-            Your Meeting-to-Matter system — every client conference captured, documented,
+            Your Meeting-to-Matter system - every client conference captured, documented,
             and on the file. So you grow the team without losing sight of what happened in the room.
           </motion.p>
 
@@ -265,7 +265,7 @@ export default function CampaignFunnel() {
         >
           <p className="text-base sm:text-lg leading-relaxed text-foreground/90">
             A partner told me about a deal that ran six months through three people. At the final check,
-            he found a required client conversation had never happened. He called the client to explain —
+            he found a required client conversation had never happened. He called the client to explain -
             at the most sensitive point in the matter. The client hadn't understood. They pulled out.
           </p>
           <p className="mt-4 text-sm sm:text-base leading-relaxed text-muted-foreground">
@@ -273,7 +273,7 @@ export default function CampaignFunnel() {
             If it had been visible in week two, the conversation would have happened while trust was still intact.
           </p>
           <p className="mt-6 text-xs uppercase tracking-widest text-[hsl(18,70%,42%)]">
-            The same pattern plays out on every long matter — in every growing firm.
+            The same pattern plays out on every long matter - in every growing firm.
           </p>
         </motion.article>
 
@@ -317,7 +317,7 @@ export default function CampaignFunnel() {
           </h2>
           <p className="mt-8 text-base sm:text-lg text-white/60 max-w-lg mx-auto leading-relaxed">
             You have a system for your pipeline. A system for your matters.
-            LegalNote is the system for what happens when your solicitors sit down with clients —
+            LegalNote is the system for what happens when your solicitors sit down with clients -
             captured, documented, and on the matter from day one.
           </p>
 
@@ -353,7 +353,7 @@ export default function CampaignFunnel() {
           <div>
             <p className="funnel-eyebrow">Meeting-to-Matter in practice</p>
             <h2 className="funnel-section-title mb-8">
-              Catch what wasn't said — in week two, not at completion.
+              Catch what wasn't said - in week two, not at completion.
             </h2>
 
             <div className="space-y-2 mb-8">
@@ -375,7 +375,7 @@ export default function CampaignFunnel() {
             </div>
 
             <p className="text-sm text-muted-foreground leading-relaxed hidden sm:block">
-              Attendance notes are the most meticulous output — but the value is the full meeting record
+              Attendance notes are the most meticulous output - but the value is the full meeting record
               on the matter. Every fee earner, every conference, visible before it becomes a problem.
             </p>
           </div>
@@ -479,7 +479,7 @@ export default function CampaignFunnel() {
             Ready to grow without sacrificing the standard your clients expect?
           </h2>
           <p className="mt-6 text-white/55 text-base sm:text-lg leading-relaxed">
-            Book a 15-minute discovery call — or start a governed 30-day evaluation with your team.
+            Book a 15-minute discovery call - or start a governed 30-day evaluation with your team.
             We'll show you how LegalNote fits between your meetings and your matter files.
           </p>
 

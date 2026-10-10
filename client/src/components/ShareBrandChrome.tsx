@@ -8,7 +8,7 @@ const HOMEPAGE_URL = "https://legalnote.ai";
 
 /**
  * Subtle LegalNote chrome for public secure-share views.
- * Brand presence only — no marketing copy; document remains the focus.
+ * Brand presence only - no marketing copy; document remains the focus.
  */
 export function ShareBrandBar() {
   const [theme, setTheme] = useState<AppTheme>("light");

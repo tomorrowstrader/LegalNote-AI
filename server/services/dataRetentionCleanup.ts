@@ -7,7 +7,7 @@ import { deleteExpiredAudioRecording } from './expiredAudioRecordingDeletion';
  *
  * GDPR Compliance: Automatically removes expired data
  * - Expired share links
- * - Old audio files (7-day retention) — global, hold-aware
+ * - Old audio files (7-day retention) - global, hold-aware
  * - Expired consent logs
  * - Old session data
  */
@@ -125,7 +125,7 @@ export async function cleanupExpiredAudioRecordings(): Promise<AudioRetentionCle
           break;
         case 'skipped_hold':
           result.skippedLitigationHold++;
-          console.log('[DATA-RETENTION] Skipped expired audio — litigation hold:', {
+          console.log('[DATA-RETENTION] Skipped expired audio - litigation hold:', {
             audioRecordingId: recording.id,
             caseId: recording.caseId,
           });
@@ -163,7 +163,7 @@ export async function cleanupExpiredAudioRecordings(): Promise<AudioRetentionCle
           break;
         case 'skipped_hold':
           result.skippedLitigationHold++;
-          console.log('[DATA-RETENTION] Skipped grace-lapsed audio — litigation hold:', {
+          console.log('[DATA-RETENTION] Skipped grace-lapsed audio - litigation hold:', {
             audioRecordingId: recording.id,
             caseId: recording.caseId,
           });

@@ -64,7 +64,7 @@ export function initializeWorkers() {
     }
   });
 
-  // Further version production — same derivation doc-gen path as meeting-end pipeline
+  // Further version production - same derivation doc-gen path as meeting-end pipeline
   jobQueue.registerHandler(
     'produce-document-version',
     async (data: { caseId: string; documentId: string; userId: string; reason?: string }) => {
@@ -207,7 +207,7 @@ export function initializeWorkers() {
             await sendInternalSystemAlertEmail({
               to: ['jazz.dennis@legalnote.ai'],
               subject: `[LegalNote Alert] Auto-commit failed: transcript ${transcript.id}`,
-              bodyText: `Auto-commit sweep failed to commit redactions.\n\nTranscript ID: ${transcript.id}\nCase ID: ${transcript.caseId}\nCase owner: ${transcript.createdBy}\n\nManual intervention may be required — this transcript has pending redactions that could not be auto-committed.\n\nError: ${err instanceof Error ? err.message : String(err)}\nTime: ${new Date().toISOString()}`,
+              bodyText: `Auto-commit sweep failed to commit redactions.\n\nTranscript ID: ${transcript.id}\nCase ID: ${transcript.caseId}\nCase owner: ${transcript.createdBy}\n\nManual intervention may be required - this transcript has pending redactions that could not be auto-committed.\n\nError: ${err instanceof Error ? err.message : String(err)}\nTime: ${new Date().toISOString()}`,
             });
           } catch (alertErr) {
             console.error('[REDACTION-JOB] Failed to send auto-commit failure alert:', alertErr);
@@ -289,7 +289,7 @@ function scheduleMaintenanceTasks() {
     timezone: 'Europe/London'
   });
 
-  // Check live Recall.ai bot imports every 2 minutes — triggers processing when bot reaches 'done'
+  // Check live Recall.ai bot imports every 2 minutes - triggers processing when bot reaches 'done'
   cron.schedule('*/2 * * * *', async () => {
     await checkLiveImports().catch(err => {
       console.error('[CRON] Live import check failed:', err.message);
@@ -314,7 +314,7 @@ function scheduleMaintenanceTasks() {
     timezone: 'Europe/London'
   });
 
-  // Weekly risk digest cron — DISABLED pending firm-scoped isolation fix
+  // Weekly risk digest cron - DISABLED pending firm-scoped isolation fix
   // (was: Mondays 7:00 AM Europe/London → getFirmRiskDigest + sendRiskDigestEmail)
 
   console.log('[WORKERS] Scheduled maintenance tasks with cron:');

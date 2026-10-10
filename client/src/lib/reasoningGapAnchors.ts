@@ -1,7 +1,7 @@
 /**
  * Display-time anchors for REASONING_GAP markers.
  * Markers become @@RGAP:N@@ tokens, then labelled chips. Citation clicks jump to the
- * Advice given wording in the same numbered section — not headings or Client instructions.
+ * Advice given wording in the same numbered section - not headings or Client instructions.
  */
 
 import { stripGapEvidenceComments } from "@shared/reasoningGapEvidence";
@@ -104,7 +104,7 @@ function buildGapChipElement(
   asDom: boolean,
 ): HTMLSpanElement | string {
   const { section, citation } = splitGapLabelParts(rawLabel);
-  const aria = `Reasoning needed — ${citation}`;
+  const aria = `Reasoning needed - ${citation}`;
 
   if (asDom) {
     const span = document.createElement("span");
@@ -125,7 +125,7 @@ function buildGapChipElement(
     bold.textContent = "Reasoning needed";
     span.appendChild(bold);
 
-    span.appendChild(document.createTextNode(" — "));
+    span.appendChild(document.createTextNode(" - "));
 
     const btn = document.createElement("button");
     btn.type = "button";
@@ -147,7 +147,7 @@ function buildGapChipElement(
     `class="${CHIP_CLASS}" aria-label="${escapeAttr(aria)}">` +
     `<span aria-hidden="true">⚠</span>` +
     `<strong class="font-semibold">Reasoning needed</strong>` +
-    ` — ` +
+    ` - ` +
     `<button type="button" class="${CITATION_BTN_CLASS}" ` +
     `data-gap-citation="${escapeAttr(citation)}" data-gap-section="${escapeAttr(section)}" ` +
     `data-gap-index="${index}" data-testid="button-gap-citation-${index}" ` +
@@ -497,7 +497,7 @@ export function enrichGapCitationChips(roots: ParentNode[]): void {
     if (!isWeakGapCitation(current) && match.score < 0.28) continue;
 
     chip.setAttribute("data-gap-citation", match.quote);
-    chip.setAttribute("aria-label", `Reasoning needed — ${match.quote}`);
+    chip.setAttribute("aria-label", `Reasoning needed - ${match.quote}`);
     const btn = chip.querySelector(".reasoning-gap-citation") as HTMLElement | null;
     if (btn) {
       btn.setAttribute("data-gap-citation", match.quote);

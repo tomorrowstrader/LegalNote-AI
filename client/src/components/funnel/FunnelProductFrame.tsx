@@ -9,21 +9,21 @@ const STEP_CONTENT: Record<
   { title: string; subtitle: string; items: { icon: typeof FileText; text: string }[] }
 > = {
   inception: {
-    title: "Week two — client conference",
+    title: "Week two - client conference",
     subtitle: "Employment matter · month 2 of 6",
     items: [
-      { icon: Clock, text: "Meeting captured — solicitor stays present with the client" },
+      { icon: Clock, text: "Meeting captured - solicitor stays present with the client" },
       { icon: FileText, text: "Attendance note on the matter within minutes" },
       { icon: CheckCircle2, text: "Required topics documented as the conversation happens" },
     ],
   },
   meeting: {
-    title: "Partner review — same week",
+    title: "Partner review - same week",
     subtitle: "Managing partner · file check",
     items: [
-      { icon: Users, text: "Timeline shows every meeting — not just the latest note" },
+      { icon: Users, text: "Timeline shows every meeting - not just the latest note" },
       { icon: AlertCircle, text: "Gap visible: a required discussion not yet on the file" },
-      { icon: CheckCircle2, text: "Raised in week two — not at matter completion" },
+      { icon: CheckCircle2, text: "Raised in week two - not at matter completion" },
     ],
   },
   mlro: {
@@ -31,7 +31,7 @@ const STEP_CONTENT: Record<
     subtitle: "Before the sensitive stage",
     items: [
       { icon: FileText, text: "Client conversation happens while trust is still intact" },
-      { icon: CheckCircle2, text: "Explanation documented on the matter — same standard" },
+      { icon: CheckCircle2, text: "Explanation documented on the matter - same standard" },
       { icon: Clock, text: "Matter stays on track; no cliff-edge surprises" },
     ],
   },
@@ -40,7 +40,7 @@ const STEP_CONTENT: Record<
     subtitle: "Every meeting · one place",
     items: [
       { icon: FileText, text: "Six months of client interactions on one timeline" },
-      { icon: Users, text: "Every fee earner — same workflow, same quality" },
+      { icon: Users, text: "Every fee earner - same workflow, same quality" },
       { icon: CheckCircle2, text: "Referral-ready service that scales with your firm" },
     ],
   },

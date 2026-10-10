@@ -297,7 +297,7 @@ export function buildKeytermsConfig(caseData: {
       matterReference: caseData.matterReference,
     });
   } catch {
-    // Fall through — nativePrompt remains undefined, keyterms_prompt will be used instead
+    // Fall through - nativePrompt remains undefined, keyterms_prompt will be used instead
   }
 
   return { keyterms, nativePrompt };

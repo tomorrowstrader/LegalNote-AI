@@ -47,7 +47,7 @@ export class AIProcessingPipeline {
     this.assemblyAIService = new AssemblyAIService();
     this.correctionService = new TranscriptCorrectionService();
     this.storage = storage;
-    console.log('[AI Pipeline] AssemblyAI service initialized — speaker diarization enabled');
+    console.log('[AI Pipeline] AssemblyAI service initialized - speaker diarization enabled');
   }
 
   private async getLatestSessionForCase(caseId: string, userId: string): Promise<{ recordingType: string; sessionId: string | null }> {

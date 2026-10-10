@@ -7,9 +7,9 @@ import {
 } from "./verificationWarnings";
 
 describe("verificationWarnings", () => {
-  it("splits legacy quote — explanation strings", () => {
+  it("splits legacy quote - explanation strings", () => {
     const { documentQuote, explanation } = splitLegacyWarningText(
-      "I noted this is a Mesher order. — The term was not used at the meeting.",
+      "I noted this is a Mesher order. - The term was not used at the meeting.",
     );
     expect(documentQuote).toContain("Mesher");
     expect(explanation).toContain("not used");
@@ -17,7 +17,7 @@ describe("verificationWarnings", () => {
 
   it("coerces legacy string arrays into structured warnings", () => {
     const warnings = coerceVerificationWarnings([
-      "I noted this is sometimes referred to as a Mesher order. — The term 'Mesher order' was not used at the meeting.",
+      "I noted this is sometimes referred to as a Mesher order. - The term 'Mesher order' was not used at the meeting.",
     ]);
     expect(warnings).toHaveLength(1);
     expect(warnings[0].category).toBe("unsupported_attribution");

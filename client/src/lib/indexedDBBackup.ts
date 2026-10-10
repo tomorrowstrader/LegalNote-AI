@@ -175,7 +175,7 @@ class IndexedDBBackup {
     });
   }
 
-  /** Alias for getSessionChunks — used by recovery UI. */
+  /** Alias for getSessionChunks - used by recovery UI. */
   async getChunks(sessionId: string): Promise<StoredChunk[]> {
     return this.getSessionChunks(sessionId);
   }

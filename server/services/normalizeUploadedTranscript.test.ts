@@ -32,7 +32,7 @@ describe("parseSpeakerUtterances", () => {
   });
 
   it("parses TextEdit-style speaker-only lines", () => {
-    const text = `Priya:\nAdam, can you hear me?\nAdam:\nYes, sorry — is that better?`;
+    const text = `Priya:\nAdam, can you hear me?\nAdam:\nYes, sorry - is that better?`;
     const utterances = parseSpeakerUtterances(text);
     expect(utterances).toHaveLength(2);
     expect(utterances[0].speaker).toBe("Priya");

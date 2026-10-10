@@ -79,7 +79,7 @@ export default function DisplayNameOnboarding() {
   }
 
   return (
-    <Dialog open={open} onOpenChange={() => { /* required — dismiss only after confirm */ }}>
+    <Dialog open={open} onOpenChange={() => { /* required - dismiss only after confirm */ }}>
       <DialogContent
         className="sm:max-w-md [&>button]:hidden"
         data-testid="dialog-display-name-onboarding"
@@ -93,7 +93,7 @@ export default function DisplayNameOnboarding() {
           </DialogTitle>
           <DialogDescription>
             Sign-in providers sometimes get this wrong. Enter the name you want shown across
-            LegalNote — on attendance notes, team lists, and your profile.
+            LegalNote - on attendance notes, team lists, and your profile.
           </DialogDescription>
         </DialogHeader>
 

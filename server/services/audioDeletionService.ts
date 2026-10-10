@@ -38,7 +38,7 @@ export async function deleteCaseAudioRecording(params: {
   expiresAt?: Date;
   req?: Request;
 }): Promise<void> {
-  // Fresh read immediately before delete — honours a hold applied moments earlier.
+  // Fresh read immediately before delete - honours a hold applied moments earlier.
   const holdStatus = await storage.getCaseLitigationHoldStatus(params.caseId);
   if (!holdStatus) {
     throw new Error(`Case not found: ${params.caseId}`);

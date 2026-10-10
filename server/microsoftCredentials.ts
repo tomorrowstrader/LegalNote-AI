@@ -88,7 +88,7 @@ export function diagnoseMicrosoftCredentials(): MicrosoftCredentialDiagnostics {
         issueDetail: clientId ? null : 'MICROSOFT_CLIENT_ID or MICROSOFT_LOGIN_CLIENT_ID is not set.',
       };
     }
-    // Keep scanning — a bad MICROSOFT_CLIENT_SECRET should not block a valid LOGIN secret
+    // Keep scanning - a bad MICROSOFT_CLIENT_SECRET should not block a valid LOGIN secret
   }
 
   const firstPresent = candidates.find((c) => c.value);

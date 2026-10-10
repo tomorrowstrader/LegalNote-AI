@@ -56,7 +56,7 @@ export interface KeytermsConfig {
   keyterms: string[];
   /**
    * Plain-English context prompt for Universal-3 Pro's native prompting feature.
-   * Up to 1,500 words. Cannot be used in the same request as keyterms_prompt —
+   * Up to 1,500 words. Cannot be used in the same request as keyterms_prompt -
    * when nativePrompt is set, keyterms are omitted from the request.
    */
   nativePrompt?: string;
@@ -89,7 +89,7 @@ export class AssemblyAIService {
 
   /**
    * Transcribe an in-memory audio buffer (no diarization). Used by Quick Note.
-   * Universal-2 for speed; succeeds or throws — no fallback.
+   * Universal-2 for speed; succeeds or throws - no fallback.
    */
   async transcribeBuffer(buffer: Buffer): Promise<string> {
     console.log(`[AssemblyAI] Starting buffer transcription (Universal-2, no diarization): ${buffer.length} bytes`);
@@ -286,7 +286,7 @@ export class AssemblyAIService {
       // Native prompting is used as the primary vocabulary strategy for Universal-3 Pro.
       // It replaces word_boost/boost_param (the Universal-2 API) with plain-English context
       // injection. The `prompt` and `keyterms_prompt` parameters are mutually exclusive
-      // per the AssemblyAI API — when nativePrompt is set, keyterms_prompt is not sent.
+      // per the AssemblyAI API - when nativePrompt is set, keyterms_prompt is not sent.
       body.prompt = keytermsConfig.nativePrompt;
     } else if (keytermsConfig?.keyterms?.length) {
       // Fallback: if native prompting is unavailable, send keyterms_prompt as an array

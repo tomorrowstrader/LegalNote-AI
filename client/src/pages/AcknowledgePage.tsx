@@ -184,7 +184,7 @@ export default function AcknowledgePage() {
 
           <div className="space-y-2">
             <label className="text-xs font-medium" htmlFor="input-client-email">
-              Your email address (optional — for your own records)
+              Your email address (optional - for your own records)
             </label>
             <Input
               id="input-client-email"

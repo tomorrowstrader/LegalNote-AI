@@ -665,7 +665,7 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
   const [allocateLater, setAllocateLater] = useState(false);
   const [resolvedJoinUrl, setResolvedJoinUrl] = useState<string | null>(null);
   const [refreshingJoinUrl, setRefreshingJoinUrl] = useState(false);
-  /** URL passed into LiveBot for this open — avoids a race with resolvedJoinUrl state. */
+  /** URL passed into LiveBot for this open - avoids a race with resolvedJoinUrl state. */
   const [liveBotLaunchUrl, setLiveBotLaunchUrl] = useState<string | null>(null);
 
   const safeJoinUrl = getSafeHttpsMeetingUrl(meeting.meetingUrl) || resolvedJoinUrl;
@@ -810,7 +810,7 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
                   data-testid={`badge-in-progress-${meeting.id}`}
                 >
                   <Radio className="w-3 h-3 mr-1 animate-pulse" />
-                  {inProgress ? "In progress — join now" : "Starting soon — join now"}
+                  {inProgress ? "In progress - join now" : "Starting soon - join now"}
                 </Badge>
               )}
               {getMeetingStatusBadge(meeting.status)}
@@ -836,6 +836,11 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
                   )}
                 </span>
               </div>
+            )}
+            {isActive && meeting.guestClaimToken && !meeting.clientEmail && (
+              <p className="text-sm text-muted-foreground" data-testid={`text-awaiting-guest-email-${meeting.id}`}>
+                Waiting for them to add their email on the guest link.
+              </p>
             )}
 
             {meeting.autoRecordEnabled && meeting.meetingImportId && (joinNow || inProgress) && (
@@ -923,6 +928,24 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
                     {meeting.caseId ? 'Change Case' : 'Link Case'}
                   </Button>
 
+                  {meeting.guestClaimToken && !meeting.clientEmail && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        const url = `${window.location.origin}/join/${meeting.guestClaimToken}`;
+                        navigator.clipboard.writeText(url).then(
+                          () => toast({ title: "Guest link copied" }),
+                          () => toast({ title: "Could not copy link", description: url, variant: "destructive" }),
+                        );
+                      }}
+                      data-testid={`button-copy-guest-link-${meeting.id}`}
+                    >
+                      <Copy className="w-3 h-3 mr-1" />
+                      Copy guest link
+                    </Button>
+                  )}
+
                   <Button
                     size="sm"
                     variant="outline"
@@ -1008,6 +1031,21 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
                         <Pencil className="w-4 h-4 mr-2" />
                         Edit Meeting
                       </DropdownMenuItem>
+                      {meeting.guestClaimToken && !meeting.clientEmail && (
+                        <DropdownMenuItem
+                          onClick={() => {
+                            const url = `${window.location.origin}/join/${meeting.guestClaimToken}`;
+                            navigator.clipboard.writeText(url).then(
+                              () => toast({ title: "Guest link copied" }),
+                              () => toast({ title: "Could not copy link", description: url, variant: "destructive" }),
+                            );
+                          }}
+                          data-testid={`menu-copy-guest-link-${meeting.id}`}
+                        >
+                          <Copy className="w-4 h-4 mr-2" />
+                          Copy guest link
+                        </DropdownMenuItem>
+                      )}
                       {meeting.clientEmail && !meeting.autoRecordEnabled && meeting.consentStatus === 'pending' && (
                         <DropdownMenuItem
                           onClick={() => sendConsentMutation.mutate()}
@@ -1079,7 +1117,7 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
   );
 }
 
-/** Compact overflow row for “See more” — time | title | platform | actions */
+/** Compact overflow row for “See more” - time | title | platform | actions */
 function MeetingCompactRow({ meeting }: { meeting: ScheduledMeeting; onUpdate?: () => void }) {
   const [showCaseDialog, setShowCaseDialog] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
@@ -1106,9 +1144,9 @@ function MeetingCompactRow({ meeting }: { meeting: ScheduledMeeting; onUpdate?: 
           <p className="text-sm font-medium truncate">{meeting.title}</p>
           <p className="text-xs text-muted-foreground truncate">
             {inProgress
-              ? "In progress — join now"
+              ? "In progress - join now"
               : joinNow
-                ? "Starting soon — join now"
+                ? "Starting soon - join now"
                 : isToday(startTime)
                   ? "Today"
                   : isTomorrow(startTime)
@@ -1456,7 +1494,7 @@ export function ScheduledMeetingsViewer() {
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium truncate">{proposal.title}</p>
                       <p className="text-xs text-muted-foreground truncate">
-                        {proposal.clientEmail}
+                        {proposal.clientEmail || proposal.clientName || "Waiting for their email"}
                         {available.length > 0
                           ? ` · ${available.length} option${available.length === 1 ? "" : "s"}`
                           : ""}

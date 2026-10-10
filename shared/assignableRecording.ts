@@ -121,10 +121,10 @@ export function recordingListenHints(input: {
 }): string[] {
   const hints: string[] = [];
   if (input.durationSeconds != null && input.durationSeconds > 0 && input.durationSeconds < 90) {
-    hints.push("Very short — often a failed join or an empty waiting room.");
+    hints.push("Very short - often a failed join or an empty waiting room.");
   }
   if (input.participantCount > 0 && input.participantCount <= 1) {
-    hints.push("Only one person was detected. Listen before assigning — the other side may never have joined.");
+    hints.push("Only one person was detected. Listen before assigning - the other side may never have joined.");
   }
   return hints;
 }
@@ -156,8 +156,13 @@ export function platformLabel(platform: string | null | undefined): string {
   return platform.charAt(0).toUpperCase() + platform.slice(1);
 }
 
+function withoutEmDash(value: string): string {
+  return value.replaceAll("\u2014", "-");
+}
+
 export function matterChoiceLabel(title: string, clientName: string | null | undefined): string {
+  const cleanTitle = withoutEmDash(title);
   const client = clientName?.trim();
-  if (!client || client === title || client === "Non-client") return title;
-  return `${client} — ${title}`;
+  if (!client || client === cleanTitle || client === "Non-client") return cleanTitle;
+  return `${withoutEmDash(client)} - ${cleanTitle}`;
 }

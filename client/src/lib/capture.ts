@@ -1,4 +1,4 @@
-/** Capture launcher modes — maps to the five primary intents. */
+/** Capture launcher modes - maps to the five primary intents. */
 export type CaptureMode =
   | "record"
   | "join"

@@ -1,7 +1,7 @@
 import { useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
 
-/** @deprecated Prefer useCaptureShortcut — kept for any lingering imports. */
+/** @deprecated Prefer useCaptureShortcut - kept for any lingering imports. */
 export function useNewNoteShortcut() {
   const [, setLocation] = useLocation();
 

@@ -3,6 +3,7 @@ import { useParams } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
@@ -13,6 +14,8 @@ import {
   Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
+
+const GUEST_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 import { FirmPublicBrandBar, FirmPublicBrandFooter } from "@/components/FirmPublicBrandChrome";
 
 interface PublicBookingSlot {
@@ -31,9 +34,11 @@ interface PublicBookingData {
   slotsUpdated?: boolean;
   selectedStartsAt: string | null;
   slots: PublicBookingSlot[];
-  /** Firm name when configured — never a role label like “solicitor”. */
+  /** Firm name when configured - never a role label like “solicitor”. */
   organiserName: string | null;
   firmProfile: { firmName: string; logoUrl: string | null; phone?: string | null; email?: string | null } | null;
+  needsGuestDetails?: boolean;
+  meetingUrl?: string | null;
 }
 
 function formatSlotLabel(startsAt: string, endsAt: string): { date: string; time: string } {
@@ -54,6 +59,9 @@ export default function BookMeetingPage() {
   const [declined, setDeclined] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [slotUnavailableNotice, setSlotUnavailableNotice] = useState<string | null>(null);
+  const [guestName, setGuestName] = useState("");
+  const [guestEmail, setGuestEmail] = useState("");
+  const [joinUrl, setJoinUrl] = useState<string | null>(null);
 
   const { data, isLoading, isError, error: loadError, refetch } = useQuery<PublicBookingData>({
     queryKey: [`/api/book/${token}`],
@@ -70,14 +78,19 @@ export default function BookMeetingPage() {
 
   const bookMutation = useMutation({
     mutationFn: async (slotId: string) => {
-      return apiRequest<{ status: string; startsAt: string; endsAt: string }>(
+      return apiRequest<{ status: string; startsAt: string; endsAt: string; meetingUrl?: string | null }>(
         "POST",
         `/api/book/${token}`,
-        { slotId },
+        {
+          slotId,
+          guestName: guestName.trim() || undefined,
+          guestEmail: guestEmail.trim() || undefined,
+        },
       );
     },
     onSuccess: (result) => {
       setBookedStartsAt(result.startsAt);
+      if (result.meetingUrl) setJoinUrl(result.meetingUrl);
       setError(null);
       refetch();
     },
@@ -192,6 +205,13 @@ export default function BookMeetingPage() {
               ) : null}
               .
             </p>
+            {(joinUrl || data.meetingUrl) && (
+              <Button asChild className="w-full" data-testid="button-join-booked-meeting">
+                <a href={joinUrl || data.meetingUrl || "#"} target="_blank" rel="noopener noreferrer">
+                  Join meeting
+                </a>
+              </Button>
+            )}
             <p className="text-xs text-muted-foreground">
               You should receive a calendar invitation and join link shortly.
             </p>
@@ -319,6 +339,39 @@ export default function BookMeetingPage() {
             </p>
           )}
 
+          {data.needsGuestDetails && (
+            <div className="space-y-3 rounded-md border bg-card p-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="guest-name">Your name</Label>
+                <Input
+                  id="guest-name"
+                  value={guestName}
+                  onChange={(e) => setGuestName(e.target.value)}
+                  maxLength={200}
+                  placeholder="Ada Lovelace"
+                  data-testid="input-guest-name"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="guest-email">
+                  Your email <span className="text-accent">*</span>
+                </Label>
+                <Input
+                  id="guest-email"
+                  type="email"
+                  value={guestEmail}
+                  onChange={(e) => setGuestEmail(e.target.value)}
+                  maxLength={255}
+                  placeholder="ada@example.com"
+                  data-testid="input-guest-email"
+                />
+                <p className="text-xs text-muted-foreground">
+                  This is added to the meeting and the calendar invitation.
+                </p>
+              </div>
+            </div>
+          )}
+
           {error && (
             <p className="text-sm text-destructive" role="alert">
               {error}
@@ -328,7 +381,11 @@ export default function BookMeetingPage() {
           <div className="space-y-3">
             <Button
               className="w-full"
-              disabled={!selectedSlotId || bookMutation.isPending}
+              disabled={
+                !selectedSlotId ||
+                bookMutation.isPending ||
+                (data.needsGuestDetails && !GUEST_EMAIL_RE.test(guestEmail.trim().toLowerCase()))
+              }
               onClick={() => selectedSlotId && bookMutation.mutate(selectedSlotId)}
               data-testid="button-confirm-booking"
             >

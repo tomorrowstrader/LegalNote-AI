@@ -24,10 +24,10 @@ import {
 
 type PanelMode = "collapsed" | "open" | "focus";
 
-/** Landing-page terracotta — primary brand accent on marketing surfaces. */
+/** Landing-page terracotta - primary brand accent on marketing surfaces. */
 const BRAND = "hsl(18, 70%, 42%)";
 const BRAND_HOVER = "hsl(18, 72%, 36%)";
-/** Warm tapioca / brownie milk — notepad header wash. */
+/** Warm tapioca / brownie milk - notepad header wash. */
 const TAPIOCA = "hsl(28, 42%, 86%)";
 const TAPIOCA_DEEP = "hsl(24, 38%, 78%)";
 const PAPER_WHITE = "hsl(40, 40%, 99%)";
@@ -35,7 +35,7 @@ const PAPER_LINE = "hsl(30, 18%, 88%)";
 const INK = "hsl(220, 20%, 16%)";
 
 /**
- * Live capture inserts only — what the attendance note often misses.
+ * Live capture inserts only - what the attendance note often misses.
  * Timestamp marks the recording; the rest seed structured headings.
  * Actions/Follow-ups dropped (overlap); Undertakings kept (LegalNote-native).
  */
@@ -76,9 +76,9 @@ export interface MeetingNotesCaptureProps {
   /** When false, nothing is rendered. */
   active: boolean;
   /**
-   * floating — fixed bottom-right dock (live bot)
-   * inline — fills parent (new session modal / control center)
-   * companion — full-height pop-out window
+   * floating - fixed bottom-right dock (live bot)
+   * inline - fills parent (new session modal / control center)
+   * companion - full-height pop-out window
    */
   variant?: "floating" | "inline" | "companion";
   className?: string;
@@ -390,7 +390,7 @@ export default function MeetingNotesCapture({
                 )}
               </div>
               <p className="truncate text-xs text-[hsl(220,12%,42%)]">
-                {caseTitle?.trim() || "Optional — saved to the matter when recording ends"}
+                {caseTitle?.trim() || "Optional - saved to the matter when recording ends"}
               </p>
             </div>
           ) : (
@@ -420,7 +420,7 @@ export default function MeetingNotesCapture({
               </div>
               {!isDocked && (
                 <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                  {caseTitle?.trim() || "Optional — saved to the matter when the call ends"}
+                  {caseTitle?.trim() || "Optional - saved to the matter when the call ends"}
                 </p>
               )}
             </>
@@ -461,7 +461,7 @@ export default function MeetingNotesCapture({
               )}
               onClick={onPopOut}
               aria-label="Pop out notes to a separate window"
-              title="Pop out — keep beside your video call"
+              title="Pop out - keep beside your video call"
               data-testid="button-popout-meeting-notes"
             >
               <ExternalLink className="h-3.5 w-3.5" />
@@ -496,7 +496,7 @@ export default function MeetingNotesCapture({
         </div>
       </header>
 
-      {/* Compact single row — Timestamp · Attendees · Instructions · Undertakings */}
+      {/* Compact single row - Timestamp · Attendees · Instructions · Undertakings */}
       <div className="relative z-10 flex items-center gap-1 px-3 pt-2">
         {NOTE_ACTIONS.map((action) => (
           <button

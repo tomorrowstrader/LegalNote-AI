@@ -90,7 +90,7 @@ function TicketStatusIndicator({ status }: { status: string }) {
     <div
       className="flex flex-col items-end gap-0.5 shrink-0"
       role="status"
-      aria-label={`Status: ${label}${hint ? ` — ${hint}` : ""}`}
+      aria-label={`Status: ${label}${hint ? ` - ${hint}` : ""}`}
     >
       <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
         <span className={cn("h-2 w-2 rounded-full", dotClass)} aria-hidden />
@@ -284,7 +284,7 @@ export default function SupportPage() {
             Help &amp; Support
           </h1>
           <p className="text-sm text-muted-foreground">
-            Describe what happened — voice works best. We attach safe technical context automatically.
+            Describe what happened - voice works best. We attach safe technical context automatically.
           </p>
         </div>
       </div>
@@ -310,7 +310,7 @@ export default function SupportPage() {
             {step === "review" && "Review before sending"}
           </CardTitle>
           <CardDescription>
-            {step === "describe" && "Tap the microphone and speak — we'll transcribe it for you to edit below."}
+            {step === "describe" && "Tap the microphone and speak - we'll transcribe it for you to edit below."}
             {step === "review" && "Check the summary below. You can edit the title and description."}
           </CardDescription>
         </CardHeader>
@@ -572,7 +572,7 @@ export default function SupportPage() {
         <CardHeader>
           <CardTitle className="text-lg">Your requests</CardTitle>
           <CardDescription>
-            Status updates are emailed to you — nothing to click here.
+            Status updates are emailed to you - nothing to click here.
           </CardDescription>
         </CardHeader>
         <CardContent>

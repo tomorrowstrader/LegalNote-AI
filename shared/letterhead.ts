@@ -1,6 +1,6 @@
 import type { FirmProfile } from './schema';
 
-// Shared letterhead data model — single source of truth for firm branding on documents.
+// Shared letterhead data model - single source of truth for firm branding on documents.
 // Consumed by client-side PDF/Word exports (documentExport.ts) and server-side PDF
 // generators (signedAuditExport.ts) via the @shared alias.
 export interface LetterheadData {
@@ -57,10 +57,10 @@ export function formatLetterheadFooterLine(lh: LetterheadData): string {
 }
 
 // Branding modes for document exports:
-//   'full'         — logo + firm name + full address + contact details + SRA
-//   'logo_only'    — logo top-right only; firm address in compact footer line
-//   'name_sra'     — firm name + SRA number only (used for audit exports, server-side)
-//   'none'         — no firm branding at all
+//   'full'         - logo + firm name + full address + contact details + SRA
+//   'logo_only'    - logo top-right only; firm address in compact footer line
+//   'name_sra'     - firm name + SRA number only (used for audit exports, server-side)
+//   'none'         - no firm branding at all
 export type BrandingMode = 'full' | 'logo_only' | 'name_sra' | 'none';
 
 // Document types that receive logo-only letterhead (Penn Chambers style)

@@ -121,7 +121,7 @@ export default function MyProfile() {
               <CardDescription>
                 {nameLocked
                   ? "Your display name is confirmed and locked"
-                  : "Confirm your display name — it locks after you save"}
+                  : "Confirm your display name - it locks after you save"}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">

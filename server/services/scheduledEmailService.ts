@@ -23,7 +23,7 @@ export type ScheduledEmailRecord = {
   createdAt: Date;
 };
 
-/** Minimum lead before sendAt — anything further in the future is queued, not sent immediately. */
+/** Minimum lead before sendAt - anything further in the future is queued, not sent immediately. */
 const SCHEDULE_LEAD_MS = 2_000;
 
 function mapRow(row: Record<string, unknown>): ScheduledEmailRecord {

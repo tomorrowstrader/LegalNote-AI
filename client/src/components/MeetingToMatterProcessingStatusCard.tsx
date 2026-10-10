@@ -34,7 +34,7 @@ function getProcessingCreepCap(realProgress: number): number {
     const docGenMilestone = PROCESSING_PROGRESS_MILESTONES.find((m) => m >= 40);
     if (docGenMilestone) return docGenMilestone - 1;
   }
-  // Long attendance-note generation sits at server 40 — creep toward 69 so the
+  // Long attendance-note generation sits at server 40 - creep toward 69 so the
   // bar doesn't park at 54%. Do NOT open the gate all the way to 99% here; later
   // phases (client letter at 70) must keep a truthful gap to 100.
   if (realProgress >= 40 && realProgress < 55) {
@@ -58,8 +58,8 @@ export interface MeetingToMatterProcessingStatusCardProps {
 }
 
 /**
- * Isolated so progress creep (rAF) and ETA ticks only re-render this card —
- * not CaseDetail / DocumentViewer — which previously starved click handling
+ * Isolated so progress creep (rAF) and ETA ticks only re-render this card -
+ * not CaseDetail / DocumentViewer - which previously starved click handling
  * on the side menu and top nav during long LLM phases.
  * Remount (via key) when processing is re-queued to reset animation/ETA.
  */
@@ -139,7 +139,7 @@ export default function MeetingToMatterProcessingStatusCard({
       display = Math.max(display, real);
       displayProgressRef.current = display;
 
-      // Publish at most once per whole percent — the bar already rounds.
+      // Publish at most once per whole percent - the bar already rounds.
       // Avoiding 60fps setState keeps this subtree cheap even if isolation slips.
       const rounded = Math.round(display);
       if (rounded !== lastPublishedRound) {
@@ -250,7 +250,7 @@ export default function MeetingToMatterProcessingStatusCard({
       {sessionExpired && (
         <Alert variant="destructive" className="mt-3" data-testid="alert-processing-session">
           <AlertDescription>
-            Your session expired while documents were being produced. Sign in again to see the latest status — your previous version remains on file.
+            Your session expired while documents were being produced. Sign in again to see the latest status - your previous version remains on file.
           </AlertDescription>
         </Alert>
       )}

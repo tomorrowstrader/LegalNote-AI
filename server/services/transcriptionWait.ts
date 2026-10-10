@@ -123,6 +123,6 @@ export async function pollTranscriptUntilDone<T extends PollableTranscript>(opti
 
   const minutes = Math.max(1, Math.round(maxWaitTime / 60_000));
   throw new Error(
-    `Transcription timed out after ${minutes} minutes. The recording is saved — retry to continue it.`,
+    `Transcription timed out after ${minutes} minutes. The recording is saved - retry to continue it.`,
   );
 }

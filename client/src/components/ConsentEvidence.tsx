@@ -293,7 +293,7 @@ export function ConsentEvidence({ caseId, sessions, consentLogs, focusSessionId 
     return map;
   }, [consentLogs]);
 
-  // Orphan logs (no audioRecordingId) — match to nearest session by timestamp once
+  // Orphan logs (no audioRecordingId) - match to nearest session by timestamp once
   const orphanLogsBySessionId = useMemo(() => {
     const map = new Map<string, ConsentLog>();
     const usedSessionIds = new Set<string>();

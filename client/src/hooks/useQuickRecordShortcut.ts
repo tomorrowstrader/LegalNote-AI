@@ -10,11 +10,11 @@ export const QUICK_RECORD_SHORTCUT_EVENT = "legalnote-quick-record";
  */
 export function useQuickRecordShortcut() {
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
-    // Prefer physical key — with Control held, event.key is unreliable across layouts
+    // Prefer physical key - with Control held, event.key is unreliable across layouts
     const isL = event.code === "KeyL" || event.key?.toLowerCase() === "l";
     if (!isL) return;
 
-    // Control only — never Cmd (Mac address bar) or Alt/Shift chords
+    // Control only - never Cmd (Mac address bar) or Alt/Shift chords
     if (!event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
 
     const target = event.target as HTMLElement | null;

@@ -499,7 +499,7 @@ export default function GlobalSearch() {
         </Popover>
       </div>
 
-      {/* Tablet search icon — phones use bottom-nav Search; xl+ uses inline bar */}
+      {/* Tablet search icon - phones use bottom-nav Search; xl+ uses inline bar */}
       <Dialog open={mobileOpen} onOpenChange={setMobileOpen}>
         <DialogTrigger asChild>
           <Button

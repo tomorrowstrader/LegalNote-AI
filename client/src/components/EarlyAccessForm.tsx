@@ -161,7 +161,7 @@ export function EarlyAccessForm({ open, onOpenChange, source = "landing_page" }:
               <DialogDescription data-testid="text-success-description" className="space-y-2">
                 {alreadyOnList ? (
                   <span className="block">
-                    Good news, {submittedData?.firmName || submittedData?.firstName || "there"} — you're already on our early access list. We'll be in touch soon.
+                    Good news, {submittedData?.firmName || submittedData?.firstName || "there"} - you're already on our early access list. We'll be in touch soon.
                   </span>
                 ) : (
                   <>

@@ -4,12 +4,12 @@ import { getAuditSigningKey } from "./auditChain";
 export type KeyTerms = {
   evaluationPeriodDays: number;
   feeEarnerCount: number;
-  /** Unix seconds — mandatory on every minted link. */
+  /** Unix seconds - mandatory on every minted link. */
   expiresAtUnix: number;
 };
 
 /**
- * Stable pipe-delimited payload. Integers only — UI adds "days" wording.
+ * Stable pipe-delimited payload. Integers only - UI adds "days" wording.
  * Format: evaluationPeriodDays|feeEarnerCount|expiresAtUnix
  */
 export function buildKeyTermsPayload(terms: KeyTerms): string {

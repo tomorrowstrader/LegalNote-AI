@@ -54,7 +54,7 @@ export function configureSecurityHeaders(app: Express) {
     maxAge: 86400, // 24 hours
   };
 
-  // CORS only on API routes — global CORS rejected unknown Origins with 500, which broke
+  // CORS only on API routes - global CORS rejected unknown Origins with 500, which broke
   // email clients loading public assets (e.g. /assets/email/* brand icons).
   app.use("/api", cors(corsOptions));
 
@@ -167,7 +167,7 @@ export function configureSecurityHeaders(app: Express) {
 
   // Additional security headers not covered by Helmet
   app.use((req, res, next) => {
-    // Prevent clickjacking — allow demo pages to be embedded same-origin (for demo-generator preview)
+    // Prevent clickjacking - allow demo pages to be embedded same-origin (for demo-generator preview)
     if (!req.path.startsWith('/demo/')) {
       res.setHeader('X-Frame-Options', 'DENY');
     }

@@ -56,7 +56,7 @@ const CASE_VIEW_PATTERNS: Array<{ re: RegExp; view: CaseView; label: string }> =
   { re: /\b(show |open )?(the )?documents?\b/i, view: "documents", label: "Documents" },
 ];
 
-/** Soft-block: strategy / advice — never answer as counsel. */
+/** Soft-block: strategy / advice - never answer as counsel. */
 const ADVICE_PATTERNS: RegExp[] = [
   /\bwhat should i (advise|say|tell|recommend|do)\b/i,
   /\bhow should i (advise|respond|reply|handle|approach|deal)\b/i,
@@ -157,7 +157,7 @@ export function parseVoiceCommand(transcript: string): VoiceIntent {
   const raw = transcript.trim().replace(/\s+/g, " ");
   if (!raw) return { type: "unknown", raw: "" };
 
-  // STT often inserts "Open. Adam…" — normalize punctuation before matching verbs
+  // STT often inserts "Open. Adam…" - normalize punctuation before matching verbs
   const spoken = raw.replace(/[.,!?…"“”‘’]+/g, " ").replace(/\s+/g, " ").trim();
   const lower = spoken.toLowerCase();
 
@@ -265,7 +265,7 @@ function tokensMatch(a: string, b: string): boolean {
 }
 
 /**
- * Score a case against a spoken matter query (client / title / ref only — not transcript body).
+ * Score a case against a spoken matter query (client / title / ref only - not transcript body).
  */
 export function scoreMatterAgainstQuery(matter: VoiceMatterCandidate, query: string): number {
   const q = normalizeMatterText(query);
@@ -349,4 +349,4 @@ export function caseViewPath(caseId: string, view: CaseView): string {
 }
 
 export const ADVICE_SOFT_BLOCK_MESSAGE =
-  "I can’t advise on strategy — I can pull what’s on the file.";
+  "I can’t advise on strategy - I can pull what’s on the file.";

@@ -425,13 +425,13 @@ function googleApiErrorMessage(error: unknown): string {
 /**
  * Create a meeting on the user's OAuth-connected Google Calendar.
  *
- * Important: do NOT block on Google `sendUpdates: 'all'` — inviting attendees via the
+ * Important: do NOT block on Google `sendUpdates: 'all'` - inviting attendees via the
  * Calendar API can hang past Cloudflare's proxy timeout and surface as a vague 502.
  * We create the Meet event quickly (sendUpdates: none), then notify invitees in the
  * background. LegalNote also sends its own confirmation email asynchronously.
  *
  * Also: do NOT put guests on the same insert that mints a Meet link. Google Calendar
- * rejects that combination — often with "Invalid conference type value" — when a guest
+ * rejects that combination - often with "Invalid conference type value" - when a guest
  * uses a non-Google address such as hotmail.com, outlook.com, or live.com. Teams is
  * unaffected because Microsoft Graph accepts those guests on the create call. Mint the
  * Meet event first, then add guests.
@@ -683,7 +683,7 @@ export async function createMeetingCalendarEvent(
  *
  * Note: `onlineMeetingProvider: teamsForBusiness` often hangs or returns no join URL on
  * personal Microsoft accounts. We try isOnlineMeeting without a provider first, then
- * teamsForBusiness for work/school mailboxes — each Graph call has a hard timeout.
+ * teamsForBusiness for work/school mailboxes - each Graph call has a hard timeout.
  */
 export async function createOutlookMeetingCalendarEvent(
   userId: string,
@@ -803,7 +803,7 @@ export async function createOutlookMeetingCalendarEvent(
       }
     };
 
-    // No conference requested — plain calendar event (pasted URL or none).
+    // No conference requested - plain calendar event (pasted URL or none).
     if (!createOnlineMeeting) {
       const response = await postEvent(
         buildEventBody({ withOnlineMeeting: false }),
@@ -881,7 +881,7 @@ export async function createOutlookMeetingCalendarEvent(
 
       if (eventId) {
         console.warn(
-          `[OUTLOOK] ${attempt.label} created event without join URL — cleaning up`,
+          `[OUTLOOK] ${attempt.label} created event without join URL - cleaning up`,
         );
         await deleteEventQuietly(eventId);
       }
@@ -893,7 +893,7 @@ export async function createOutlookMeetingCalendarEvent(
       error:
         lastError && /timed out/i.test(lastError)
           ? 'Microsoft Graph timed out while creating a Teams meeting. Paste a meeting URL, or schedule with Google Calendar (Meet) instead.'
-          : 'Could not create a Teams join link for this Outlook account. Work/school Microsoft 365 mailboxes work best — or paste a meeting URL / use Google Meet.',
+          : 'Could not create a Teams join link for this Outlook account. Work/school Microsoft 365 mailboxes work best - or paste a meeting URL / use Google Meet.',
     };
   } catch (error: unknown) {
     const err = error instanceof Error ? error : new Error(String(error));
@@ -954,7 +954,7 @@ export async function deleteOutlookCalendarEvent(
         if (typeof body === 'string' && body.length < 300) detail = body;
       }
     }
-    // Already deleted / not found — treat as success so LegalNote can finish cancel
+    // Already deleted / not found - treat as success so LegalNote can finish cancel
     if (/not found|404|ErrorItemNotFound/i.test(detail)) {
       return { success: true, provider: 'outlook' };
     }
@@ -983,6 +983,187 @@ export async function updateCalendarEvent(
   storage: IStorage
 ): Promise<CalendarSyncResult> {
   return updateGoogleCalendarEvent(userId, eventId, data, storage);
+}
+
+/**
+ * Add one guest to an existing Google or Outlook meeting.
+ * Google is updated first without waiting on its invite email, then notified in the background.
+ * Returns success when the address is on the event. calendarNotified is false when the
+ * provider did not confirm that the guest's own calendar invitation was sent.
+ */
+export async function addAttendeeToMeetingEvent(
+  userId: string,
+  provider: "google" | "outlook",
+  eventId: string,
+  attendee: { email: string; name?: string },
+  storage: IStorage,
+  baseUrl: string,
+): Promise<{ success: boolean; calendarNotified: boolean; error?: string }> {
+  if (!eventId || eventId.startsWith("rescheduled-")) {
+    return {
+      success: false,
+      calendarNotified: false,
+      error: "This meeting is not linked to a calendar event",
+    };
+  }
+  if (provider === "outlook") {
+    return addOutlookMeetingAttendee(userId, eventId, attendee, storage, baseUrl);
+  }
+  return addGoogleMeetingAttendee(userId, eventId, attendee, storage);
+}
+
+async function addGoogleMeetingAttendee(
+  userId: string,
+  eventId: string,
+  attendee: { email: string; name?: string },
+  storage: IStorage,
+): Promise<{ success: boolean; calendarNotified: boolean; error?: string }> {
+  try {
+    const { token } = await getValidAccessToken(userId, storage);
+    const oauth2Client = new google.auth.OAuth2();
+    oauth2Client.setCredentials({ access_token: token });
+    const calendar = google.calendar({ version: "v3", auth: oauth2Client });
+
+    const existing = await withTimeout(
+      calendar.events.get({
+        calendarId: "primary",
+        eventId,
+        fields: "id,attendees",
+      }),
+      8000,
+      "Google Calendar attendee lookup",
+    );
+
+    const current = existing.data.attendees ?? [];
+    const email = attendee.email.toLowerCase();
+    const already = current.some((a) => a.email?.toLowerCase() === email);
+    const attendees = already
+      ? current
+      : [
+          ...current,
+          {
+            email: attendee.email,
+            displayName: attendee.name || attendee.email,
+          },
+        ];
+
+    const payload = attendees.map((a) => ({
+      email: a.email,
+      displayName: a.displayName,
+      responseStatus: a.responseStatus,
+      optional: a.optional,
+      resource: a.resource,
+    }));
+
+    if (already) {
+      return { success: true, calendarNotified: true };
+    }
+
+    // sendUpdates all is what places the event on the guest's calendar.
+    try {
+      await withTimeout(
+        calendar.events.patch({
+          calendarId: "primary",
+          eventId,
+          sendUpdates: "all",
+          requestBody: { attendees: payload },
+        }),
+        12000,
+        "Google Calendar attendee invite",
+      );
+      return { success: true, calendarNotified: true };
+    } catch (inviteErr) {
+      console.warn(
+        "[CALENDAR] Guest invite notification failed; saving the attendee without it:",
+        inviteErr instanceof Error ? inviteErr.message : inviteErr,
+      );
+      await withTimeout(
+        calendar.events.patch({
+          calendarId: "primary",
+          eventId,
+          sendUpdates: "none",
+          requestBody: { attendees: payload },
+        }),
+        8000,
+        "Google Calendar attendee patch",
+      );
+      return { success: true, calendarNotified: false };
+    }
+  } catch (error: unknown) {
+    const detail = googleApiErrorMessage(error);
+    console.error("[CALENDAR] Failed to add meeting attendee:", detail);
+    return {
+      success: false,
+      calendarNotified: false,
+      error: detail || "Failed to add the guest to Google Calendar",
+    };
+  }
+}
+
+async function addOutlookMeetingAttendee(
+  userId: string,
+  eventId: string,
+  attendee: { email: string; name?: string },
+  storage: IStorage,
+  baseUrl: string,
+): Promise<{ success: boolean; calendarNotified: boolean; error?: string }> {
+  try {
+    const accessToken = await withTimeout(
+      ensureFreshOutlookToken(storage, userId, baseUrl),
+      10000,
+      "Outlook token refresh",
+    );
+    const graphClient = Client.initWithMiddleware({
+      authProvider: { getAccessToken: async () => accessToken },
+    });
+
+    type OutlookAttendee = {
+      emailAddress?: { address?: string; name?: string };
+      type?: string;
+      status?: { response?: string };
+    };
+    const existing = await withTimeout(
+      graphClient.api(`/me/events/${eventId}`).select("id,attendees").get() as Promise<{
+        attendees?: OutlookAttendee[];
+      }>,
+      8000,
+      "Outlook attendee lookup",
+    );
+
+    const current = existing.attendees ?? [];
+    const email = attendee.email.toLowerCase();
+    const already = current.some((a) => a.emailAddress?.address?.toLowerCase() === email);
+    const attendees = already
+      ? current
+      : [
+          ...current,
+          {
+            emailAddress: {
+              address: attendee.email,
+              name: attendee.name || attendee.email,
+            },
+            type: "required",
+          },
+        ];
+
+    if (!already) {
+      await withTimeout(
+        graphClient.api(`/me/events/${eventId}`).patch({ attendees }),
+        12000,
+        "Outlook attendee patch",
+      );
+    }
+
+    return { success: true, calendarNotified: true };
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    console.error("[OUTLOOK] Failed to add meeting attendee:", err.message);
+    return {
+      success: false,
+      calendarNotified: false,
+      error: err.message || "Failed to add the guest to Outlook",
+    };
+  }
 }
 
 export async function deleteCalendarEvent(

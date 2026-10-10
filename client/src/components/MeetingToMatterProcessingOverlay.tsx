@@ -65,7 +65,7 @@ export default function MeetingToMatterProcessingOverlay({
                   processingStep === "saving" ? "text-foreground" : "text-muted-foreground"
                 }`}
               >
-                {isLiveBot ? "Call ended — collecting recording" : "Saving case details"}
+                {isLiveBot ? "Call ended - collecting recording" : "Saving case details"}
               </p>
             </div>
           </div>

@@ -43,7 +43,7 @@ function buildWarning(apply: boolean, result: ObjectLockSyncResult): string | un
     return `Litigation hold applied in database but storage-level protection failed for ${count} object(s). Case is protected by app guard only until resolved.`;
   }
 
-  return `Litigation hold released in database but storage-level lock could NOT be removed for ${count} object(s) — these objects cannot be deleted until resolved. Manual intervention required.`;
+  return `Litigation hold released in database but storage-level lock could NOT be removed for ${count} object(s) - these objects cannot be deleted until resolved. Manual intervention required.`;
 }
 
 function aggregateResults(apply: boolean, results: ObjectLockObjectResult[]): ObjectLockSyncResult {

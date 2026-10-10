@@ -19,7 +19,7 @@ export async function migrateVerificationWarningsToJsonb(): Promise<void> {
 
     const rows = (col.rows ?? col) as Array<{ data_type: string; udt_name: string }>;
     if (rows.length === 0) {
-      console.log("[VERIFICATION_WARNINGS_MIGRATION] Column missing — skipping (schema push may create it)");
+      console.log("[VERIFICATION_WARNINGS_MIGRATION] Column missing - skipping (schema push may create it)");
       return;
     }
 
@@ -67,13 +67,13 @@ export async function migrateVerificationWarningsToJsonb(): Promise<void> {
                       END,
                     'documentQuote',
                       CASE
-                        WHEN position(' — ' in elem) > 0 THEN left(elem, position(' — ' in elem) - 1)
+                        WHEN position(' - ' in elem) > 0 THEN left(elem, position(' - ' in elem) - 1)
                         WHEN position(' – ' in elem) > 0 THEN left(elem, position(' – ' in elem) - 1)
                         ELSE regexp_replace(elem, '^\\[Advice without reasoning\\]\\s*', '', 'i')
                       END,
                     'explanation',
                       CASE
-                        WHEN position(' — ' in elem) > 0 THEN substr(elem, position(' — ' in elem) + 3)
+                        WHEN position(' - ' in elem) > 0 THEN substr(elem, position(' - ' in elem) + 3)
                         WHEN position(' – ' in elem) > 0 THEN substr(elem, position(' – ' in elem) + 3)
                         ELSE 'This statement could not be verified against the meeting record.'
                       END,
@@ -110,7 +110,7 @@ export async function migrateVerificationWarningsToJsonb(): Promise<void> {
       `);
       const legacy = (docs.rows ?? docs) as Array<{ id: string; verification_warnings: unknown }>;
       if (legacy.length === 0) {
-        console.log("[VERIFICATION_WARNINGS_MIGRATION] Already jsonb — nothing to normalize");
+        console.log("[VERIFICATION_WARNINGS_MIGRATION] Already jsonb - nothing to normalize");
         return;
       }
       console.log(
@@ -129,7 +129,7 @@ export async function migrateVerificationWarningsToJsonb(): Promise<void> {
     }
 
     console.log(
-      `[VERIFICATION_WARNINGS_MIGRATION] Unexpected column type ${dataType}/${udtName} — skipping`,
+      `[VERIFICATION_WARNINGS_MIGRATION] Unexpected column type ${dataType}/${udtName} - skipping`,
     );
   } catch (error) {
     console.error("[VERIFICATION_WARNINGS_MIGRATION] Error during migration:", error);

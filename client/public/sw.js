@@ -1,4 +1,4 @@
-/* LegalNote PWA service worker — app-shell caching only.
+/* LegalNote PWA service worker - app-shell caching only.
  * API/audio/chunk requests always go to the network (never cached).
  */
 const CACHE_NAME = "legalnote-shell-v1";
@@ -62,7 +62,7 @@ self.addEventListener("fetch", (event) => {
           if (shell) return shell;
         }
 
-        return new Response("Offline — LegalNote will reconnect when you're back online.", {
+        return new Response("Offline - LegalNote will reconnect when you're back online.", {
           status: 503,
           statusText: "Service Unavailable",
           headers: { "Content-Type": "text/plain; charset=utf-8" },

@@ -72,7 +72,7 @@ export function pickActivePrompt(
 
   for (const meeting of scheduled) {
     const msUntil = new Date(meeting.startTime).getTime() - now;
-    // Only the ~30-minute prepare window — late-synced meetings (e.g. 7 min out) skip T-30.
+    // Only the ~30-minute prepare window - late-synced meetings (e.g. 7 min out) skip T-30.
     if (msUntil >= T30_MIN_MS && msUntil <= T30_MAX_MS && !isDismissed(meeting.id, 30)) {
       return { meeting, offset: 30 };
     }
@@ -175,7 +175,7 @@ export function UpcomingMeetingPrompt({ blocked = false }: { blocked?: boolean }
           queryClient.invalidateQueries({ queryKey: ["/api/scheduled-meetings"] });
         }
       } catch {
-        // Fall through — LiveBot will ask for a manual URL
+        // Fall through - LiveBot will ask for a manual URL
       }
     }
     setJoinTarget({
@@ -226,7 +226,7 @@ export function UpcomingMeetingPrompt({ blocked = false }: { blocked?: boolean }
                   <p>
                     {active!.offset === 1
                       ? meetingHasStarted
-                        ? "Your meeting has started — you can still join now."
+                        ? "Your meeting has started - you can still join now."
                         : "Your meeting is about to begin."
                       : "You have an upcoming meeting. Review the matter before you join."}
                   </p>

@@ -3,7 +3,7 @@ import remarkGfm from "remark-gfm";
 
 /**
  * Display-only markdown renderer for legal masters / snapshots.
- * Does not alter the underlying string — hashing still binds to raw bytes.
+ * Does not alter the underlying string - hashing still binds to raw bytes.
  */
 export function LegalAgreementMarkdown({
   text,

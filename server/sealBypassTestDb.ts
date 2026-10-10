@@ -30,7 +30,7 @@ export const sealBypassDb = drizzle({ client: sealBypassPool, schema });
 
 /**
  * Run fn inside a transaction as the seal-bypass role with the bypass GUC set.
- * Application DATABASE_URL connections cannot use this effectively — the trigger
+ * Application DATABASE_URL connections cannot use this effectively - the trigger
  * also requires current_user = legalnote_seal_bypass.
  */
 export async function withSealBypass<T>(

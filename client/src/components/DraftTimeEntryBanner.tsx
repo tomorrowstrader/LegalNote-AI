@@ -49,7 +49,7 @@ export function DraftTimeEntryBanner({ caseId, entries }: DraftTimeEntryBannerPr
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium">Time ready to confirm</p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Draft time from your last session — confirm to add it to the matter ledger.
+            Draft time from your last session - confirm to add it to the matter ledger.
           </p>
         </div>
       </div>

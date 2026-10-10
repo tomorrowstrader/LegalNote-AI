@@ -108,7 +108,7 @@ export default function EditBookingProposalDialog({
     onSuccess: () => {
       toast({
         title: "Meeting options updated",
-        description: notifyClient
+        description: proposal?.clientEmail && notifyClient
           ? "The client will receive an email with the updated times."
           : "The booking link now shows the updated times.",
       });
@@ -135,8 +135,17 @@ export default function EditBookingProposalDialog({
 
         <div className="space-y-4 py-2">
           <p className="text-sm text-muted-foreground">
-            Remove or add times for <strong>{proposal.clientEmail}</strong>. The same booking link
-            stays valid — the client will see the updated options when they open it.
+            {proposal.clientEmail ? (
+              <>
+                Remove or add times for <strong>{proposal.clientEmail}</strong>. The same booking link
+                stays valid - the client will see the updated options when they open it.
+              </>
+            ) : (
+              <>
+                Remove or add times on this link. There is no email yet, so send the link again if you
+                change the times. They enter their email when they book.
+              </>
+            )}
           </p>
 
           <div className="space-y-2">
@@ -267,6 +276,7 @@ export default function EditBookingProposalDialog({
             )}
           </div>
 
+          {proposal.clientEmail && (
           <div className="flex items-start gap-2 rounded-md border bg-muted/20 p-3">
             <Checkbox
               id="notify-client-updated"
@@ -283,6 +293,7 @@ export default function EditBookingProposalDialog({
               </p>
             </div>
           </div>
+          )}
         </div>
 
         <DialogFooter>

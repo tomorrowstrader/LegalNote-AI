@@ -205,8 +205,8 @@ Reasoning behind advice and decisions:Because the facts support that course.`,
     expect(systemPrompt).toContain('RELATIONSHIP DURATIONS (SYSTEM-SUPPLIED)');
     expect(systemPrompt).toContain('£48,000 a year');
     expect(systemPrompt).toContain('YOU ARE THE FEE EARNER');
-    expect(systemPrompt).toContain('READ THE CONVERSATION — WHO WAS THERE');
-    expect(systemPrompt).toContain('NO SUBSTANTIVE CONTENT — BRIEF OUTPUT ONLY');
+    expect(systemPrompt).toContain('READ THE CONVERSATION - WHO WAS THERE');
+    expect(systemPrompt).toContain('NO SUBSTANTIVE CONTENT - BRIEF OUTPUT ONLY');
     expect(systemPrompt).toContain(
       'No substantive legal consultation took place. No attendance note can be prepared.',
     );
@@ -254,7 +254,7 @@ Reasoning behind advice and decisions:Because the facts support that course.`,
     expect(systemPrompt).toContain('Client: Tyanna Davey');
     expect(systemPrompt).toContain('Do not write it as "I advised"');
     expect(systemPrompt).not.toContain('YOU ARE THE FEE EARNER');
-    expect(systemPrompt).not.toContain('READ THE CONVERSATION — WHO WAS THERE');
+    expect(systemPrompt).not.toContain('READ THE CONVERSATION - WHO WAS THERE');
   });
 
   it('injects system-computed relationship duration facts into the user prompt', async () => {

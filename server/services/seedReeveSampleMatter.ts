@@ -189,14 +189,14 @@ function buildTranscriptContent(sessionDate: Date, utterances: ReturnType<typeof
   const body = utterances
     .map((u) => `[${u.speaker}]: ${u.text}`)
     .join("\n\n");
-  return `Attendance Note — Reeve v Reeve (Financial Remedy)
+  return `Attendance Note - Reeve v Reeve (Financial Remedy)
 Client: Adam Reeve
 Matter Reference: ${MATTER_REFERENCE}
 Date: ${dateLabel}
 Fee Earner: Priya Raval (Partner, Solicitor)
 Also in attendance: Ellis Warner (Paralegal)
 Duration: ${DURATION_MINUTES} minutes (${UNITS} units)
-Practice Area: Family — Divorce / Financial Remedy
+Practice Area: Family - Divorce / Financial Remedy
 Location: Remote, via Teams
 
 ---
@@ -431,7 +431,7 @@ Date Prepared: ${dateLabel}`;
 }
 
 /**
- * Post-meeting client confirmation letter — mirrors assembleSummaryDocument format
+ * Post-meeting client confirmation letter - mirrors assembleSummaryDocument format
  * and the generateSummary structure (What we discussed / What I advised / What happens next).
  * Facts only from the attendance note; no internal reasoning or "not discussed" placeholders.
  */
@@ -618,7 +618,7 @@ export async function seedReeveSampleMatter(opts: {
     const [newCase] = await db
       .insert(cases)
       .values({
-        title: "Reeve v Reeve — Financial Remedy Conference",
+        title: "Reeve v Reeve - Financial Remedy Conference",
         clientName: "Adam Reeve",
         matterReference: MATTER_REFERENCE,
         createdBy: userId!,
@@ -643,7 +643,7 @@ export async function seedReeveSampleMatter(opts: {
         caseId: newCase.id,
         recordingType: "full_meeting",
         sessionTitle:
-          "Initial Conference — Financial Remedy, Children, Wills & LPA (Teams)",
+          "Initial Conference - Financial Remedy, Children, Wills & LPA (Teams)",
         startedAt: sessionDate,
         durationSeconds: DURATION_SECONDS,
         status: "completed",
@@ -792,7 +792,7 @@ export async function seedReeveSampleMatter(opts: {
         timestamp: sessionDate,
         metadata: {
           sessionTitle:
-            "Initial Conference — Financial Remedy, Children, Wills & LPA (Teams)",
+            "Initial Conference - Financial Remedy, Children, Wills & LPA (Teams)",
           recordingType: "full_meeting",
           location: "remote_teams",
         },

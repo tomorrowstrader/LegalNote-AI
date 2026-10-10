@@ -36,7 +36,7 @@ import { assertLegalMasterHashes } from "./services/legalDocumentLoader";
 if (!process.env.AUDIT_SIGNING_KEY && process.env.NODE_ENV !== "production") {
   process.env.AUDIT_SIGNING_KEY = crypto.randomBytes(64).toString("hex");
   console.warn(
-    "[AUDIT] AUDIT_SIGNING_KEY not set — generated ephemeral dev key for this process.",
+    "[AUDIT] AUDIT_SIGNING_KEY not set - generated ephemeral dev key for this process.",
   );
 }
 
@@ -145,7 +145,7 @@ app.post(
       } else if (process.env.NODE_ENV === 'production') {
         return res.status(503).json({ message: "Webhook secret not configured" });
       } else {
-        console.warn('[RECALL_WEBHOOK] No RECALL_WEBHOOK_SECRET configured — verification skipped (dev only)');
+        console.warn('[RECALL_WEBHOOK] No RECALL_WEBHOOK_SECRET configured - verification skipped (dev only)');
         body = Buffer.isBuffer(req.body) ? JSON.parse(req.body.toString()) : req.body;
       }
       

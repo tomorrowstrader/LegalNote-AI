@@ -589,7 +589,7 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
             toast({
               title: needsAnswer
                 ? "Confirm whether the firm has been instructed"
-                : "Recording saved — tap Process to generate documents",
+                : "Recording saved - tap Process to generate documents",
               description: needsAnswer
                 ? "Open the matter and answer on the session before the note is produced."
                 : "The recording was saved but processing could not start automatically.",
@@ -652,7 +652,7 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
         variant: "destructive",
         duration: 8000,
       });
-      // Chunk session may still be recoverable — return to recording UI for retry
+      // Chunk session may still be recoverable - return to recording UI for retry
       setPhase("recording");
       setStopConfirmationPending(false);
     }
@@ -768,7 +768,7 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
             meta?.displaySubtitle ||
             (phase === "processing"
               ? pendingOfflineSave || !navigator.onLine
-                ? "Saved locally — will sync when online"
+                ? "Saved locally - will sync when online"
                 : "Meeting-to-Matter in progress"
               : "Recording continues if you change pages")
           }

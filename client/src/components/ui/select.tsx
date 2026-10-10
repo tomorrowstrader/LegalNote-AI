@@ -88,7 +88,7 @@ const SelectContent = React.forwardRef<
       <SelectPrimitive.Viewport
         className={cn(
           "p-1",
-          // Match trigger width only — locking height to the trigger collapses multi-item lists on mobile
+          // Match trigger width only - locking height to the trigger collapses multi-item lists on mobile
           position === "popper" &&
             "w-full min-w-[var(--radix-select-trigger-width)]"
         )}

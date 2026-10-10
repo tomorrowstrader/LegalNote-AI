@@ -90,7 +90,7 @@ export async function markAbandonedIfNeverRecorded(
     return { abandoned: true, errorMessage: importRecord.errorMessage || undefined };
   }
 
-  // Already failed with a never-started reason — do not re-enter processing
+  // Already failed with a never-started reason - do not re-enter processing
   if (
     importRecord.status === 'failed' &&
     typeof importRecord.errorMessage === 'string' &&
@@ -127,7 +127,7 @@ export async function markAbandonedIfNeverRecorded(
     statusCode === 'fatal';
 
   const abandonedBySubCode = isAbandonedMeetingSubCode(subCode);
-  // Fail fast when the bot finished without ever entering recording — covers
+  // Fail fast when the bot finished without ever entering recording - covers
   // timeouts whose sub_code is missing from the payload.
   const abandonedSilent = terminal && neverRecorded;
 
@@ -137,7 +137,7 @@ export async function markAbandonedIfNeverRecorded(
 
   const errorMessage = messageForAbandonedSubCode(subCode);
   console.log(
-    `[RecallProcessing] Import ${importRecord.id} abandoned (subCode=${subCode || 'none'}, neverRecorded=${neverRecorded}) — skipping processing`,
+    `[RecallProcessing] Import ${importRecord.id} abandoned (subCode=${subCode || 'none'}, neverRecorded=${neverRecorded}) - skipping processing`,
   );
   await storage.updateMeetingImport(importRecord.id, {
     status: 'failed',
@@ -178,7 +178,7 @@ async function getRecordingUrl(botId: string): Promise<{ url: string; durationSe
       };
       const rec = data.results?.[0];
       if (rec) {
-        // Audio only — never fall back to video_mixed (data minimisation).
+        // Audio only - never fall back to video_mixed (data minimisation).
         const url =
           rec.media_shortcuts?.audio_only?.data?.download_url
           || rec.media_shortcuts?.audio_mixed?.data?.download_url;
@@ -219,13 +219,13 @@ async function getRecordingUrl(botId: string): Promise<{ url: string; durationSe
 
 /**
  * Process a completed bot recording: download, store, and trigger transcription + doc generation.
- * Safe to call multiple times — guarded by import status check.
+ * Safe to call multiple times - guarded by import status check.
  */
 export async function processBotRecording(importRecord: MeetingImport): Promise<void> {
   const { id: importId, recallBotId: botId, caseId, userId } = importRecord;
 
   if (isConsentDeclinedImport(importRecord) || isUserCancelledImport(importRecord)) {
-    console.log(`[RecallProcessing] Import ${importId} declined/cancelled — skipping processing`);
+    console.log(`[RecallProcessing] Import ${importId} declined/cancelled - skipping processing`);
     await reconcileTerminalMeetingImport(importRecord);
     return;
   }
@@ -236,12 +236,12 @@ export async function processBotRecording(importRecord: MeetingImport): Promise<
   }
 
   if (!botId) {
-    console.warn(`[RecallProcessing] Import ${importId} has no botId — skipping`);
+    console.warn(`[RecallProcessing] Import ${importId} has no botId - skipping`);
     return;
   }
   if (!caseId) {
-    // No case linked yet — store the recording and await assignment
-    console.log(`[RecallProcessing] Import ${importId} has no caseId — storing recording and awaiting assignment`);
+    // No case linked yet - store the recording and await assignment
+    console.log(`[RecallProcessing] Import ${importId} has no caseId - storing recording and awaiting assignment`);
     await storage.updateMeetingImport(importId, { status: 'pending' });
 
     const recording = await getRecordingUrl(botId);
@@ -252,7 +252,7 @@ export async function processBotRecording(importRecord: MeetingImport): Promise<
         status: 'failed',
         errorMessage:
           abandon.errorMessage ||
-          'Recording not available — the call may have been too short or the bot was not admitted',
+          'Recording not available - the call may have been too short or the bot was not admitted',
       });
       return;
     }
@@ -304,18 +304,18 @@ export async function processBotRecording(importRecord: MeetingImport): Promise<
       severity: 'info',
     });
 
-    console.log(`[RecallProcessing] Import ${importId} stored — awaiting matter assignment`);
+    console.log(`[RecallProcessing] Import ${importId} stored - awaiting matter assignment`);
     return;
   }
 
-  // Prevent double-processing — allow retrying failed imports and newly assigned ones
+  // Prevent double-processing - allow retrying failed imports and newly assigned ones
   const fresh = await storage.getMeetingImport(importId);
   if (!fresh || !['live', 'pending', 'failed'].includes(fresh.status)) {
-    console.log(`[RecallProcessing] Import ${importId} already in status "${fresh?.status}" — skipping`);
+    console.log(`[RecallProcessing] Import ${importId} already in status "${fresh?.status}" - skipping`);
     return;
   }
   if (isConsentDeclinedImport(fresh) || isUserCancelledImport(fresh)) {
-    console.log(`[RecallProcessing] Import ${importId} declined/cancelled — skipping processing`);
+    console.log(`[RecallProcessing] Import ${importId} declined/cancelled - skipping processing`);
     await reconcileTerminalMeetingImport(fresh);
     return;
   }
@@ -342,7 +342,7 @@ export async function processBotRecording(importRecord: MeetingImport): Promise<
       }
     }
   } else {
-    // Fresh import — download from Recall
+    // Fresh import - download from Recall
     const recording = await getRecordingUrl(botId);
     if (!recording?.url) {
       console.error(`[RecallProcessing] No recording URL for bot ${botId}`);
@@ -351,7 +351,7 @@ export async function processBotRecording(importRecord: MeetingImport): Promise<
         status: 'failed',
         errorMessage:
           abandon.errorMessage ||
-          'Recording not available — the call may have been too short or the bot was not admitted',
+          'Recording not available - the call may have been too short or the bot was not admitted',
       });
       return;
     }

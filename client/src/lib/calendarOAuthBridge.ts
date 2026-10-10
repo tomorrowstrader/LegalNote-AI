@@ -43,7 +43,7 @@ export function markCalendarOAuthPopup(popup: Window): void {
   try {
     popup.sessionStorage.setItem(CALENDAR_OAUTH_POPUP_FLAG, "1");
   } catch {
-    /* ignore — cross-origin or storage blocked */
+    /* ignore - cross-origin or storage blocked */
   }
 }
 

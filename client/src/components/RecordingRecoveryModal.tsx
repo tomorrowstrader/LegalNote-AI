@@ -189,7 +189,7 @@ export function RecordingRecoveryModal({ open, onOpenChange }: RecordingRecovery
           console.warn('[Recovery] Failed to upload local chunks:', e);
         }
       } else {
-        // Server has some chunks — still push any IndexedDB-only pending gaps
+        // Server has some chunks - still push any IndexedDB-only pending gaps
         try {
           await backfillLocalChunks(sessionId, serverChunksReceived, (uploaded, total) => {
             const pct = Math.min(70, Math.round((uploaded / total) * 70));

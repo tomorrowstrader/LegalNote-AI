@@ -770,7 +770,7 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
                 </div>
               ) : null}
 
-              {/* Session label — shown for both modes */}
+              {/* Session label - shown for both modes */}
               <div className="space-y-2">
                 <Label htmlFor="session-label">Session Label <span className="text-muted-foreground text-xs">(optional)</span></Label>
                 <Input
@@ -818,7 +818,7 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
                     {!isClientMatter && (
                       <>
                         <p className="text-xs text-muted-foreground">
-                          No client registry entry, conflict check, or client letter — minutes and action points only.
+                          No client registry entry, conflict check, or client letter - minutes and action points only.
                         </p>
                         <div className="flex items-start gap-2 pt-1">
                           <Checkbox
@@ -831,7 +831,7 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
                           <Label htmlFor="external-attendees" className="cursor-pointer font-normal text-sm leading-snug">
                             External attendees present (outside the firm)
                             <span className="block text-xs text-muted-foreground mt-0.5">
-                              e.g. chambers, vendors, BD — captures a short participant recording notice
+                              e.g. chambers, vendors, BD - captures a short participant recording notice
                             </span>
                           </Label>
                         </div>
@@ -844,7 +844,7 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
                     </Label>
                     <Input
                       id="case-title"
-                      placeholder={isClientMatter ? "e.g., Estate Planning Consultation" : hasExternalAttendees ? "e.g., Penn Chamber — app introduction" : "e.g., Partners meeting — Q3 planning"}
+                      placeholder={isClientMatter ? "e.g., Estate Planning Consultation" : hasExternalAttendees ? "e.g., Penn Chamber - app introduction" : "e.g., Partners meeting - Q3 planning"}
                       value={caseTitle}
                       onChange={(e) => setCaseTitle(e.target.value)}
                       disabled={recordingLocked}
@@ -1062,10 +1062,10 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
               <div className="p-4 bg-muted rounded-md space-y-3">
                 <p className="text-sm text-muted-foreground">
                   {isClientMatter
-                    ? "The recording will begin with a 3-second countdown in the bottom-right control center. You will then read the consent disclaimer to your client, and they will verbally confirm their consent on the recording. You can navigate away — the recording stays manageable from the control center."
+                    ? "The recording will begin with a 3-second countdown in the bottom-right control center. You will then read the consent disclaimer to your client, and they will verbally confirm their consent on the recording. You can navigate away - the recording stays manageable from the control center."
                     : needsParticipantConsent
                       ? "The recording will begin with a 3-second countdown in the bottom-right control center. You will then read a short participant recording notice to attendees and confirm their agreement on the recording."
-                      : "The recording will begin with a 3-second countdown in the bottom-right control center. Client consent capture is not required for firm-only non-client meetings. You can navigate away — the recording stays manageable from the control center."}
+                      : "The recording will begin with a 3-second countdown in the bottom-right control center. Client consent capture is not required for firm-only non-client meetings. You can navigate away - the recording stays manageable from the control center."}
                 </p>
               </div>
 

@@ -12,7 +12,7 @@ export function getSigningKey(): string {
   if (!key) {
     throw new Error(
       'AUDIT_SIGNING_KEY environment variable is not set. ' +
-      'Server startup should have generated one — check server/index.ts initialization.'
+      'Server startup should have generated one - check server/index.ts initialization.'
     );
   }
   return key;
@@ -127,7 +127,7 @@ export function generateSignedAuditPDF(
     version: 'legalnote-audit-v1',
   };
 
-  // Branding rule: audit exports use 'name_sra' mode — firm name + SRA identifier only.
+  // Branding rule: audit exports use 'name_sra' mode - firm name + SRA identifier only.
   // Logo and full address block are intentionally excluded from audit trail PDFs.
   const auditBrandingMode = resolveBrandingMode('audit');
   const showAuditBranding = auditBrandingMode === 'name_sra';

@@ -79,7 +79,7 @@ async function restoreProduceFailure(
 
 /**
  * Restore a matter left mid further-version production after a process restart
- * or a hung LLM call — keeps prior documents on file.
+ * or a hung LLM call - keeps prior documents on file.
  */
 export async function recoverStuckProduceVersionCase(
   storage: IStorage,
@@ -97,9 +97,9 @@ export async function recoverStuckProduceVersionCase(
   }
 
   const errorMessage =
-    "Further version production timed out or was interrupted. The previous version is still on file — try Produce new version again.";
+    "Further version production timed out or was interrupted. The previous version is still on file - try Produce new version again.";
 
-  // In-memory queue was lost (deploy/restart) — no active job for this matter.
+  // In-memory queue was lost (deploy/restart) - no active job for this matter.
   if (!hasActiveProduceJob(caseId)) {
     const startedAt = lastProgressMs(meta);
     // Brief grace so we don't race a just-enqueued job before the worker claims it

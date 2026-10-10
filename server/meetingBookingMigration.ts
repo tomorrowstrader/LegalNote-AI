@@ -15,7 +15,7 @@ export async function ensureMeetingBookingTables(): Promise<void> {
         token text NOT NULL UNIQUE,
         title text NOT NULL,
         description text,
-        client_email text NOT NULL,
+        client_email text,
         client_name text,
         duration_minutes integer NOT NULL DEFAULT 30,
         calendar_provider text NOT NULL DEFAULT 'google',
@@ -51,6 +51,21 @@ export async function ensureMeetingBookingTables(): Promise<void> {
     await db.execute(sql`
       CREATE INDEX IF NOT EXISTS meeting_booking_slots_proposal_idx
       ON meeting_booking_slots (proposal_id)
+    `);
+
+    await db.execute(sql`
+      ALTER TABLE meeting_booking_proposals
+      ALTER COLUMN client_email DROP NOT NULL
+    `);
+
+    await db.execute(sql`
+      ALTER TABLE scheduled_meetings
+      ADD COLUMN IF NOT EXISTS guest_claim_token text
+    `);
+
+    await db.execute(sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS scheduled_meetings_guest_claim_token_unique
+      ON scheduled_meetings (guest_claim_token)
     `);
 
     console.log("[MEETING_BOOKING] Tables ready");

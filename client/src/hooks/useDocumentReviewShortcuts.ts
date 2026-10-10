@@ -18,7 +18,7 @@ function isEditableTarget(target: EventTarget | null): boolean {
 }
 
 /**
- * Casefile document-review chords (Control only — never Cmd):
+ * Casefile document-review chords (Control only - never Cmd):
  * - Ctrl+Enter → adopt current document
  * - Ctrl+] / Ctrl+[ → next / previous document tab
  * - Ctrl+. → jump to next unadopted document

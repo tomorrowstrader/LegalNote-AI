@@ -1305,7 +1305,7 @@ export class MemStorage implements IStorage {
     return updated;
   }
 
-  // Stage 2: excludes active grace windows (Option 2a marker — see isInActiveColpGraceWindow).
+  // Stage 2: excludes active grace windows (Option 2a marker - see isInActiveColpGraceWindow).
   async getExpiredAudioRecordings(): Promise<AudioRecording[]> {
     const now = new Date();
     return Array.from(this.audioRecordings.values()).filter(
@@ -1528,7 +1528,7 @@ export class MemStorage implements IStorage {
     const caseRecord = await this.getCase(caseId, userId);
     if (!caseRecord) return undefined;
 
-    // Prefer the longest capture, then the most recent — arbitrary first-row
+    // Prefer the longest capture, then the most recent - arbitrary first-row
     // selection was returning an incomplete earlier session transcript.
     // Use plain-text length so TextEdit RTF markup does not win on size alone.
     return Array.from(this.transcripts.values())
@@ -3336,7 +3336,7 @@ export class DbStorage implements IStorage {
     }
 
     // Tenant/app migration: Microsoft may issue a new oid for the same mailbox.
-    // If this email already has a Microsoft identity, remap oid and continue —
+    // If this email already has a Microsoft identity, remap oid and continue -
     // do not treat as a cross-provider collision.
     const [emailOwner] = await db
       .select({ id: users.id })
@@ -3740,7 +3740,7 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
-  // Stage 2: excludes active grace windows (Option 2a marker — see isInActiveColpGraceWindow).
+  // Stage 2: excludes active grace windows (Option 2a marker - see isInActiveColpGraceWindow).
   async getExpiredAudioRecordings(): Promise<AudioRecording[]> {
     const now = new Date();
     return await db
@@ -3919,7 +3919,7 @@ export class DbStorage implements IStorage {
   }
 
   async getTranscriptByCase(caseId: string, userId: string): Promise<Transcript | undefined> {
-    // Align with getCase firm/assignee access — createdBy-only hid transcripts from firm colleagues
+    // Align with getCase firm/assignee access - createdBy-only hid transcripts from firm colleagues
     // and returning an unordered first row could surface a short earlier session capture.
     const caseRecord = await this.getCase(caseId, userId);
     if (!caseRecord) return undefined;
@@ -3947,7 +3947,7 @@ export class DbStorage implements IStorage {
     if (transcriptRecord[0]) {
       const caseRecord = await db.select().from(cases).where(eq(cases.id, transcriptRecord[0].caseId)).limit(1);
       if (caseRecord[0]?.litigationHold) {
-        console.warn(`[LITIGATION-HOLD] Blocked transcript update on ${id} — case ${transcriptRecord[0].caseId} is under litigation hold`);
+        console.warn(`[LITIGATION-HOLD] Blocked transcript update on ${id} - case ${transcriptRecord[0].caseId} is under litigation hold`);
         return undefined;
       }
     }
@@ -3984,7 +3984,7 @@ export class DbStorage implements IStorage {
     const currentPrivileged = (transcript[0].privilegedRedactions || []) as any[];
 
     // Determine which redactions to commit
-    // If redactionIds provided, only commit those — otherwise commit all pending/expired
+    // If redactionIds provided, only commit those - otherwise commit all pending/expired
     const toCommit = currentRedactions.filter((r: any) => {
       if (r.status === 'committed') return false; // Already committed
       if (redactionIds) return redactionIds.includes(r.id); // Specific IDs requested
@@ -4003,7 +4003,7 @@ export class DbStorage implements IStorage {
     const sortedToCommit = [...toCommit].sort((a, b) => b.start - a.start);
 
     for (const redaction of sortedToCommit) {
-      const replacementText = `[REDACTED — ${redaction.reasonType.toUpperCase()}]`;
+      const replacementText = `[REDACTED - ${redaction.reasonType.toUpperCase()}]`;
 
       if (redaction.reasonType === 'redaction_privilege') {
         // Privilege path: preserve original text in privilegedRedactions, replace in content
@@ -4381,7 +4381,7 @@ export class DbStorage implements IStorage {
     if (documentRecord[0]) {
       const caseRecord = await db.select().from(cases).where(eq(cases.id, documentRecord[0].caseId)).limit(1);
       if (caseRecord[0]?.litigationHold) {
-        console.warn(`[LITIGATION-HOLD] Blocked document update on ${id} — case ${documentRecord[0].caseId} is under litigation hold`);
+        console.warn(`[LITIGATION-HOLD] Blocked document update on ${id} - case ${documentRecord[0].caseId} is under litigation hold`);
         return undefined;
       }
     }
@@ -4922,7 +4922,7 @@ export class DbStorage implements IStorage {
         .returning();
       return updated[0];
     } else {
-      // No profile yet — create a minimal one with just the logo URL
+      // No profile yet - create a minimal one with just the logo URL
       const inserted = await db
         .insert(firmProfile)
         .values({ firmName: '', logoUrl, updatedBy, updatedAt: new Date() })
@@ -6219,6 +6219,7 @@ export class DbStorage implements IStorage {
         attendees: meetingData.attendees || [],
         clientEmail: meetingData.clientEmail || null,
         clientName: meetingData.clientName || null,
+        guestClaimToken: meetingData.guestClaimToken || null,
         autoRecordEnabled: meetingData.autoRecordEnabled || false,
         consentStatus: meetingData.consentStatus || 'pending',
         preConsentEmailId: meetingData.preConsentEmailId || null,
@@ -7023,7 +7024,7 @@ export class DbStorage implements IStorage {
       if (firm) return firm;
     }
     // Personal firm shells are only created for callers who already passed isAuthenticated
-    // (allowlist / intentional firm). They must NOT alone grant allowlist bypass — see
+    // (allowlist / intentional firm). They must NOT alone grant allowlist bypass - see
     // resolveUserAccessAllowed / isIntentionalFirmAccess.
     const displayName = u.firstName && u.lastName
       ? `${u.firstName} ${u.lastName}'s Firm`
@@ -7053,7 +7054,7 @@ export class DbStorage implements IStorage {
 
     const existing = await this.getFirmByProvisionedLeadEmail(leadEmail);
     // Re-provisioning the same awaiting lead updates the reservation (name, seats, end date)
-    // instead of blocking — so admins can correct details and resend the invite.
+    // instead of blocking - so admins can correct details and resend the invite.
     if (existing && !existing.provisionedLeadUserId) {
       const updated = await this.updateFirm(existing.id, {
         name: data.firmName.trim(),

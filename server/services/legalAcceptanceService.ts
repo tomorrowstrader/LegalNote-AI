@@ -339,9 +339,9 @@ export async function confirmAcceptance(
 
     return withAudit[0] ?? sealed;
   } catch (auditErr) {
-    // Row seal is primary evidence — acceptance stands. Chain write must not be silent.
+    // Row seal is primary evidence - acceptance stands. Chain write must not be silent.
     console.error(
-      `[AUDIT-FAILURE-CRITICAL] legal_agreement_accepted chain write failed after row seal — ` +
+      `[AUDIT-FAILURE-CRITICAL] legal_agreement_accepted chain write failed after row seal - ` +
         `acceptanceId=${sealed.id} email=${sealed.email} firm=${sealed.firmName} ` +
         `dpaHash=${sealed.dpaContentHash} evaluationHash=${sealed.evaluationContentHash} ` +
         `payloadHash=${sealed.acceptancePayloadHash}`,
@@ -420,7 +420,7 @@ export async function buildVerifyResponse(row: LegalAgreementAcceptance) {
     feeEarnerCount: row.feeEarnerCount,
     dpaContentHash: row.dpaContentHash,
     evaluationContentHash: row.evaluationContentHash,
-    // Non-sensitive only — firm/signer PII omitted from verify response body
+    // Non-sensitive only - firm/signer PII omitted from verify response body
     // (certificate page uses gated full fetch).
   };
 }

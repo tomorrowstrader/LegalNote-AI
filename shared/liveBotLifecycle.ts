@@ -48,7 +48,7 @@ export function messageForAbandonedSubCode(subCode: string | null | undefined): 
   switch (subCode) {
     case "timeout_exceeded_waiting_room":
     case "call_ended_by_platform_waiting_room_timeout":
-      return "LegalNote left the waiting room — the host did not admit it in time. No recording was captured.";
+      return "LegalNote left the waiting room - the host did not admit it in time. No recording was captured.";
     case "timeout_exceeded_noone_joined":
       return "LegalNote left because nobody else joined the meeting. No recording was captured.";
     default:
@@ -57,10 +57,10 @@ export function messageForAbandonedSubCode(subCode: string | null | undefined): 
 }
 
 export const USER_CANCELLED_LIVE_BOT_MESSAGE =
-  "Cancelled — LegalNote left before the meeting started. No recording was captured.";
+  "Cancelled - LegalNote left before the meeting started. No recording was captured.";
 
 export const CONSENT_DECLINED_LIVE_BOT_MESSAGE =
-  "Client declined consent — bot removed from call";
+  "Client declined consent - bot removed from call";
 
 /** Import error messages that mean processing will never complete. */
 export function isTerminalImportFailureMessage(message: string | null | undefined): boolean {
@@ -96,7 +96,7 @@ export function isCancellableBotStatus(botStatus: string | null | undefined): bo
   return (CANCELLABLE_BOT_STATUSES as readonly string[]).includes(botStatus);
 }
 
-/** True when Stop (leave + still process) is appropriate — recording has started. */
+/** True when Stop (leave + still process) is appropriate - recording has started. */
 export function isStoppableBotStatus(botStatus: string | null | undefined): boolean {
   return botStatus === "in_call_recording";
 }

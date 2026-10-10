@@ -184,7 +184,7 @@ function mmToPx(mm: number, dpi = LOGO_PRINT_DPI): number {
 const LOGO_RASTER_MAX_WIDTH = mmToPx(LOGO_PDF_MAX_WIDTH_MM);
 const LOGO_RASTER_MAX_HEIGHT = mmToPx(LOGO_PDF_MAX_HEIGHT_MM);
 
-/** Label: value lines in markdown — supports parentheses e.g. "Time Spent (Units):" */
+/** Label: value lines in markdown - supports parentheses e.g. "Time Spent (Units):" */
 const METADATA_LABEL_PATTERN = /^([A-Za-z][A-Za-z\s()]{0,30}):\s+(.+)/;
 
 // Load image as base64 data URL for embedding
@@ -679,7 +679,7 @@ export async function exportToPDF(content: DocumentContent) {
         continue;
       }
 
-      // Label: value lines — align value at fixed column
+      // Label: value lines - align value at fixed column
       if (labelColWidth > 0 && !line.startsWith('#') && !line.startsWith('-') && !line.startsWith('*') && !line.startsWith('|')) {
         const lm = line.match(labelPattern);
         if (lm) {
@@ -883,7 +883,7 @@ export async function exportToPDF(content: DocumentContent) {
         doc.addPage();
         yPosition = margin;
       }
-      addText('ADVICE RATIONALE — SOLICITOR\'S RECORD', 14, true);
+      addText('ADVICE RATIONALE - SOLICITOR\'S RECORD', 14, true);
       yPosition += 4;
       renderMarkdownSection(content.solicitorReasoningNote);
     }
@@ -1000,7 +1000,7 @@ export async function exportToPDF(content: DocumentContent) {
       doc.addPage();
       yPosition = margin;
     }
-    addText('ADVICE RATIONALE — SOLICITOR\'S RECORD', 14, true);
+    addText('ADVICE RATIONALE - SOLICITOR\'S RECORD', 14, true);
     yPosition += 4;
     renderMarkdownSection(content.solicitorReasoningNote);
     yPosition += 8;
@@ -1323,7 +1323,7 @@ export async function exportToWord(content: DocumentContent) {
   }
 
   if (!usePennAttendanceLayout) {
-  // Document title (e.g. Attendance Note) — shown once at top for single-doc exports
+  // Document title (e.g. Attendance Note) - shown once at top for single-doc exports
   children.push(
     new Paragraph({
       children: [new TextRun({ text: wordDocTypeLabel.toUpperCase(), bold: true, size: 28, font: 'Calibri' })],
@@ -1347,7 +1347,7 @@ export async function exportToWord(content: DocumentContent) {
     ],
   });
 
-  // Header fields block — two-column borderless table
+  // Header fields block - two-column borderless table
   const headerRows: TableRow[] = [
     makeHeaderRow('Case:', content.caseTitle),
     makeHeaderRow('Client:', content.clientName),
@@ -1381,7 +1381,7 @@ export async function exportToWord(content: DocumentContent) {
         continue;
       }
       
-      // Check for numbered list (1. 2. etc) — render as plain text to avoid broken Word numbering refs
+      // Check for numbered list (1. 2. etc) - render as plain text to avoid broken Word numbering refs
       const numberedMatch = trimmedLine.match(/^(\d+)\.\s+(.+)$/);
       if (numberedMatch) {
         const textContent = `${numberedMatch[1]}. ${numberedMatch[2]}`;
@@ -1438,7 +1438,7 @@ export async function exportToWord(content: DocumentContent) {
           })
         );
       } else {
-        // Regular paragraph with inline markdown — 11pt Calibri, 1.15 line spacing, 120 twips after
+        // Regular paragraph with inline markdown - 11pt Calibri, 1.15 line spacing, 120 twips after
         paragraphs.push(
           new Paragraph({
             children: parseMarkdownLine(trimmedLine, { size: 22, font: 'Calibri' }),
@@ -1451,7 +1451,7 @@ export async function exportToWord(content: DocumentContent) {
     return paragraphs;
   };
 
-  // Helper to make a section heading paragraph — 12pt bold Calibri, not using Word's built-in heading styles
+  // Helper to make a section heading paragraph - 12pt bold Calibri, not using Word's built-in heading styles
   const makeSectionHeading = (text: string) => new Paragraph({
     children: [new TextRun({ text, bold: true, size: 24, font: 'Calibri' })],
     spacing: { before: 360, after: 120 },
@@ -1482,7 +1482,7 @@ export async function exportToWord(content: DocumentContent) {
 
   const stripWordGapMarkers = (text: string) => replaceUnfilledReasoningGaps(text);
 
-  // Summary section — skip if all fields are placeholder text
+  // Summary section - skip if all fields are placeholder text
   if (content.summary && !isEntirelyPlaceholder(content.summary)) {
     if (!isSingleTypedDoc || content.documentType !== 'summary') {
       children.push(makeSectionHeading('CASE SUMMARY'));
@@ -1515,7 +1515,7 @@ export async function exportToWord(content: DocumentContent) {
   // Advice Rationale section (only if solicitor has authored it)
   if (content.solicitorReasoningNote?.trim()) {
     children.push(
-      makeSectionHeading('ADVICE RATIONALE — SOLICITOR\'S RECORD'),
+      makeSectionHeading('ADVICE RATIONALE - SOLICITOR\'S RECORD'),
       ...formatTextSection(content.solicitorReasoningNote),
       new Paragraph({ text: '', spacing: { after: 240 } })
     );

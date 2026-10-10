@@ -188,7 +188,7 @@ export default function FirmOverview() {
                 Hours protected
               </CardDescription>
               <CardTitle className="text-3xl tabular-nums" data-testid="stat-hours-protected">
-                {stats ? formatHours(stats.hoursProtected) : "—"}
+                {stats ? formatHours(stats.hoursProtected) : "-"}
               </CardTitle>
             </CardHeader>
             <CardContent className="text-xs text-muted-foreground">
@@ -202,11 +202,11 @@ export default function FirmOverview() {
                 Meetings
               </CardDescription>
               <CardTitle className="text-3xl tabular-nums">
-                {stats?.meetingsConducted ?? "—"}
+                {stats?.meetingsConducted ?? "-"}
               </CardTitle>
             </CardHeader>
             <CardContent className="text-xs text-muted-foreground">
-              {stats ? `${formatHours(stats.meetingHoursRecorded)} hours recorded` : "—"}
+              {stats ? `${formatHours(stats.meetingHoursRecorded)} hours recorded` : "-"}
             </CardContent>
           </Card>
           <Card>
@@ -216,13 +216,13 @@ export default function FirmOverview() {
                 Notes adopted
               </CardDescription>
               <CardTitle className="text-3xl tabular-nums">
-                {stats?.notesAdopted ?? "—"}
+                {stats?.notesAdopted ?? "-"}
               </CardTitle>
             </CardHeader>
             <CardContent className="text-xs text-muted-foreground">
               {stats
                 ? `${stats.notesProduced} produced · ${stats.lettersAdopted} letters adopted`
-                : "—"}
+                : "-"}
             </CardContent>
           </Card>
           <Card>
@@ -234,13 +234,13 @@ export default function FirmOverview() {
               <CardTitle className="text-3xl tabular-nums">
                 {stats
                   ? `${stats.seats.used}${stats.seats.limit != null ? `/${stats.seats.limit}` : ""}`
-                  : "—"}
+                  : "-"}
               </CardTitle>
             </CardHeader>
             <CardContent className="text-xs text-muted-foreground">
               {stats
                 ? `${stats.seats.members} member${stats.seats.members === 1 ? "" : "s"}`
-                : "—"}
+                : "-"}
             </CardContent>
           </Card>
         </div>

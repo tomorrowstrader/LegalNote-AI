@@ -64,14 +64,14 @@ interface LiveBotSessionContextType {
   waitRemainingLabel: string | null;
   panelOpen: boolean;
   setPanelOpen: (open: boolean) => void;
-  /** True while any LiveBotModal instance is open — hides the floating pill. */
+  /** True while any LiveBotModal instance is open - hides the floating pill. */
   liveBotModalOpen: boolean;
   setLiveBotModalOpen: (open: boolean) => void;
   startSession: (session: Omit<LiveBotSession, "startedAt"> & { startedAt?: number }) => void;
   clearSession: () => void;
-  /** Leave before recording starts — discards; no attendance note. */
+  /** Leave before recording starts - discards; no attendance note. */
   cancelSession: () => Promise<{ success: boolean; errorMessage?: string }>;
-  /** Leave during recording — still produces the attendance note from what was captured. */
+  /** Leave during recording - still produces the attendance note from what was captured. */
   stopSession: () => Promise<{ success: boolean; errorMessage?: string }>;
   cancelling: boolean;
   stopping: boolean;
@@ -210,7 +210,7 @@ export function LiveBotSessionProvider({ children }: { children: ReactNode }) {
       }>("POST", `/api/recall/bot/${session.botId}/cancel`, {});
       setImportStatus("failed");
       setBotStatus("left_user_cancelled");
-      setErrorMessage(data.errorMessage || "Cancelled — LegalNote left before the meeting started.");
+      setErrorMessage(data.errorMessage || "Cancelled - LegalNote left before the meeting started.");
       setPanelOpen(true);
       if (session.caseId) {
         queryClient.invalidateQueries({ queryKey: [`/api/cases/${session.caseId}`] });
@@ -236,7 +236,7 @@ export function LiveBotSessionProvider({ children }: { children: ReactNode }) {
         importStatus?: string;
         botStatus?: string;
       }>("POST", `/api/recall/bot/${session.botId}/stop`, {});
-      // Leave import live — poll / webhook will advance into processing
+      // Leave import live - poll / webhook will advance into processing
       setBotStatus("call_ended");
       setImportStatus((prev) => prev || "live");
       setErrorMessage(null);
@@ -271,7 +271,7 @@ export function LiveBotSessionProvider({ children }: { children: ReactNode }) {
     };
   }, [session, phase]);
 
-  // Global poll — survives modal close
+  // Global poll - survives modal close
   useEffect(() => {
     if (!session?.botId) return;
 

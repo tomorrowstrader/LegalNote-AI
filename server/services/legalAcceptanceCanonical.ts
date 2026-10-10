@@ -3,7 +3,7 @@ import { getAuditSigningKey } from "./auditChain";
 import type { LegalAgreementAcceptance } from "@shared/schema";
 
 /**
- * Canonical acceptance payload — fixed key order for stable JSON.stringify hashing.
+ * Canonical acceptance payload - fixed key order for stable JSON.stringify hashing.
  * Mirrors consentCanonical.ts. This is what acceptancePayloadHash seals.
  */
 export type LegalAcceptanceCanonicalPayload = {
@@ -47,7 +47,7 @@ export function buildLegalAcceptanceCanonicalPayload(input: {
   requestIpAddress?: string | null;
   confirmIpAddress?: string | null;
 }): LegalAcceptanceCanonicalPayload {
-  // Key order is the contract — do not reorder without a payload version bump.
+  // Key order is the contract - do not reorder without a payload version bump.
   return {
     acceptanceId: input.acceptanceId,
     firmName: input.firmName,
@@ -96,7 +96,7 @@ export function verifyLegalAcceptanceSignature(
   }
 }
 
-/** SHA-256 of UTF-8 bytes of stored snapshot text — must equal contentHash. */
+/** SHA-256 of UTF-8 bytes of stored snapshot text - must equal contentHash. */
 export function hashSnapshotText(text: string): string {
   return crypto.createHash("sha256").update(Buffer.from(text, "utf8")).digest("hex");
 }

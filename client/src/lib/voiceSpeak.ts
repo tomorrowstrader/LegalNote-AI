@@ -40,7 +40,7 @@ export function stopVoiceSpeak(): void {
   browserUtterance = null;
 }
 
-/** Build a short spoken summary — never the full panel dump. */
+/** Build a short spoken summary - never the full panel dump. */
 export function buildSpokenSummary(answer: VoiceAskAnswer): string {
   const parts: string[] = [];
   if (answer.headline?.trim()) parts.push(answer.headline.trim());

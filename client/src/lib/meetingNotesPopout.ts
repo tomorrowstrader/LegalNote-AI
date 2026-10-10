@@ -57,14 +57,14 @@ export function reserveMeetingNotesPopout(): Window | null {
   if (!win) return null;
   try {
     win.document.write(
-      `<!doctype html><title>Meeting notes — LegalNote</title>` +
+      `<!doctype html><title>Meeting notes - LegalNote</title>` +
         `<body style="margin:0;font:14px/1.45 system-ui,sans-serif;color:#334155;background:#f8fafc;` +
         `display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px;text-align:center">` +
         `<p>Opening LegalNote meeting notes…</p></body>`,
     );
     win.document.close();
   } catch {
-    // ignore — navigation will replace about:blank shortly
+    // ignore - navigation will replace about:blank shortly
   }
   try {
     win.focus();
@@ -134,7 +134,7 @@ export function openMeetingNotesPopout(opts: {
     if (opts.reservedWindow && opts.reservedWindow !== existing) {
       closeReservedPopout(opts.reservedWindow);
     }
-    // Always navigate — same named window may still hold React state from a prior recording
+    // Always navigate - same named window may still hold React state from a prior recording
     // (URL query often unchanged at elapsed=0, so window.open alone may not remount).
     if (!activateMeetingNotesPopout(existing, opts)) {
       closeReservedPopout(existing);
@@ -191,7 +191,7 @@ export function focusMeetingNotesPopout(draftKey: MeetingNotesDraftKey): boolean
 
 export function isMeetingNotesPopoutWindowOpen(draftKey: MeetingNotesDraftKey): boolean | null {
   const existing = openWindows.get(draftKey);
-  if (!existing) return null; // unknown — rely on BroadcastChannel presence
+  if (!existing) return null; // unknown - rely on BroadcastChannel presence
   if (existing.closed) {
     openWindows.delete(draftKey);
     return false;

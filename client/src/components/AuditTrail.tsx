@@ -191,7 +191,7 @@ function formatMetadata(eventType: string, metadata: Record<string, any>): strin
 
     case "personnel_matter_accessed": {
       const resource = typeof metadata.resource === "string" ? metadata.resource : "matter content";
-      const reason = typeof metadata.reason === "string" ? ` — ${metadata.reason}` : "";
+      const reason = typeof metadata.reason === "string" ? ` - ${metadata.reason}` : "";
       return `LegalNote personnel accessed ${resource}${reason}`;
     }
 
@@ -274,8 +274,8 @@ function formatMetadata(eventType: string, metadata: Record<string, any>): strin
 
     case "audio_deletion_blocked_litigation_hold":
       return metadata.trigger
-        ? `Retention deletion blocked (${metadata.trigger}) — litigation hold active`
-        : "Retention deletion blocked — litigation hold active";
+        ? `Retention deletion blocked (${metadata.trigger}) - litigation hold active`
+        : "Retention deletion blocked - litigation hold active";
     
     case "track_change_action": {
       const actionLabels: Record<string, string> = {

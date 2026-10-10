@@ -20,7 +20,7 @@ function parseDraftKey(raw: string | null): MeetingNotesDraftKey | null {
  * (or beside Capture recording). Shares drafts with the main app via localStorage.
  *
  * Elapsed time is driven by BroadcastChannel sync from the main recorder, with a
- * local monotonic tick between messages so the display does not freeze — never a
+ * local monotonic tick between messages so the display does not freeze - never a
  * second independent recording clock.
  */
 export default function MeetingNotesPopoutPage() {
@@ -37,8 +37,8 @@ export default function MeetingNotesPopoutPage() {
 
   useEffect(() => {
     document.title = caseTitle?.trim()
-      ? `Meeting notes — ${caseTitle.trim()}`
-      : "Meeting notes — LegalNote";
+      ? `Meeting notes - ${caseTitle.trim()}`
+      : "Meeting notes - LegalNote";
   }, [caseTitle]);
 
   // Force light notepad chrome regardless of the solicitor's dark-mode preference

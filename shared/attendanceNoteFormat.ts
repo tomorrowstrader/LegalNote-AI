@@ -116,7 +116,7 @@ export function normalizeAttendanceSectionLabels(body: string): string {
 
   // Numbered CAPS topic headings on their own line
   result = result.replace(
-    /^([ \t]*)(?:\*\*)?(\d+\.\s+[A-Z][A-Z0-9 ,/'&()——–-]{2,})(?:\*\*)?[ \t]*$/gm,
+    /^([ \t]*)(?:\*\*)?(\d+\.\s+[A-Z][A-Z0-9 ,/'&()\u2014\u2013-]{2,})(?:\*\*)?[ \t]*$/gm,
     '$1**$2**',
   );
 
@@ -130,9 +130,9 @@ export function normalizeAttendanceSectionLabels(body: string): string {
     '$1\n\n',
   );
 
-  // Same for numbered topic headings — keep a line drop before following content
+  // Same for numbered topic headings - keep a line drop before following content
   result = result.replace(
-    /^([ \t]*\*\*\d+\.\s+[A-Z][A-Z0-9 ,/'&()——–-]{2,}\*\*)[ \t]*\n(?!\n)/gm,
+    /^([ \t]*\*\*\d+\.\s+[A-Z][A-Z0-9 ,/'&()\u2014\u2013-]{2,}\*\*)[ \t]*\n(?!\n)/gm,
     '$1\n\n',
   );
 

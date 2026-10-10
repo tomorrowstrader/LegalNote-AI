@@ -29,10 +29,10 @@ const TRANSCRIPT_LINES = [
   "Client: Yes, that's fine. I consent to the recording.",
   "Solicitor: Thank you. I've made a note of your consent.",
   "Solicitor: Can you tell me about your current living situation?",
-  "Client: So, me and my husband — we separated about three months ago.",
+  "Client: So, me and my husband - we separated about three months ago.",
   "Client: He moved out of the family home.",
   "Solicitor: I understand. That must be a very difficult situation.",
-  "Client: We have two children together — Emily, she's seven, and Oliver who's just turned five.",
+  "Client: We have two children together - Emily, she's seven, and Oliver who's just turned five.",
 ];
 
 function formatTimer(seconds: number): string {
@@ -187,7 +187,7 @@ export function DemoMeetingSetupModal({
                 <p className="text-xs text-muted-foreground font-medium">Read this to your client:</p>
                 <p className="text-xs text-foreground leading-relaxed italic">{CONSENT_DISCLAIMER_TEXT}</p>
                 <p className="text-xs text-muted-foreground/70 pt-0.5">
-                  This script is standardized by the platform — identical GDPR-compliant wording, every time.
+                  This script is standardized by the platform - identical GDPR-compliant wording, every time.
                 </p>
               </div>
 
@@ -253,7 +253,7 @@ export function DemoMeetingSetupModal({
                     <p className="text-xs text-foreground leading-relaxed italic">{CONSENT_DISCLAIMER_TEXT}</p>
                   </div>
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    Confirm verbal consent now — timestamped, GDPR Article 7 compliant, HMAC-sealed to the audit trail.
+                    Confirm verbal consent now - timestamped, GDPR Article 7 compliant, HMAC-sealed to the audit trail.
                   </p>
                   <div className="flex gap-2">
                     <Button
@@ -277,13 +277,13 @@ export function DemoMeetingSetupModal({
 
               {consentState === "confirmed" && (
                 <div className="rounded-md border border-green-500/40 bg-green-50/50 dark:bg-green-950/20 px-3 py-2 flex items-center gap-2" data-testid="demo-consent-confirmed-banner">
-                  <span className="text-green-600 dark:text-green-400 text-xs font-medium">Consent confirmed — logged to audit trail</span>
+                  <span className="text-green-600 dark:text-green-400 text-xs font-medium">Consent confirmed - logged to audit trail</span>
                 </div>
               )}
 
               {consentState === "deferred" && (
                 <div className="rounded-md border border-muted px-3 py-2 flex items-center gap-2" data-testid="demo-consent-deferred-banner">
-                  <span className="text-muted-foreground text-xs">Consent pending — confirm before session ends</span>
+                  <span className="text-muted-foreground text-xs">Consent pending - confirm before session ends</span>
                 </div>
               )}
 

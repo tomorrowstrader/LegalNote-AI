@@ -130,7 +130,7 @@ function formatMetadata(eventType: string, metadata: Record<string, any> | null)
     const title = typeof metadata.meetingTitle === 'string' && metadata.meetingTitle.trim()
       ? metadata.meetingTitle.trim()
       : 'Unassigned recording';
-    parts.push(`${title} — not filed on a matter`);
+    parts.push(`${title} - not filed on a matter`);
     if (typeof metadata.reason === 'string' && metadata.reason.trim()) {
       parts.push(`Reason: ${metadata.reason.trim()}`);
     }
@@ -406,7 +406,7 @@ export default function AuditLogs() {
                 <p className="text-xs text-muted-foreground max-w-sm">
                   {caseIdFilter || eventTypeFilter
                     ? "Try adjusting or resetting your filters to see more results."
-                    : "Your activity will appear here as you use the platform — case views, document downloads, consent events, and more are all tracked automatically."}
+                    : "Your activity will appear here as you use the platform - case views, document downloads, consent events, and more are all tracked automatically."}
                 </p>
               </div>
             ) : (

@@ -35,7 +35,7 @@ export function requiresClientForMatter(kind: string | null | undefined): boolea
   return isClientMatterKind(kind);
 }
 
-/** Client-facing GDPR consent script — client matters only. */
+/** Client-facing GDPR consent script - client matters only. */
 export function requiresClientConsent(kind: string | null | undefined): boolean {
   return isClientMatterKind(kind);
 }

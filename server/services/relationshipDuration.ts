@@ -1,5 +1,5 @@
 /**
- * Relationship-duration arithmetic — code-owned, never model-computed.
+ * Relationship-duration arithmetic - code-owned, never model-computed.
  * Rounding: floor completed years (never round up).
  * Partial dates use conservative bounds so fuzzy sources cannot overstate duration.
  */
@@ -45,7 +45,7 @@ function daysInMonth(year: number, month: number): number {
   return new Date(year, month, 0).getDate();
 }
 
-/** Latest instant in the stated precision — minimises duration from this start. */
+/** Latest instant in the stated precision - minimises duration from this start. */
 function startBound(d: PartialDate): Ymd {
   if (d.precision === 'day' && d.month != null && d.day != null) {
     return { year: d.year, month: d.month, day: d.day };
@@ -56,7 +56,7 @@ function startBound(d: PartialDate): Ymd {
   return { year: d.year, month: 12, day: 31 };
 }
 
-/** Earliest instant in the stated precision — minimises duration to this end. */
+/** Earliest instant in the stated precision - minimises duration to this end. */
 function endBound(d: PartialDate): Ymd {
   if (d.precision === 'day' && d.month != null && d.day != null) {
     return { year: d.year, month: d.month, day: d.day };
@@ -116,7 +116,7 @@ export function computeRelationshipDurations(
       : null;
 
   // Total span requires a stated cohabitation/relationship-start date. Marriage
-  // alone is not a substitute — falling back to marriage years under a "total
+  // alone is not a substitute - falling back to marriage years under a "total
   // relationship span" label invents a figure the dates do not support.
   const totalYears =
     input.cohabitationStartDate && input.separationDate
@@ -145,13 +145,13 @@ export function durationFactOrUnset(fact: string | null): string {
 /**
  * Authoritative block appended to note-generation (and verifier) prompts.
  * Only emits durations the code actually computed. Null cohabitation/total are
- * omitted — the note must stay silent on those, not announce their absence.
+ * omitted - the note must stay silent on those, not announce their absence.
  */
 export function formatRelationshipDurationFactsBlock(
   result: RelationshipDurationResult,
 ): string {
   const lines: string[] = [
-    'SYSTEM-COMPUTED RELATIONSHIP DURATION FACTS (authoritative — use these figures; do not recalculate):',
+    'SYSTEM-COMPUTED RELATIONSHIP DURATION FACTS (authoritative - use these figures; do not recalculate):',
   ];
   if (result.marriageDurationFact) {
     lines.push(`- Marriage duration: ${result.marriageDurationFact}`);

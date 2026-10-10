@@ -11,9 +11,9 @@ export const SUPPORT_TICKET_CATEGORIES = [
 export type SupportTicketCategory = (typeof SUPPORT_TICKET_CATEGORIES)[number]["id"];
 
 export const SUPPORT_TICKET_SEVERITIES = [
-  { id: "blocked", label: "I can't work — blocked", description: "Urgent — I cannot continue my work" },
+  { id: "blocked", label: "I can't work - blocked", description: "Urgent - I cannot continue my work" },
   { id: "annoying", label: "Something is wrong", description: "It's frustrating but I have a workaround" },
-  { id: "question", label: "Question / how do I…", description: "Guidance only — not blocked" },
+  { id: "question", label: "Question / how do I…", description: "Guidance only - not blocked" },
 ] as const;
 
 export type SupportTicketSeverity = (typeof SUPPORT_TICKET_SEVERITIES)[number]["id"];

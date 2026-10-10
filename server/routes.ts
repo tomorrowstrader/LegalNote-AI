@@ -13327,6 +13327,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
               attendees[0]?.name ||
               clientEmail
             : undefined;
+      const guestClaimToken = clientEmail ? undefined : crypto.randomBytes(32).toString("hex");
 
       const { shouldDefaultAutoRecordEnabled } = await import("./services/featureAccessService");
       const autoRecordEnabled = await shouldDefaultAutoRecordEnabled(userId, clientEmail);
@@ -13345,6 +13346,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         attendees,
         clientEmail: clientEmail || undefined,
         clientName: clientName || undefined,
+        guestClaimToken,
         autoRecordEnabled,
         consentStatus: "pending",
         status: "scheduled",
@@ -13404,6 +13406,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
           calendarProvider: provider,
           calendarEventId,
           attendeeCount: attendees.length,
+          guestClaimLink: Boolean(guestClaimToken),
           meetingUrl: meetingUrl || null,
           meetingPlatform: meetingPlatform || null,
           conferenceAutoCreated: createConference && !providedMeetingUrl,
@@ -13426,7 +13429,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       const createSchema = z.object({
         title: z.string().trim().min(1).max(500),
         description: z.string().trim().max(5000).optional().nullable(),
-        clientEmail: z.string().email().max(255),
+        clientEmail: z.union([z.string().email().max(255), z.literal(""), z.null()]).optional(),
         clientName: z.string().trim().max(200).optional().nullable(),
         caseId: z.string().min(1).optional().nullable(),
         durationMinutes: z.number().int().min(15).max(240).default(30),
@@ -13460,7 +13463,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         userId,
         title: data.title,
         description: data.description || undefined,
-        clientEmail: data.clientEmail,
+        clientEmail: data.clientEmail || undefined,
         clientName: data.clientName || undefined,
         caseId: data.caseId || undefined,
         durationMinutes: data.durationMinutes,
@@ -13605,16 +13608,20 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
     try {
       const bodySchema = z.object({
         slotId: z.string().min(1).max(64),
+        guestEmail: z.union([z.string().email().max(255), z.literal(""), z.null()]).optional(),
+        guestName: z.string().trim().max(200).optional().nullable(),
       });
       const parsed = bodySchema.safeParse(req.body);
       if (!parsed.success) {
-        return res.status(400).json({ message: "slotId is required" });
+        return res.status(400).json({ message: "Choose a time and enter a valid email address" });
       }
 
       const { bookMeetingSlot } = await import("./services/meetingBookingService");
       const result = await bookMeetingSlot({
         token: req.params.token,
         slotId: parsed.data.slotId,
+        guestEmail: parsed.data.guestEmail || undefined,
+        guestName: parsed.data.guestName || undefined,
         baseUrl: getCanonicalBaseUrl(req),
         ipAddress: req.ip || req.socket?.remoteAddress,
       });
@@ -13645,6 +13652,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         status: "booked",
         startsAt: result.startsAt,
         endsAt: result.endsAt,
+        meetingUrl: result.meeting.meetingUrl || null,
       });
     } catch (error: any) {
       if (error?.status) {
@@ -13699,6 +13707,69 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         return res.status(error.status).json({ message: error.message });
       }
       console.error("[MEETING_BOOKING] Error declining booking:", error);
+      next(error);
+    }
+  });
+
+  app.get("/api/join/:token", generalApiLimiter, async (req, res, next) => {
+    try {
+      const { getPublicGuestClaim } = await import("./services/meetingGuestClaimService");
+      const payload = await getPublicGuestClaim(req.params.token);
+      res.json(payload);
+    } catch (error: any) {
+      if (error?.status) {
+        return res.status(error.status).json({ message: error.message });
+      }
+      console.error("[GUEST_CLAIM] Error loading meeting link:", error);
+      next(error);
+    }
+  });
+
+  app.post("/api/join/:token", generalApiLimiter, async (req, res, next) => {
+    try {
+      const bodySchema = z.object({
+        email: z.string().trim().min(3).max(255),
+        name: z.string().trim().max(200).optional().nullable(),
+      });
+      const parsed = bodySchema.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Enter a valid email address" });
+      }
+
+      const { claimGuestEmail } = await import("./services/meetingGuestClaimService");
+      const result = await claimGuestEmail({
+        token: req.params.token,
+        email: parsed.data.email,
+        name: parsed.data.name,
+        baseUrl: getCanonicalBaseUrl(req),
+        ipAddress: req.ip || req.socket?.remoteAddress,
+      });
+
+      try {
+        const { db } = await import("./db");
+        const { scheduledMeetings } = await import("@shared/schema");
+        const { eq } = await import("drizzle-orm");
+        const [row] = await db
+          .select({ userId: scheduledMeetings.userId })
+          .from(scheduledMeetings)
+          .where(eq(scheduledMeetings.guestClaimToken, req.params.token))
+          .limit(1);
+        if (row?.userId) {
+          const userClients = sseClients.get(row.userId);
+          userClients?.forEach((client) => {
+            client.write(`data: ${JSON.stringify({ type: "meeting_guest_email_added" })}\n\n`);
+          });
+        }
+      } catch (sseError) {
+        console.warn("[GUEST_CLAIM] SSE notify failed:", sseError);
+      }
+
+      res.json(result);
+    } catch (error: any) {
+      if (error?.status) {
+        return res.status(error.status).json({ message: error.message });
+      }
+      console.error("[GUEST_CLAIM] Error saving guest email:", error);
       next(error);
     }
   });
@@ -14039,7 +14110,14 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       await storage.updateScheduledMeeting(id, {
         status: 'rescheduled',
         replacedByMeetingId: newMeeting.id,
+        ...(meeting.guestClaimToken ? { guestClaimToken: null } : {}),
       });
+
+      if (meeting.guestClaimToken) {
+        await storage.updateScheduledMeeting(newMeeting.id, {
+          guestClaimToken: meeting.guestClaimToken,
+        });
+      }
 
       // Fire-and-forget — do not block the reschedule response on email delivery.
       if (attendeesList.length > 0 || meeting.clientEmail) {

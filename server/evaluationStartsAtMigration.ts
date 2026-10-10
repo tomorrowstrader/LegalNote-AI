@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { db } from "./db";
 
-/** Governed evaluation configuration start date — required by firms queries after 61644f4. */
+/** Governed evaluation configuration start date - required by firms queries after 61644f4. */
 export async function ensureEvaluationStartsAtColumn(): Promise<void> {
   try {
     await db.execute(sql`

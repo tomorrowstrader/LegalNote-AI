@@ -12,7 +12,7 @@ export function formatGraphLocalDateTime(date: Date, timeZone = "Europe/London")
   }).formatToParts(date);
   const get = (type: Intl.DateTimeFormatPartTypes) =>
     parts.find((p) => p.type === type)?.value ?? "00";
-  // en-GB can yield "24" for midnight in some engines — normalise to 00
+  // en-GB can yield "24" for midnight in some engines - normalise to 00
   const hour = get("hour") === "24" ? "00" : get("hour");
   return `${get("year")}-${get("month")}-${get("day")}T${hour}:${get("minute")}:${get("second")}`;
 }

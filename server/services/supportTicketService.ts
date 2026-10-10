@@ -144,7 +144,7 @@ ${body.description}`,
   } catch {
     const fallback = body.description.trim();
     return {
-      title: `${category} — ${severity}`.slice(0, 200),
+      title: `${category} - ${severity}`.slice(0, 200),
       summary: fallback.slice(0, 2000),
       polishedDescription: fallback,
     };

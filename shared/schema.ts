@@ -792,11 +792,14 @@ export const scheduledMeetings = pgTable("scheduled_meetings", {
   clientReminder30mSentAt: timestamp("client_reminder_30m_sent_at"),
   clientReminder10mSentAt: timestamp("client_reminder_10m_sent_at"),
   clientReminderStartSentAt: timestamp("client_reminder_start_sent_at"),
+  /** Secret for /join/:token when the meeting was scheduled without a guest email. */
+  guestClaimToken: text("guest_claim_token"),
   lastPolledAt: timestamp("last_polled_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => ({
   userCalendarEventUnique: unique().on(table.userId, table.calendarEventId, table.calendarProvider),
+  guestClaimTokenUnique: unique("scheduled_meetings_guest_claim_token_unique").on(table.guestClaimToken),
 }));
 
 // Pre-meeting consent emails for video calls
@@ -835,7 +838,8 @@ export const meetingBookingProposals = pgTable("meeting_booking_proposals", {
   token: text("token").notNull().unique(),
   title: text("title").notNull(),
   description: text("description"),
-  clientEmail: text("client_email").notNull(),
+  /** Null when the organiser shares the link directly and the guest enters their email. */
+  clientEmail: text("client_email"),
   clientName: text("client_name"),
   durationMinutes: integer("duration_minutes").notNull().default(30),
   calendarProvider: text("calendar_provider").notNull().default("google"), // google, outlook

@@ -247,7 +247,7 @@ export default function Clients() {
                         {client.amlRiskLevel.toUpperCase()}
                       </Badge>
                     ) : (
-                      <span className="text-muted-foreground/50 text-xs">—</span>
+                      <span className="text-muted-foreground/50 text-xs">-</span>
                     )}
                   </div>
 
@@ -264,7 +264,7 @@ export default function Clients() {
                         {formatDistanceToNow(lastActivity, { addSuffix: true })}
                       </span>
                     ) : (
-                      <span className="text-muted-foreground/50 text-xs">—</span>
+                      <span className="text-muted-foreground/50 text-xs">-</span>
                     )}
                   </div>
                 </button>

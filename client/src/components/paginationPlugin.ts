@@ -58,7 +58,7 @@ function rebuildDecorations(view: EditorView): { set: DecorationSet; signature: 
       return;
     }
 
-    // Block overflows — insert a page break before it
+    // Block overflows - insert a page break before it
     const key = `pg-gutter-${gutterCount}`;
     parts.push(`${key}@${offset}`);
 
@@ -75,7 +75,7 @@ function rebuildDecorations(view: EditorView): { set: DecorationSet; signature: 
 
     // Start fresh page: reset cumulative height to top of new page
     // The gutter widget itself occupies WIDGET_H px but we don't count it
-    // in content height — only real content blocks count.
+    // in content height - only real content blocks count.
     cumulativeHeight = TOP_PAD;
     pageContentEnd = TOP_PAD + CONTENT_H;
     gutterCount++;

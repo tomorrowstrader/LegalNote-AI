@@ -9,7 +9,7 @@ export type LoadedLegalDocument = {
   path: string;
   text: string;
   contentHash: string;
-  /** Raw file bytes — same Buffer that was hashed. Use for snapshot inserts. */
+  /** Raw file bytes - same Buffer that was hashed. Use for snapshot inserts. */
   bytes: Buffer;
 };
 
@@ -121,7 +121,7 @@ export function assertLegalMasterHashes(): void {
 
   if (mismatches.length > 0) {
     throw new Error(
-      `Legal master document hash mismatch — refusing to boot. ${mismatches.join("; ")}. ` +
+      `Legal master document hash mismatch - refusing to boot. ${mismatches.join("; ")}. ` +
         `Acceptance binds to exact committed bytes; fix masters or update EXPECTED_LEGAL_MASTER_HASHES after counsel sign-off.`,
     );
   }

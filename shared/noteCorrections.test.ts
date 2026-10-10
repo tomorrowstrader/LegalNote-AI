@@ -66,7 +66,7 @@ describe("note corrections", () => {
       resolvePassage(plain, "The client was not present. Page 2"),
     ).toBe("The client was not present.");
     expect(
-      resolvePassage(plain, "Reasoning needed — The client was not present. Her partner attended"),
+      resolvePassage(plain, "Reasoning needed - The client was not present. Her partner attended"),
     ).toContain("The client was not present.");
     expect(resolvePassage(plain, "This sentence is not in the note at all.")).toBeNull();
   });

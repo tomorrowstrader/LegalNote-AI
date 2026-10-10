@@ -112,7 +112,7 @@ describe.skipIf(!hasDatabase)("sealed consent DB tamper gate", () => {
       await sealBypassPool.end();
     } else {
       console.warn(
-        "[SEAL] Tamper-test cleanup skipped — set SEAL_BYPASS_DATABASE_URL (role legalnote_seal_bypass).",
+        "[SEAL] Tamper-test cleanup skipped - set SEAL_BYPASS_DATABASE_URL (role legalnote_seal_bypass).",
       );
     }
     await pool.end();
@@ -121,7 +121,7 @@ describe.skipIf(!hasDatabase)("sealed consent DB tamper gate", () => {
   it("refuses processing gate after consent_given is tampered in the database", async function () {
     if (!hasSealBypassUrl) {
       console.warn(
-        "[SEAL] Forge test skipped — set SEAL_BYPASS_DATABASE_URL (role legalnote_seal_bypass).",
+        "[SEAL] Forge test skipped - set SEAL_BYPASS_DATABASE_URL (role legalnote_seal_bypass).",
       );
       return;
     }
@@ -143,7 +143,7 @@ describe.skipIf(!hasDatabase)("sealed consent DB tamper gate", () => {
   it("refuses processing gate after content_hash is tampered in the database", async function () {
     if (!hasSealBypassUrl) {
       console.warn(
-        "[SEAL] Forge test skipped — set SEAL_BYPASS_DATABASE_URL (role legalnote_seal_bypass).",
+        "[SEAL] Forge test skipped - set SEAL_BYPASS_DATABASE_URL (role legalnote_seal_bypass).",
       );
       return;
     }

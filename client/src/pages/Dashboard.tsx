@@ -91,6 +91,12 @@ export default function Dashboard() {
   const [discardReason, setDiscardReason] = useState("");
   const [selectedCaseIds, setSelectedCaseIds] = useState<Set<string>>(new Set());
   const [bulkArchiveConfirmOpen, setBulkArchiveConfirmOpen] = useState(false);
+  const [spotlight, setSpotlight] = useState<{
+    ids: string[];
+    token: number;
+    tone: "overdue" | "review";
+    message: string;
+  } | null>(null);
 
   const { bulkArchiveMutation } = useBulkCaseActions({
     onSuccess: () => setSelectedCaseIds(new Set()),
@@ -151,7 +157,7 @@ export default function Dashboard() {
   });
 
   const greeting = getTimeBasedGreeting();
-  // Greeting shows first name only — never last name, even if OAuth stuffed a full name into firstName.
+  // Greeting shows first name only - never last name, even if OAuth stuffed a full name into firstName.
   const firstName =
     user?.firstName?.trim().split(/\s+/)[0] ||
     user?.email?.split('@')[0] ||
@@ -247,6 +253,56 @@ export default function Dashboard() {
       archived: cases.filter(c => c.archived === true),
     };
   }, [cases]);
+
+  useEffect(() => {
+    if (!spotlight) return;
+    const timer = window.setTimeout(() => setSpotlight(null), 3600);
+    return () => window.clearTimeout(timer);
+  }, [spotlight?.token]);
+
+  const revealAttention = (targets: Case[], tone: "overdue" | "review") => {
+    if (!targets.length) return;
+
+    const activeIds = new Set(categorizedCases.active.map((c) => c.id));
+    const reviewIds = new Set(categorizedCases.review.map((c) => c.id));
+    const inActive = targets.filter((c) => activeIds.has(c.id));
+    const inReview = targets.filter((c) => reviewIds.has(c.id));
+
+    let tab: StatusTab = tone === "review" ? "review" : "active";
+    let visible = tone === "review" ? inReview : inActive;
+    if (tone === "overdue") {
+      if (inActive.length === 0 && inReview.length > 0) {
+        tab = "review";
+        visible = inReview;
+      } else {
+        tab = "active";
+        visible = inActive.length > 0 ? inActive : targets;
+      }
+    }
+    if (visible.length === 0) visible = targets;
+
+    const ordered = [...visible].sort((a, b) => {
+      const aTime = a.deadline ? new Date(a.deadline).getTime() : Number.POSITIVE_INFINITY;
+      const bTime = b.deadline ? new Date(b.deadline).getTime() : Number.POSITIVE_INFINITY;
+      if (aTime !== bTime) return aTime - bTime;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+
+    const names = ordered.map((c) => c.clientName || c.title);
+    const shown = names.slice(0, 3).join(", ");
+    const extra = names.length > 3 ? ` and ${names.length - 3} more` : "";
+    const label = tone === "overdue" ? "Overdue" : "Awaiting review";
+
+    setSearchQuery("");
+    setActiveTab(tab);
+    setSortBy(tone === "overdue" ? "deadline" : "created");
+    setSpotlight((prev) => ({
+      ids: ordered.map((c) => c.id),
+      token: (prev?.token ?? 0) + 1,
+      tone,
+      message: `${label}: ${shown}${extra}. Highlighted in the case list.`,
+    }));
+  };
 
   const filteredAndSortedCases = useMemo(() => {
     let filtered = categorizedCases[activeTab] || [];
@@ -499,11 +555,10 @@ export default function Dashboard() {
             </span>
             {needsAttention.overdue.length > 0 && (
               <button
-                onClick={() => {
-                  setActiveTab("active");
-                  setSortBy("deadline");
-                }}
+                type="button"
+                onClick={() => revealAttention(needsAttention.overdue, "overdue")}
                 className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-red-500/10 border border-red-500/20 text-red-700 dark:text-red-300 hover-elevate"
+                aria-label={`Show ${needsAttention.overdue.length} overdue ${needsAttention.overdue.length === 1 ? "matter" : "matters"} in the case list`}
                 data-testid="attention-overdue"
               >
                 <AlertTriangle className="w-3.5 h-3.5" />
@@ -512,11 +567,10 @@ export default function Dashboard() {
             )}
             {needsAttention.awaitingReviewLong.length > 0 && (
               <button
-                onClick={() => {
-                  setActiveTab("review");
-                  setSortBy("created");
-                }}
+                type="button"
+                onClick={() => revealAttention(needsAttention.awaitingReviewLong, "review")}
                 className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 hover-elevate"
+                aria-label={`Show ${needsAttention.awaitingReviewLong.length} ${needsAttention.awaitingReviewLong.length === 1 ? "matter" : "matters"} awaiting review in the case list`}
                 data-testid="attention-review"
               >
                 <Clock className="w-3.5 h-3.5" />
@@ -548,7 +602,7 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Unassigned Recordings — above Case Files so assignment isn't buried */}
+        {/* Unassigned Recordings - above Case Files so assignment isn't buried */}
         {unassignedImports && unassignedImports.length > 0 && (
           <div className="mb-6 border border-amber-500/30 bg-amber-500/5 rounded-lg overflow-hidden">
             <div className="flex items-center gap-2 px-4 py-3 border-b border-amber-500/20">
@@ -609,7 +663,10 @@ export default function Dashboard() {
           </div>
         )}
 
-        <div className="bg-card border border-border rounded-lg overflow-hidden mb-6">
+        <div id="case-files" className="bg-card border border-border rounded-lg overflow-hidden mb-6 scroll-mt-4">
+          <p className="sr-only" aria-live="polite" data-testid="attention-spotlight-status">
+            {spotlight?.message ?? ""}
+          </p>
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as StatusTab)} className="w-full">
             {/* Sticky Header with Title, Tabs, Search */}
             <div className="sticky top-0 z-10 bg-card border-b border-border p-4 sm:p-6 pb-4">
@@ -784,6 +841,9 @@ export default function Dashboard() {
                     selectionEnabled
                     selectedIds={selectedCaseIds}
                     onSelectionChange={setSelectedCaseIds}
+                    spotlightIds={spotlight?.ids}
+                    spotlightToken={spotlight?.token}
+                    spotlightTone={spotlight?.tone}
                   />
                 </>
               ) : searchQuery ? (
@@ -868,7 +928,7 @@ export default function Dashboard() {
                 id="discard-reason"
                 value={discardReason}
                 onChange={(event) => setDiscardReason(event.target.value)}
-                placeholder="e.g. Empty join — the other person never connected"
+                placeholder="e.g. Empty join - the other person never connected"
                 rows={2}
                 maxLength={500}
                 data-testid="input-discard-reason"

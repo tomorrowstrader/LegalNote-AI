@@ -37,12 +37,12 @@ const SLIDES = [
     headline:
       "Writing attendance notes after every meeting is a significant neurological load.",
     subtext:
-      "For neurodivergent solicitors — and for any fee earner managing a full caseload — detailed post-meeting documentation is a recognised workplace barrier. Removing it is both good practice and a reasonable adjustment under the Equality Act 2010.",
+      "For neurodivergent solicitors - and for any fee earner managing a full caseload - detailed post-meeting documentation is a recognised workplace barrier. Removing it is both good practice and a reasonable adjustment under the Equality Act 2010.",
   },
   {
     id: 4,
     headline:
-      "Compliance gaps, defensibility gaps, and staff welfare gaps — all from the same missing document.",
+      "Compliance gaps, defensibility gaps, and staff welfare gaps - all from the same missing document.",
     subtext:
       "An attendance note is not an administrative task. It is the legal record of professional judgement. It protects the client, the solicitor, and the firm.",
   },
@@ -55,11 +55,11 @@ const SLIDES = [
 
 function Slide1Visual() {
   const rows = [
-    { label: "Initial consultation — 12 Jan", documented: true },
-    { label: "Follow-up call — 19 Jan", documented: true },
-    { label: "Counsel advice — 26 Jan", documented: true },
-    { label: "Client update — 2 Feb", documented: true },
-    { label: "Settlement discussion — 9 Feb", documented: false },
+    { label: "Initial consultation - 12 Jan", documented: true },
+    { label: "Follow-up call - 19 Jan", documented: true },
+    { label: "Counsel advice - 26 Jan", documented: true },
+    { label: "Client update - 2 Feb", documented: true },
+    { label: "Settlement discussion - 9 Feb", documented: false },
   ];
   return (
     <div className="flex flex-col gap-2 w-full max-w-sm mx-auto">
@@ -124,7 +124,7 @@ function Slide3Visual() {
         </div>
       </div>
       <p className="text-xs text-muted-foreground/60 text-center max-w-xs">
-        Equality Act 2010, s.20 — duty to make reasonable adjustments
+        Equality Act 2010, s.20 - duty to make reasonable adjustments
       </p>
     </div>
   );

@@ -56,7 +56,7 @@ export function sanitizeTtsText(text: string): string {
     .replace(/[•·]/g, ",")
     .replace(/[“”]/g, '"')
     .replace(/[‘’]/g, "'")
-    .replace(/—/g, " - ")
+    .replace(/-/g, " - ")
     .trim()
     .slice(0, MAX_TTS_CHARS);
 }

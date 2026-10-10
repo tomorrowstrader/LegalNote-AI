@@ -209,7 +209,7 @@ If the user asks for advice or strategy, set refused=true and explain you can on
 
 Rules:
 - Prefer short, precise answers grounded in the excerpts.
-- If the file does not contain the answer, say so clearly — do not invent.
+- If the file does not contain the answer, say so clearly - do not invent.
 - Cite sources using the citation objects. For transcript, use timestampMs from the [Nms] markers when possible.
 - Return JSON only.`;
 
@@ -267,7 +267,7 @@ Respond with JSON:
     return {
       answer:
         parsed.refuseReason ||
-        "I can’t advise on strategy — I can only report what’s on this matter’s file.",
+        "I can’t advise on strategy - I can only report what’s on this matter’s file.",
       citations: [],
       refused: true,
       refuseReason: parsed.refuseReason || undefined,
@@ -285,7 +285,7 @@ Respond with JSON:
 
 /**
  * Compare meeting transcript vs attendance note: omissions and mismatches.
- * Inverse of note→transcript verification — focuses on what the meeting covered
+ * Inverse of note→transcript verification - focuses on what the meeting covered
  * that the note may have missed. Soft-refuses advice/strategy.
  */
 export async function compareMatterNote(options: {
@@ -313,7 +313,7 @@ export async function compareMatterNote(options: {
 
   if (!hasTranscript) {
     return {
-      summary: "No transcript on this matter yet — can’t compare the meeting to the note.",
+      summary: "No transcript on this matter yet - can’t compare the meeting to the note.",
       findings: [],
       citations: [],
       refused: false,
@@ -325,7 +325,7 @@ export async function compareMatterNote(options: {
 
   if (!hasNote) {
     return {
-      summary: "No attendance note on this matter yet — generate or open one, then compare again.",
+      summary: "No attendance note on this matter yet - generate or open one, then compare again.",
       findings: [],
       citations: [],
       refused: false,
@@ -341,9 +341,9 @@ You must NOT give legal advice, strategy, or recommendations about what the soli
 If the request is really asking for advice, set refused=true.
 
 Focus (priority order):
-1. missing_from_note — substantive points clearly discussed in the transcript that are not reflected in the note (facts agreed, decisions, deadlines, undertakings, next steps, names/amounts that matter).
-2. mismatch — where the note states something that conflicts with the transcript.
-3. note_unsupported — optional: note content already flagged in stored verification warnings, if provided.
+1. missing_from_note - substantive points clearly discussed in the transcript that are not reflected in the note (facts agreed, decisions, deadlines, undertakings, next steps, names/amounts that matter).
+2. mismatch - where the note states something that conflicts with the transcript.
+3. note_unsupported - optional: note content already flagged in stored verification warnings, if provided.
 
 Rules:
 - Do NOT invent gaps. Only report clear, material omissions or conflicts.
@@ -418,7 +418,7 @@ Respond with JSON:
     return {
       summary:
         parsed.refuseReason ||
-        "I can’t advise on strategy — I can only compare what’s on this matter’s file.",
+        "I can’t advise on strategy - I can only compare what’s on this matter’s file.",
       findings: [],
       citations: [],
       refused: true,

@@ -241,7 +241,7 @@ export default function SubscribePage() {
           <div className="space-y-4">
             <ul className="space-y-2 text-sm text-muted-foreground">
               {[
-                "No second trial — billing starts when you subscribe",
+                "No second trial - billing starts when you subscribe",
                 "Coupon field available on Stripe Checkout",
                 "Full write access restores for the whole firm on payment",
               ].map((line) => (
@@ -263,7 +263,7 @@ export default function SubscribePage() {
                   Redirecting…
                 </>
               ) : (
-                `Subscribe — ${monthlyTotal}/month`
+                `Subscribe - ${monthlyTotal}/month`
               )}
             </Button>
           </div>

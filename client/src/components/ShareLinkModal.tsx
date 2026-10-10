@@ -36,13 +36,13 @@ interface ShareLinkModalProps {
   caseId: string;
   caseTitle: string;
   userRole: "Partner" | "Senior Associate" | "Solicitor" | "Paralegal";
-  /** Full client name from the case file — first name is prefilled as recipient name. */
+  /** Full client name from the case file - first name is prefilled as recipient name. */
   recipientName?: string;
   /** When false (internal meetings), skip the client-consent external-share gate. */
   requireClientConsent?: boolean;
   /** Blocks share when the matter is under litigation hold. */
   litigationHold?: boolean;
-  /** Active matter documents — used to block share until adoption is complete. */
+  /** Active matter documents - used to block share until adoption is complete. */
   documents?: ShareableDocument[];
   availableDocuments?: {
     hasAttendanceNote: boolean;
@@ -467,7 +467,7 @@ export default function ShareLinkModal({
               data-testid="input-custom-message"
             />
             <p className="text-xs text-muted-foreground">
-              This message appears in the email. Do not include names, matter references, or other personal or case-specific data — those stay inside the secure link.
+              This message appears in the email. Do not include names, matter references, or other personal or case-specific data - those stay inside the secure link.
             </p>
           </div>
 

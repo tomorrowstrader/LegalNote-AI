@@ -12,6 +12,7 @@ import {
   Shield,
   Plus,
   Trash2,
+  Copy,
 } from "lucide-react";
 import {
   Dialog,
@@ -174,6 +175,7 @@ export default function ScheduleMeetingModal({
   const [clientSearchQuery, setClientSearchQuery] = useState("");
   const [showClientDropdown, setShowClientDropdown] = useState(false);
   const [matterKind, setMatterKind] = useState<MatterKind>("client");
+  const [shareLink, setShareLink] = useState<{ url: string; detail: string } | null>(null);
   const clientSearchRef = useRef<HTMLDivElement>(null);
   const isClientMeeting = isClientMatterKind(matterKind);
   const isProposeMode = scheduleMode === "propose";
@@ -218,6 +220,7 @@ export default function ScheduleMeetingModal({
     setClientSearchQuery("");
     setShowClientDropdown(false);
     setMatterKind("client");
+    setShareLink(null);
   }, [open, defaultProvider]);
 
   useEffect(() => {
@@ -352,6 +355,15 @@ export default function ScheduleMeetingModal({
       });
     },
     onSuccess: (meeting) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/scheduled-meetings"] });
+      if (meeting.guestClaimToken) {
+        setShareLink({
+          url: `${window.location.origin}/join/${meeting.guestClaimToken}`,
+          detail:
+            "The meeting is on your calendar. Send this link to them. When they enter their email, it is added to the meeting and the calendar invitation, and they can join.",
+        });
+        return;
+      }
       const platform =
         meeting.meetingPlatform === "meet"
           ? "Google Meet"
@@ -367,7 +379,6 @@ export default function ScheduleMeetingModal({
             ? `Added to your calendar and Upcoming Meetings.${attendeeCount > 0 ? " Invitees were emailed a confirmation with the join link." : ""}`
             : `Added to your calendar. ${autoConferenceName} link may appear after refresh if your account supports it.`,
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/scheduled-meetings"] });
       onOpenChange(false);
     },
     onError: (error: Error & { needsCalendarConnection?: boolean }) => {
@@ -396,10 +407,7 @@ export default function ScheduleMeetingModal({
         throw new Error("Select an existing client or create a new one");
       }
 
-      const guestList = collectAttendees(attendees, true);
-      if (guestList.length === 0) {
-        throw new Error("Add the attendee's name and email so we can send the booking link");
-      }
+      const guestList = collectAttendees(attendees, false);
 
       const filled = proposedSlots.filter((s) => s.date && s.startTime);
       if (filled.length < 2) {
@@ -427,21 +435,33 @@ export default function ScheduleMeetingModal({
         durationMinutes,
         caseId: caseId || undefined,
         provider: activeProvider,
-        clientEmail: guestList[0].email,
-        clientName: isClientMeeting ? selectedClient!.name : guestList[0].name,
+        clientEmail: guestList[0]?.email,
+        clientName: isClientMeeting
+          ? selectedClient!.name
+          : filledAttendeeRows(attendees)[0]?.name.trim() || guestList[0]?.name,
         slots,
       });
     },
-    onSuccess: (proposal: { bookingUrl?: string; emailStatus?: string }) => {
-      toast({
-        title: "Times proposed",
-        description:
-          proposal.emailStatus === "sent"
-            ? "Booking link emailed to the client. You’ll be notified when they pick a time."
-            : "Proposal created, but the email may not have sent. Copy the link from Upcoming Meetings if needed.",
-      });
+    onSuccess: (proposal: { bookingUrl?: string; token?: string; emailStatus?: string }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/meeting-booking-proposals"] });
       queryClient.invalidateQueries({ queryKey: ["/api/scheduled-meetings"] });
+      const url =
+        proposal.bookingUrl ||
+        (proposal.token ? `${window.location.origin}/book/${proposal.token}` : "");
+      if (proposal.emailStatus !== "sent" && url) {
+        setShareLink({
+          url,
+          detail:
+            proposal.emailStatus === "skipped"
+              ? "Send this link yourself. They pick a time, enter their email, and it is added to the meeting and your calendar."
+              : "The proposal was created, but the email may not have sent. Copy this link and send it yourself.",
+        });
+        return;
+      }
+      toast({
+        title: "Times proposed",
+        description: "Booking link emailed to the client. You’ll be notified when they pick a time.",
+      });
       onOpenChange(false);
     },
     onError: (error: Error & { needsCalendarConnection?: boolean }) => {
@@ -479,11 +499,39 @@ export default function ScheduleMeetingModal({
           </DialogTitle>
           <DialogDescription>
             {isProposeMode
-              ? "Send the client a few options. When they pick one, we’ll add it to your calendar with a join link."
-              : `Create the meeting here — we'll add it to your calendar, generate a ${autoConferenceName} link automatically, and email invitees a confirmation with the join link.`}
+              ? "Offer a few times. They can open a link, enter their email if you do not have it, and the chosen time is added to your calendar."
+              : `Create the meeting on your calendar with a ${autoConferenceName} link. Add an email to invite them, or leave it blank and send a link they use to join and add their own email.`}
           </DialogDescription>
         </DialogHeader>
 
+        {shareLink ? (
+          <div className="space-y-3 pt-1" data-testid="panel-share-meeting-link">
+            <p className="text-sm text-muted-foreground">{shareLink.detail}</p>
+            <div className="flex gap-2">
+              <Input readOnly value={shareLink.url} data-testid="input-share-meeting-link" />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(shareLink.url);
+                    toast({ title: "Link copied" });
+                  } catch {
+                    toast({
+                      title: "Could not copy link",
+                      description: shareLink.url,
+                      variant: "destructive",
+                    });
+                  }
+                }}
+                data-testid="button-copy-share-meeting-link"
+              >
+                <Copy className="w-4 h-4 mr-1" />
+                Copy
+              </Button>
+            </div>
+          </div>
+        ) : (
         <div className="space-y-4 pt-1">
           <div className="space-y-2">
             <Label>How do you want to book?</Label>
@@ -814,10 +862,10 @@ export default function ScheduleMeetingModal({
             <div className="flex items-center justify-between gap-2">
               <Label>
                 {isProposeMode ? (isClientMeeting ? "Client" : "Attendee") : "Attendees"}
-                {(isProposeMode || !isClientMeeting) && (
+                {!isProposeMode && !isClientMeeting && (
                   <span className="text-accent"> *</span>
                 )}
-                {!isProposeMode && isClientMeeting && (
+                {(isProposeMode || isClientMeeting) && (
                   <span className="font-normal text-muted-foreground"> (optional)</span>
                 )}
               </Label>
@@ -882,6 +930,7 @@ export default function ScheduleMeetingModal({
                 <div className="space-y-1.5">
                   <Label className="text-xs text-muted-foreground" htmlFor={`schedule-attendee-email-${row.id}`}>
                     Email
+                    <span className="font-normal"> (optional)</span>
                   </Label>
                   <Input
                     id={`schedule-attendee-email-${row.id}`}
@@ -902,8 +951,8 @@ export default function ScheduleMeetingModal({
             ))}
             <p className="text-xs text-muted-foreground">
               {isProposeMode
-                ? "We’ll email this person a link to pick one of the proposed times."
-                : "Add each person with their own name. That name is used in their invitation."}
+                ? "Add an email to send the booking link. Leave it blank to copy a link instead. They enter their email when they pick a time, and it is added to the meeting and your calendar."
+                : "Add each person with their own name. Leave the email blank if you do not have it: you will get a link to send, and their email is added to the meeting and your calendar when they submit it."}
             </p>
             {calendarAutoRecordVisible && isClientMeeting && hasValidAttendeeEmail && !isProposeMode && (
               <p className="text-xs text-muted-foreground rounded-md border bg-muted/30 px-2.5 py-2">
@@ -1046,8 +1095,18 @@ export default function ScheduleMeetingModal({
           </div>
           )}
         </div>
+        )}
 
         <DialogFooter className="gap-2">
+          {shareLink ? (
+            <Button
+              onClick={() => onOpenChange(false)}
+              data-testid="button-share-link-done"
+            >
+              Done
+            </Button>
+          ) : (
+          <>
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
@@ -1063,10 +1122,8 @@ export default function ScheduleMeetingModal({
               isSubmitting ||
               !title.trim() ||
               (isClientMeeting && !selectedClient) ||
-              (!isClientMeeting && !hasAttendeeName) ||
-              (isProposeMode
-                ? !hasAttendeeName || !hasValidAttendeeEmail || !proposeSlotsReady
-                : !date || !startTime)
+              (!isClientMeeting && !isProposeMode && !hasAttendeeName) ||
+              (isProposeMode ? !proposeSlotsReady : !date || !startTime)
             }
             data-testid={isProposeMode ? "button-confirm-propose" : "button-confirm-schedule"}
           >
@@ -1075,8 +1132,14 @@ export default function ScheduleMeetingModal({
             ) : (
               <CalendarPlus className="w-4 h-4 mr-1" />
             )}
-            {isProposeMode ? "Send booking link" : `Schedule with ${autoConferenceName}`}
+            {isProposeMode
+              ? hasValidAttendeeEmail
+                ? "Send booking link"
+                : "Create booking link"
+              : `Schedule with ${autoConferenceName}`}
           </Button>
+          </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

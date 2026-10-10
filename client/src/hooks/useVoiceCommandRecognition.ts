@@ -22,7 +22,7 @@ export type VoiceRecognitionStatus =
   | "unsupported"
   | "error";
 
-/** Hard cap — safety net if silence detection never fires. */
+/** Hard cap - safety net if silence detection never fires. */
 const MAX_COMMAND_MS = 10000;
 /** Ignore silence until we've heard speech for at least this long. */
 const MIN_SPEECH_MS = 350;
@@ -30,7 +30,7 @@ const MIN_SPEECH_MS = 350;
 const SILENCE_AFTER_SPEECH_MS = 1100;
 /** Don't auto-stop in the first moments (mic warmup / breath). */
 const MIN_LISTEN_BEFORE_SILENCE_MS = 600;
-/** RMS threshold — below this counts as silence (0–1 scale from Analyser). */
+/** RMS threshold - below this counts as silence (0–1 scale from Analyser). */
 const SILENCE_RMS = 0.018;
 
 /**
@@ -91,7 +91,7 @@ export function useVoiceCommandRecognition(options?: {
   const transcribeBlob = useCallback(async (blob: Blob) => {
     if (blob.size < 200) {
       setStatus("error");
-      setErrorMessage("Didn’t catch that — try again and speak a bit longer.");
+      setErrorMessage("Didn’t catch that - try again and speak a bit longer.");
       return;
     }
 
@@ -118,7 +118,7 @@ export function useVoiceCommandRecognition(options?: {
       const text = (data.text || "").trim();
       if (!text) {
         setStatus("error");
-        setErrorMessage("Didn’t catch that — try again.");
+        setErrorMessage("Didn’t catch that - try again.");
         return;
       }
 

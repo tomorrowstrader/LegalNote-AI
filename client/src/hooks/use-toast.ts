@@ -13,7 +13,7 @@ const TOAST_REMOVE_DELAY = 1000
 
 function normalizeToastDuration(duration?: number): number {
   if (duration === undefined) return TOAST_DURATION
-  // Radix treats 0 as persistent — always auto-dismiss within the cap
+  // Radix treats 0 as persistent - always auto-dismiss within the cap
   if (duration <= 0) return MAX_TOAST_DURATION
   return Math.min(duration, MAX_TOAST_DURATION)
 }

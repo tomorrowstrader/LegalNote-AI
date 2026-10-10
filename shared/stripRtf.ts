@@ -84,11 +84,11 @@ export function stripRtfToPlainText(raw: string): string {
   }
   text = removeStarDestinations(text);
 
-  // Line / paragraph breaks (\par / \pard only — not \pardirnatural / \partightenfactor)
+  // Line / paragraph breaks (\par / \pard only - not \pardirnatural / \partightenfactor)
   text = text.replace(/\\pard?\b/gi, "\n");
   text = text.replace(/\\line\b/gi, "\n");
   text = text.replace(/\\\n/g, "\n");
-  // Hex-encoded characters (\'hh) — Windows-1252 common for UK TextEdit exports
+  // Hex-encoded characters (\'hh) - Windows-1252 common for UK TextEdit exports
   text = text.replace(/\\'([0-9a-fA-F]{2})/g, (_m, hex: string) => {
     const code = parseInt(hex, 16);
     if (Number.isNaN(code)) return "";

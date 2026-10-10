@@ -100,7 +100,7 @@ describe.skipIf(!hasDatabase)("Phase 0: identity collision leaves sealed columns
       await sealBypassPool.end();
     } else {
       console.warn(
-        "[SEAL] Phase 0 cleanup skipped — set SEAL_BYPASS_DATABASE_URL (role legalnote_seal_bypass).",
+        "[SEAL] Phase 0 cleanup skipped - set SEAL_BYPASS_DATABASE_URL (role legalnote_seal_bypass).",
       );
     }
     await pool.end();

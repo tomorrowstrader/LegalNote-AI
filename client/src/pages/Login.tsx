@@ -68,7 +68,7 @@ export default function Login() {
 
   return (
     <div className="min-h-screen flex">
-      {/* Left panel — brand */}
+      {/* Left panel - brand */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden items-center justify-center"
         style={{ background: "linear-gradient(135deg, hsl(0,0%,6%) 0%, hsl(220,12%,15%) 50%, hsl(0,0%,8%) 100%)" }}>
         {/* Warm glow accents */}
@@ -126,10 +126,10 @@ export default function Login() {
         </div>
       </div>
 
-      {/* Right panel — login */}
+      {/* Right panel - login */}
       <div className="w-full lg:w-1/2 flex items-center justify-center px-6 py-12 bg-background">
         <div className="w-full max-w-sm space-y-8">
-          {/* Mobile logo — only visible on small screens */}
+          {/* Mobile logo - only visible on small screens */}
           <div className="lg:hidden text-center mb-4">
             <Logo variant="wordmark" size="lg" animate />
             <p className="text-muted-foreground text-xs mt-2">

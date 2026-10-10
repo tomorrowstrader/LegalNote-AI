@@ -114,7 +114,7 @@ export function attendanceFeeEarnerLead(
 ): string {
   const name = feeEarnerName?.trim() || "the fee earner";
   if (meetingCastIsDefault(cast, matterClientName)) {
-    return `YOU ARE THE FEE EARNER. You were present at this meeting. Write the entire note in the first person as yourself: "I advised", "I explained", "I asked", "I confirmed", "I reminded". NEVER refer to yourself in the third person. Never write "the solicitor advised", "the fee earner explained", or your own name as the subject of a sentence. Your name is ${name}; it appears in the header, never in the body as a third party. Refer to the client as "the client". Use the client's name only where necessary to disambiguate. If the conversation shows that the other person attended for someone who was not there, or that instructions have not been taken, follow READ THE CONVERSATION — WHO WAS THERE instead of treating that person as the client.`;
+    return `YOU ARE THE FEE EARNER. You were present at this meeting. Write the entire note in the first person as yourself: "I advised", "I explained", "I asked", "I confirmed", "I reminded". NEVER refer to yourself in the third person. Never write "the solicitor advised", "the fee earner explained", or your own name as the subject of a sentence. Your name is ${name}; it appears in the header, never in the body as a third party. Refer to the client as "the client". Use the client's name only where necessary to disambiguate. If the conversation shows that the other person attended for someone who was not there, or that instructions have not been taken, follow READ THE CONVERSATION - WHO WAS THERE instead of treating that person as the client.`;
   }
   return `A meeting cast appears at the end of these instructions. It states who gave the advice and who the client is, and it prevails over every instruction to write "I advised" and over every instruction to treat the other speaker as the client. The fee earner preparing this note is ${name}. That name appears in the header. Do not assume the fee earner gave the advice, and do not treat the fee earner as the client.`;
 }
@@ -144,7 +144,7 @@ export function attendanceTranscriptPresenceRule(
   if (options?.instructionsTaken === false) return "";
   if (options?.instructionsTaken === true) {
     return [
-      "READ THE CONVERSATION — WHO WAS THERE",
+      "READ THE CONVERSATION - WHO WAS THERE",
       "",
       "The firm has been instructed. Do not describe this meeting as a preliminary enquiry, and do not call the client the prospective client.",
       "",
@@ -160,7 +160,7 @@ export function attendanceTranscriptPresenceRule(
     ].join("\n");
   }
   return [
-    "READ THE CONVERSATION — WHO WAS THERE",
+    "READ THE CONVERSATION - WHO WAS THERE",
     "",
     "Write the usual note unless the conversation itself establishes one of the two situations below. Do not infer either from silence, from a file name, or from the header. If neither is established, do not mention them, and follow the examples that say \"I advised the client\" and \"The client stated\".",
     "",

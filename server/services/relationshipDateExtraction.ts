@@ -19,7 +19,7 @@ export interface RelationshipDateExtractionResult {
 }
 
 export interface RelationshipDateExtractionContext {
-  /** Meeting/recording date as YYYY-MM-DD — anchors relative phrases */
+  /** Meeting/recording date as YYYY-MM-DD - anchors relative phrases */
   asOfIso: string;
   clientName?: string;
   matterReference?: string;
@@ -94,7 +94,7 @@ export function parseRelationshipDateExtractionPayload(
 
 const EXTRACTION_SYSTEM_PROMPT = `You are extracting relationship dates from a UK legal meeting transcript for a financial-remedy / family matter attendance note pipeline.
 
-TASK: Return structured dates only. Do NOT calculate durations, years married, or years cohabiting — that is done in code after you return.
+TASK: Return structured dates only. Do NOT calculate durations, years married, or years cohabiting - that is done in code after you return.
 
 FIELDS (each may be a partial date object or null):
 - marriageDate: when the parties married

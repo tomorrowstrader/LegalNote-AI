@@ -43,7 +43,7 @@ export function isValidAlphaSenderId(sender: string): boolean {
 
 /**
  * Prefer the Twilio phone number for OTP deliverability.
- * Only use TWILIO_SENDER_NAME when explicitly opted in and valid —
+ * Only use TWILIO_SENDER_NAME when explicitly opted in and valid -
  * unregistered UK alpha senders commonly fail with 21612 / 30041 / 30042.
  */
 export function resolveSmsFromAddress(): { from: string; usedAlpha: boolean } {
@@ -62,7 +62,7 @@ export function resolveSmsFromAddress(): { from: string; usedAlpha: boolean } {
   return { from: phone, usedAlpha: false };
 }
 
-/** OTP / transactional SMS — never use alphanumeric sender IDs. */
+/** OTP / transactional SMS - never use alphanumeric sender IDs. */
 export function resolveOtpFromAddress(): { from: string; usedAlpha: false } {
   const phone = getTwilioPhoneNumber();
   if (!phone) {

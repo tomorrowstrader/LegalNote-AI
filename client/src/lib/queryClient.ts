@@ -26,7 +26,7 @@ export function getApiErrorMessage(
     }
     if (typeof parsed?.code === "string") code = parsed.code;
   } catch {
-    // Not JSON — use stripped status text as-is
+    // Not JSON - use stripped status text as-is
   }
 
   if (code === "EVALUATION_EXPIRED") {

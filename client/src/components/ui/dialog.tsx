@@ -39,7 +39,7 @@ const DialogContent = React.forwardRef<
       ref={ref}
       className={cn(
         "fixed z-[70] grid gap-4 border bg-background p-6 shadow-lg duration-200",
-        // Mobile: inset bottom sheet — rounded, not edge-to-edge blocky
+        // Mobile: inset bottom sheet - rounded, not edge-to-edge blocky
         "left-1/2 w-[calc(100%-1.5rem)] max-w-lg -translate-x-1/2",
         "bottom-[max(0.75rem,env(safe-area-inset-bottom,0px))] top-auto translate-y-0 rounded-2xl",
         "max-h-[min(85dvh,calc(100dvh-5.5rem))] overflow-x-hidden overflow-y-auto",

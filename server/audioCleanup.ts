@@ -41,7 +41,7 @@ export async function cleanupExpiredAudio(): Promise<void> {
           break;
         case "skipped_hold":
           skippedHold++;
-          console.log(`[GDPR] Skipped expired audio ${recording.id} — case under litigation hold`);
+          console.log(`[GDPR] Skipped expired audio ${recording.id} - case under litigation hold`);
           break;
         case "skipped_no_path":
           break;

@@ -182,7 +182,7 @@ export default function UploadTranscriptModal({
           </DialogTitle>
           <DialogDescription>
             Paste or upload a transcript for “{caseTitle}”. LegalNote will derive an attendance
-            note and client letter using the same Meeting-to-Matter™ engine — without re-transcribing
+            note and client letter using the same Meeting-to-Matter™ engine - without re-transcribing
             audio.
           </DialogDescription>
         </DialogHeader>

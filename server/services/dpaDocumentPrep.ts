@@ -45,7 +45,7 @@ function escapeXml(text: string): string {
 /**
  * Fill the first empty <w:t> after a label such as "Name:" until we hit the
  * LegalNote pre-filled block ("Name: Jazz Dennis").
- * Firm "Date:" has no empty value run in the master table — inject the anchor
+ * Firm "Date:" has no empty value run in the master table - inject the anchor
  * into that label cell instead.
  */
 function fillFirmSignatureBlock(
@@ -78,7 +78,7 @@ function fillFirmSignatureBlock(
   fillEmptyAfterLabel("Title:", signerTitle);
   fillEmptyAfterLabel("Signature:", DPA_ANCHORS.firmSignature);
 
-  // Firm Date: cell ends immediately after the label — put the anchor in-cell.
+  // Firm Date: cell ends immediately after the label - put the anchor in-cell.
   if (region.includes(">Date:</w:t>") && !region.includes(DPA_ANCHORS.firmDate)) {
     region = region.replace(
       ">Date:</w:t>",

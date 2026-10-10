@@ -23,6 +23,7 @@ import {
   sendMeetingBookingResponseNotification,
 } from "../email";
 import { shouldDefaultAutoRecordEnabled } from "./featureAccessService";
+import { normalizeGuestEmail, normalizeGuestName } from "./guestMeetingDetails";
 
 const MIN_SLOTS = 2;
 const MAX_SLOTS = 5;
@@ -34,7 +35,7 @@ export type CreateBookingProposalInput = {
   userId: string;
   title: string;
   description?: string;
-  clientEmail: string;
+  clientEmail?: string | null;
   clientName?: string;
   caseId?: string;
   durationMinutes: number;
@@ -118,6 +119,7 @@ export async function createMeetingBookingProposal(
   if (provider === "google" && !googleConnected) provider = "outlook";
   if (provider === "outlook" && !outlookConnected) provider = "google";
 
+  const clientEmail = input.clientEmail?.trim().toLowerCase() || null;
   const token = generateToken();
   const expiresAt =
     input.expiresAt && input.expiresAt > now
@@ -132,13 +134,13 @@ export async function createMeetingBookingProposal(
       token,
       title: input.title,
       description: input.description || null,
-      clientEmail: input.clientEmail.toLowerCase().trim(),
+      clientEmail,
       clientName: input.clientName?.trim() || null,
       durationMinutes: input.durationMinutes,
       calendarProvider: provider,
       status: "pending",
       expiresAt,
-      emailStatus: "pending",
+      emailStatus: clientEmail ? "pending" : "skipped",
     })
     .returning();
 
@@ -156,43 +158,45 @@ export async function createMeetingBookingProposal(
 
   const bookingUrl = `${input.baseUrl.replace(/\/$/, "")}/book/${token}`;
 
-  const organiserUser = await storage.getUser(input.userId);
-  const organiserFirm = organiserUser?.firmId
-    ? await storage.getFirmProfile(organiserUser.firmId)
-    : await storage.getFirmProfile();
-  const organiserName = organiserFirm?.firmName?.trim() || null;
-  const firmName = organiserFirm?.firmName?.trim() || null;
-  const firmLogoUrl = organiserFirm?.logoUrl?.trim() || null;
+  if (clientEmail) {
+    const organiserUser = await storage.getUser(input.userId);
+    const organiserFirm = organiserUser?.firmId
+      ? await storage.getFirmProfile(organiserUser.firmId)
+      : await storage.getFirmProfile();
+    const organiserName = organiserFirm?.firmName?.trim() || null;
+    const firmName = organiserFirm?.firmName?.trim() || null;
+    const firmLogoUrl = organiserFirm?.logoUrl?.trim() || null;
 
-  try {
-    const emailResult = await sendMeetingBookingProposalEmail({
-      to: proposal.clientEmail,
-      recipientName: proposal.clientName || undefined,
-      bookingUrl,
-      slots: insertedSlots.map((s) => ({ startsAt: s.startsAt, endsAt: s.endsAt })),
-      durationMinutes: proposal.durationMinutes,
-      organiserName,
-      firmName,
-      firmLogoUrl,
-    });
+    try {
+      const emailResult = await sendMeetingBookingProposalEmail({
+        to: clientEmail,
+        recipientName: proposal.clientName || undefined,
+        bookingUrl,
+        slots: insertedSlots.map((s) => ({ startsAt: s.startsAt, endsAt: s.endsAt })),
+        durationMinutes: proposal.durationMinutes,
+        organiserName,
+        firmName,
+        firmLogoUrl,
+      });
 
-    await db
-      .update(meetingBookingProposals)
-      .set({
-        emailSentAt: emailResult.success ? new Date() : null,
-        emailStatus: emailResult.success ? "sent" : "failed",
-      })
-      .where(eq(meetingBookingProposals.id, proposal.id));
+      await db
+        .update(meetingBookingProposals)
+        .set({
+          emailSentAt: emailResult.success ? new Date() : null,
+          emailStatus: emailResult.success ? "sent" : "failed",
+        })
+        .where(eq(meetingBookingProposals.id, proposal.id));
 
-    proposal.emailStatus = emailResult.success ? "sent" : "failed";
-    proposal.emailSentAt = emailResult.success ? new Date() : null;
-  } catch (err) {
-    console.warn("[MEETING_BOOKING] Proposal email failed:", err);
-    await db
-      .update(meetingBookingProposals)
-      .set({ emailStatus: "failed" })
-      .where(eq(meetingBookingProposals.id, proposal.id));
-    proposal.emailStatus = "failed";
+      proposal.emailStatus = emailResult.success ? "sent" : "failed";
+      proposal.emailSentAt = emailResult.success ? new Date() : null;
+    } catch (err) {
+      console.warn("[MEETING_BOOKING] Proposal email failed:", err);
+      await db
+        .update(meetingBookingProposals)
+        .set({ emailStatus: "failed" })
+        .where(eq(meetingBookingProposals.id, proposal.id));
+      proposal.emailStatus = "failed";
+    }
   }
 
   await storage.createAuditLog({
@@ -368,7 +372,7 @@ export async function updateMeetingBookingProposalSlots(
   const remainingCount = available.length - removeSlotIds.length + addSlots.length;
   if (remainingCount < MIN_SLOTS) {
     throw Object.assign(
-      new Error(`At least ${MIN_SLOTS} time options must remain — cancel the proposal instead`),
+      new Error(`At least ${MIN_SLOTS} time options must remain - cancel the proposal instead`),
       { status: 400 },
     );
   }
@@ -425,7 +429,7 @@ export async function updateMeetingBookingProposalSlots(
   const availableForClient = updatedSlots.filter((s) => s.status === "available");
 
   let notifyEmailStatus: "sent" | "failed" | "skipped" = "skipped";
-  if (input.notifyClient) {
+  if (input.notifyClient && proposal.clientEmail) {
     const organiserUser = await storage.getUser(input.userId);
     const organiserFirm = organiserUser?.firmId
       ? await storage.getFirmProfile(organiserUser.firmId)
@@ -559,7 +563,7 @@ async function loadPublicProposal(
   return { proposal, slots };
 }
 
-/** Public-safe payload — no matter title / case identifiers. */
+/** Public-safe payload - no matter title / case identifiers. */
 export async function getPublicBookingProposal(token: string) {
   const loaded = await loadPublicProposal(token);
   if (!loaded) {
@@ -597,7 +601,7 @@ export async function getPublicBookingProposal(token: string) {
               endsAt: s.endsAt,
             }))
         : [],
-    /** Firm name only when configured — never a “solicitor” role fallback. */
+    /** Firm name only when configured - never a “solicitor” role fallback. */
     organiserName: firm?.firmName?.trim() || null,
     firmProfile: firm
       ? {
@@ -607,7 +611,16 @@ export async function getPublicBookingProposal(token: string) {
           email: firm.email || null,
         }
       : null,
+    needsGuestDetails: proposal.status === "pending" && !proposal.clientEmail,
+    meetingUrl: await bookedMeetingUrl(proposal),
   };
+}
+
+async function bookedMeetingUrl(proposal: MeetingBookingProposal): Promise<string | null> {
+  if (proposal.status !== "booked" || !proposal.scheduledMeetingId) return null;
+  const meeting = await storage.getScheduledMeeting(proposal.scheduledMeetingId);
+  const url = meeting?.meetingUrl || "";
+  return url.startsWith("https://") ? url : null;
 }
 
 export async function bookMeetingSlot(params: {
@@ -615,6 +628,8 @@ export async function bookMeetingSlot(params: {
   slotId: string;
   baseUrl: string;
   ipAddress?: string;
+  guestEmail?: string | null;
+  guestName?: string | null;
 }): Promise<{ meeting: ScheduledMeeting; startsAt: Date; endsAt: Date }> {
   const loaded = await loadPublicProposal(params.token);
   if (!loaded) {
@@ -646,11 +661,35 @@ export async function bookMeetingSlot(params: {
     throw Object.assign(new Error("That time has already passed"), { status: 400 });
   }
 
+  const suppliedEmail = normalizeGuestEmail(params.guestEmail);
+  const suppliedName = normalizeGuestName(params.guestName);
+  let clientEmail = proposal.clientEmail?.trim().toLowerCase() || null;
+  let clientName = proposal.clientName;
+  const emailWasMissing = !clientEmail;
+  if (!clientEmail) {
+    if (!suppliedEmail) {
+      throw Object.assign(
+        new Error("Enter your email so we can add you to the meeting and calendar"),
+        { status: 400 },
+      );
+    }
+    clientEmail = suppliedEmail;
+    if (suppliedName) clientName = suppliedName;
+  }
+  if (!clientEmail) {
+    throw Object.assign(
+      new Error("Enter your email so we can add you to the meeting and calendar"),
+      { status: 400 },
+    );
+  }
+
   // Claim the slot before creating the calendar event
   const claimResult = await db.execute(sql`
     UPDATE meeting_booking_proposals
     SET status = 'booked',
         selected_slot_id = ${params.slotId},
+        client_email = ${clientEmail},
+        client_name = ${clientName},
         responded_at = NOW(),
         updated_at = NOW()
     WHERE id = ${proposal.id}
@@ -680,7 +719,7 @@ export async function bookMeetingSlot(params: {
   const provider = (proposal.calendarProvider === "outlook" ? "outlook" : "google") as
     | "google"
     | "outlook";
-  const attendees = [{ email: proposal.clientEmail, name: proposal.clientName || undefined }];
+  const attendees = [{ email: clientEmail, name: clientName || undefined }];
   const description = proposal.description || undefined;
 
   let calendarEventId: string | undefined;
@@ -741,7 +780,7 @@ export async function bookMeetingSlot(params: {
 
     const autoRecordEnabled = await shouldDefaultAutoRecordEnabled(
       proposal.userId,
-      proposal.clientEmail,
+      clientEmail,
     );
 
     const meeting = await storage.createScheduledMeeting({
@@ -756,8 +795,8 @@ export async function bookMeetingSlot(params: {
       startTime: slot.startsAt,
       endTime: slot.endsAt,
       attendees,
-      clientEmail: proposal.clientEmail,
-      clientName: proposal.clientName || undefined,
+      clientEmail,
+      clientName: clientName || undefined,
       autoRecordEnabled,
       consentStatus: "pending",
       status: "scheduled",
@@ -775,8 +814,8 @@ export async function bookMeetingSlot(params: {
           ? await storage.getFirmProfile(organiserUser.firmId)
           : await storage.getFirmProfile();
         await sendMeetingInviteConfirmationEmail({
-          to: proposal.clientEmail,
-          recipientName: proposal.clientName || undefined,
+          to: clientEmail,
+          recipientName: clientName || undefined,
           meetingTitle: proposal.title,
           startTime: slot.startsAt,
           endTime: slot.endsAt,
@@ -800,8 +839,8 @@ export async function bookMeetingSlot(params: {
         meetingId: meeting.id,
         slotId: params.slotId,
         startsAt: slot.startsAt.toISOString(),
-        clientEmail: proposal.clientEmail,
-        clientName: proposal.clientName,
+        clientEmail,
+        clientName,
       },
       severity: "info",
     });
@@ -810,8 +849,8 @@ export async function bookMeetingSlot(params: {
       userId: proposal.userId,
       responseStatus: "booked",
       meetingTitle: proposal.title,
-      clientName: proposal.clientName,
-      clientEmail: proposal.clientEmail,
+      clientName,
+      clientEmail,
       startsAt: slot.startsAt,
       caseId: proposal.caseId,
     });
@@ -832,7 +871,7 @@ export async function bookMeetingSlot(params: {
       console.warn("[MEETING_BOOKING] Calendar cleanup failed:", cleanupErr);
     }
 
-    await db
+      await db
       .update(meetingBookingProposals)
       .set({
         status: "pending",
@@ -840,6 +879,9 @@ export async function bookMeetingSlot(params: {
         scheduledMeetingId: null,
         respondedAt: null,
         updatedAt: new Date(),
+        ...(emailWasMissing
+          ? { clientEmail: null, clientName: proposal.clientName }
+          : {}),
       })
       .where(eq(meetingBookingProposals.id, proposal.id));
 
@@ -937,7 +979,7 @@ async function notifyOrganiserOfBookingResponse(params: {
   responseStatus: "booked" | "declined";
   meetingTitle: string;
   clientName?: string | null;
-  clientEmail: string;
+  clientEmail?: string | null;
   startsAt?: Date | null;
   clientMessage?: string | null;
   caseId?: string | null;

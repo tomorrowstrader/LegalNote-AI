@@ -116,7 +116,7 @@ export default function DpaConfirmPage() {
             <>
               <div className="mb-6 rounded-md border border-[hsl(25,15%,85%)] dark:border-border bg-white/70 dark:bg-card px-4 py-3 text-sm text-[hsl(25,20%,30%)] dark:text-foreground break-words">
                 <p>
-                  <strong>{data.firmName}</strong> — {data.signerName},{" "}
+                  <strong>{data.firmName}</strong> - {data.signerName},{" "}
                   {data.signerTitle} ({data.email})
                 </p>
                 <p className="mt-1 text-[hsl(25,20%,45%)] dark:text-muted-foreground">

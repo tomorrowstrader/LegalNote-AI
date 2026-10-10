@@ -85,7 +85,7 @@ export async function createTranscriptImport(params: {
 
   const sessionTitle =
     body.sessionTitle?.trim() ||
-    `Uploaded transcript — ${meetingAt.toLocaleDateString("en-GB", {
+    `Uploaded transcript - ${meetingAt.toLocaleDateString("en-GB", {
       day: "numeric",
       month: "short",
       year: "numeric",
@@ -101,7 +101,7 @@ export async function createTranscriptImport(params: {
     notes: `Uploaded transcript (${body.source})`,
   });
 
-  // startedAt defaults to now — update via raw if we need meetingAt reflected.
+  // startedAt defaults to now - update via raw if we need meetingAt reflected.
   // Meeting session startedAt is used for document metadata when no audio exists.
   try {
     const { meetingSessions } = await import("@shared/schema");

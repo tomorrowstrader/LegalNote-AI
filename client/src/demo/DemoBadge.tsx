@@ -15,7 +15,7 @@ export function DemoBadge() {
         >
           <div className="flex flex-col gap-0.5">
             <p className="text-sm font-semibold text-white">Exploring the demo?</p>
-            <p className="text-xs text-white/60">Book a 15-minute call to see LegalNote for your firm — no obligation.</p>
+            <p className="text-xs text-white/60">Book a 15-minute call to see LegalNote for your firm - no obligation.</p>
           </div>
           <a
             href={CALENDLY_URL}

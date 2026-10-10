@@ -69,7 +69,7 @@ interface WaitlistEntry {
   status: string;
   gdprConsent: boolean;
   marketingConsent: boolean;
-  /** DB column is signup_at — keep createdAt as optional alias for older payloads */
+  /** DB column is signup_at - keep createdAt as optional alias for older payloads */
   signupAt: string;
   createdAt?: string;
 }
@@ -195,7 +195,7 @@ export default function AdminDashboard() {
   const formatDate = (dateStr: string | Date | null | undefined) => {
     if (!dateStr) return "Never";
     const d = dateStr instanceof Date ? dateStr : new Date(dateStr);
-    if (Number.isNaN(d.getTime())) return "—";
+    if (Number.isNaN(d.getTime())) return "-";
     return format(d, "dd MMM yyyy HH:mm");
   };
 
@@ -418,7 +418,7 @@ export default function AdminDashboard() {
                   {userStats?.filter((u) => u.email).map((user) => (
                     <SelectItem key={user.userId} value={user.userId}>
                       {(user.firstName && user.lastName
-                        ? `${user.firstName} ${user.lastName} — `
+                        ? `${user.firstName} ${user.lastName} - `
                         : "") + (user.email || user.userId)}
                     </SelectItem>
                   ))}
@@ -503,7 +503,7 @@ export default function AdminDashboard() {
                           : user.email || "Unknown User"}
                       </div>
                     </td>
-                    <td className="py-3 px-2 text-muted-foreground">{user.email || "—"}</td>
+                    <td className="py-3 px-2 text-muted-foreground">{user.email || "-"}</td>
                     <td className="py-3 px-2 text-right font-semibold">{user.totalCases}</td>
                     <td className="py-3 px-2 text-right">
                       <Badge variant="secondary" className="bg-green-500/10 text-green-700 dark:text-green-400">
@@ -622,7 +622,7 @@ export default function AdminDashboard() {
                             </div>
                           </div>
                         ) : (
-                          <span className="text-muted-foreground">—</span>
+                          <span className="text-muted-foreground">-</span>
                         )}
                       </td>
                       <td className="py-3 px-2">
@@ -636,7 +636,7 @@ export default function AdminDashboard() {
                             {entry.referralCode}
                           </Badge>
                         ) : (
-                          <span className="text-muted-foreground">—</span>
+                          <span className="text-muted-foreground">-</span>
                         )}
                       </td>
                       <td className="py-3 px-2 text-center">
@@ -664,7 +664,7 @@ export default function AdminDashboard() {
                       <td className="py-3 px-2 text-muted-foreground text-xs">
                         <div className="flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
-                          {requestedAt ? format(requestedAt, "dd MMM yyyy") : "—"}
+                          {requestedAt ? format(requestedAt, "dd MMM yyyy") : "-"}
                         </div>
                       </td>
                       <td className="py-3 px-2">
@@ -734,7 +734,7 @@ export default function AdminDashboard() {
                       <span data-testid={`text-doc-updated-${doc.filename}`}>
                         Updated {(() => {
                           const d = new Date(doc.modifiedAt);
-                          return Number.isNaN(d.getTime()) ? "—" : format(d, "dd MMM yyyy");
+                          return Number.isNaN(d.getTime()) ? "-" : format(d, "dd MMM yyyy");
                         })()}
                       </span>
                     </div>

@@ -171,7 +171,7 @@ export default function NewSessionModal({ open, onOpenChange, caseId, caseTitle,
     });
     consentBlobRef.current = consentBlob;
     consentDurationSecondsRef.current = Math.max(1, recordingDuration);
-    // Consent is sealed server-side via POST /api/consent — no duplicate client audit entry.
+    // Consent is sealed server-side via POST /api/consent - no duplicate client audit entry.
   };
 
   const handleConsentDeclined = async () => {
@@ -191,7 +191,7 @@ export default function NewSessionModal({ open, onOpenChange, caseId, caseTitle,
     onOpenChange(false);
     toast({
       title: "Recording cancelled",
-      description: "Client declined consent — session not recorded.",
+      description: "Client declined consent - session not recorded.",
       duration: 5000,
     });
   };

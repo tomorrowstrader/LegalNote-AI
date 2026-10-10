@@ -384,7 +384,7 @@ export function LiveBotSessionIndicator() {
               data-testid="meeting-notes-popout-dock"
             >
               <p className="text-xs leading-relaxed text-muted-foreground">
-                Meeting notes are open in a separate window — keep it beside your video call.
+                Meeting notes are open in a separate window - keep it beside your video call.
                 Drafts stay in sync and save when the call ends.
               </p>
               <div className="flex flex-col gap-2">
@@ -524,7 +524,7 @@ export function LiveBotSessionIndicator() {
                 Continue in background
               </Button>
               <p className="text-center text-xs text-muted-foreground px-1">
-                This usually takes a couple of minutes. The dialog closes automatically so you can keep working — watch the status pill bottom-right.
+                This usually takes a couple of minutes. The dialog closes automatically so you can keep working - watch the status pill bottom-right.
               </p>
             </div>
           )}

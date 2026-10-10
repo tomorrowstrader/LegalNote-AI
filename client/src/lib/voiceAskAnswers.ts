@@ -103,7 +103,7 @@ function isClientAssignee(assignee: string | null | undefined): boolean {
   return /\bclient\b/i.test(assignee.trim());
 }
 
-/** Approved, not completed — draft/rejected excluded. */
+/** Approved, not completed - draft/rejected excluded. */
 function isOpenApprovedAction(item: ActionRow): boolean {
   if (item.completed) return false;
   return (item.status || "").toLowerCase() === "approved";
@@ -142,7 +142,7 @@ function isDueSoonOrOverdue(due: string | Date | null | undefined, now = new Dat
 function formatActionBullet(item: ActionRow): string {
   const tag = dueTag(item.dueDate);
   const desc = actionLabel(item);
-  return tag ? `${tag} — ${desc}` : desc;
+  return tag ? `${tag} - ${desc}` : desc;
 }
 
 function buildClientReminderMailto(options: {
@@ -153,7 +153,7 @@ function buildClientReminderMailto(options: {
 }): string {
   const { to, matterLabel, clientName, items } = options;
   const greetingName = (clientName || "Client").trim() || "Client";
-  const subject = `Outstanding items — ${matterLabel}`;
+  const subject = `Outstanding items - ${matterLabel}`;
   const lines = [
     `Dear ${greetingName},`,
     "",
@@ -208,7 +208,7 @@ function labelCase(c: Case): string {
 
 /**
  * Answer bounded operational questions from live LegalNote data.
- * No legal advice — file status only.
+ * No legal advice - file status only.
  */
 export async function answerVoiceAsk(
   topic: AskTopic,
@@ -335,7 +335,7 @@ export async function answerVoiceAsk(
 
       if (parts.length === 0) {
         return {
-          headline: "You’re all clear — nothing needs attention right now.",
+          headline: "You’re all clear - nothing needs attention right now.",
           actions: [{ label: "Go to dashboard", path: "/" }],
         };
       }
@@ -343,8 +343,8 @@ export async function answerVoiceAsk(
       return {
         headline: `Needs attention: ${parts.join(", ")}.`,
         bullets: [
-          ...overdue.slice(0, 2).map((c) => `Overdue — ${labelCase(c)}`),
-          ...review.slice(0, 2).map((c) => `Review — ${labelCase(c)}`),
+          ...overdue.slice(0, 2).map((c) => `Overdue - ${labelCase(c)}`),
+          ...review.slice(0, 2).map((c) => `Review - ${labelCase(c)}`),
         ].slice(0, 4),
         actions: [
           ...(overdue[0]
@@ -405,7 +405,7 @@ export async function answerVoiceAsk(
         }
       }
       if (matter && matter.status === "completed" && !matter.reviewed) {
-        youBullets.push("Matter completed — not marked reviewed");
+        youBullets.push("Matter completed - not marked reviewed");
       }
       for (const d of unadopted.slice(0, 4)) {
         youBullets.push(`${getDocumentTypeLabel(d.type)} not yet adopted`);
@@ -416,7 +416,7 @@ export async function answerVoiceAsk(
       for (const u of openUndertakings.slice(0, 3)) {
         const tag = dueTag(u.deadline, now);
         const wording = (u.wording || "Undertaking").trim().slice(0, 80);
-        youBullets.push(tag ? `Undertaking ${tag} — ${wording}` : `Undertaking — ${wording}`);
+        youBullets.push(tag ? `Undertaking ${tag} - ${wording}` : `Undertaking - ${wording}`);
       }
 
       const clientBullets = clientActions.slice(0, 6).map(formatActionBullet);
@@ -437,7 +437,7 @@ export async function answerVoiceAsk(
         return {
           headline: "Nothing outstanding on this matter from the approved checklist.",
           detail: draftOnly
-            ? "There are draft action items not yet approved — review obligations if needed."
+            ? "There are draft action items not yet approved - review obligations if needed."
             : matter
               ? labelCase(matter)
               : undefined,
@@ -450,7 +450,7 @@ export async function answerVoiceAsk(
 
       const clientPrompt =
         clientOverdueOrSoon.length > 0
-          ? `${clientOverdueOrSoon.length} client item${clientOverdueOrSoon.length === 1 ? "" : "s"} due soon or overdue — good moment for a friendly chase.`
+          ? `${clientOverdueOrSoon.length} client item${clientOverdueOrSoon.length === 1 ? "" : "s"} due soon or overdue - good moment for a friendly chase.`
           : clientBullets.length > 0
             ? "Client still has open items on the file."
             : undefined;
@@ -579,7 +579,7 @@ async function answerMatterCompare(activeCaseId: string | null): Promise<VoiceAs
   if (data.refused) {
     return {
       headline: data.summary,
-      detail: "File assistant only — not legal advice.",
+      detail: "File assistant only - not legal advice.",
       actions: [
         { label: "Open transcript", path: `/case/${activeCaseId}?tab=transcript` },
         { label: "Open attendance note", path: `/case/${activeCaseId}?tab=attendance` },
@@ -620,7 +620,7 @@ async function answerMatterCompare(activeCaseId: string | null): Promise<VoiceAs
       noteHint,
       findings.length === 0
         ? "Grounded in this matter’s transcript and attendance note."
-        : `${findings.length} point${findings.length === 1 ? "" : "s"} to review — not legal advice.`,
+        : `${findings.length} point${findings.length === 1 ? "" : "s"} to review - not legal advice.`,
     ]
       .filter(Boolean)
       .join(" · "),
@@ -684,7 +684,7 @@ async function answerMatterQa(
   return {
     headline: data.answer,
     detail: data.refused
-      ? "File assistant only — not legal advice."
+      ? "File assistant only - not legal advice."
       : "Grounded in this matter’s transcript and notes.",
     citations,
     actions: [

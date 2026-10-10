@@ -139,7 +139,7 @@ export default function OnboardingTour({ restartTrigger = 0 }: OnboardingTourPro
         <div className="space-y-3">
           <h2 className="text-2xl font-bold tracking-tight">Quick Tip: Ctrl+L</h2>
           <p className="text-base leading-relaxed text-muted-foreground">
-            Press <kbd className="px-2 py-1 bg-muted border border-border rounded text-sm font-mono">Ctrl+L</kbd> from anywhere to start recording immediately — the same as the red microphone in the top bar.
+            Press <kbd className="px-2 py-1 bg-muted border border-border rounded text-sm font-mono">Ctrl+L</kbd> from anywhere to start recording immediately - the same as the red microphone in the top bar.
           </p>
         </div>
       ),
@@ -152,7 +152,7 @@ export default function OnboardingTour({ restartTrigger = 0 }: OnboardingTourPro
         <div className="space-y-3">
           <h2 className="text-2xl font-bold tracking-tight">Your audit trail is active.</h2>
           <p className="text-muted-foreground leading-relaxed">
-            Create your first matter to begin generating contemporaneous, cryptographically-sealed attendance notes. Every recording, transcript and document is preserved — you can review the audit log anytime from your user menu.
+            Create your first matter to begin generating contemporaneous, cryptographically-sealed attendance notes. Every recording, transcript and document is preserved - you can review the audit log anytime from your user menu.
           </p>
         </div>
       ) : (

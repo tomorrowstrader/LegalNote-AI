@@ -422,7 +422,7 @@ function formatAttendanceNoteMarkdown(content: string, type: Document['type']): 
   const rawHeader = content.slice(0, headerEnd);
   const rawBody = content.slice(headerEnd);
 
-  // Older notes may lack a MATTERS DISCUSSED marker — still normalize section labels
+  // Older notes may lack a MATTERS DISCUSSED marker - still normalize section labels
   // across the full document so house style applies without re-production.
   if (bodyIdx < 0) {
     const fieldsPass = (() => {
@@ -602,7 +602,7 @@ interface DocumentViewerProps {
   litigationHold?: boolean;
   /** Opens time recording from the post-adoption done state. */
   onLogTime?: () => void;
-  /** Linked client id — used to resolve/save email for care-letter acknowledgement. */
+  /** Linked client id - used to resolve/save email for care-letter acknowledgement. */
   clientId?: string | null;
   /** enquiry matters open the correction with instructions not yet taken. */
   instructionStatus?: string | null;
@@ -998,7 +998,7 @@ function revealQuoteInNote(quote: string, roots: Element[]): boolean {
   return true;
 }
 
-/** Jump to Advice given wording for this gap — scoped to its numbered section. */
+/** Jump to Advice given wording for this gap - scoped to its numbered section. */
 function scrollToGapCitation(citation: string, section?: string, gapIndex?: number) {
   const roots = getVisibleNoteRoots();
   const blocks = collectNoteBodyBlocks(roots);
@@ -1117,7 +1117,7 @@ function highlightAndScrollToElement(target: HTMLElement) {
 }
 
 function scrollToReasoningGap(sectionName: string, gapIndex?: number) {
-  // Jump to the advice point this gap refers to — not the REASONING_GAP marker
+  // Jump to the advice point this gap refers to - not the REASONING_GAP marker
   // (markers often sit under "Reasoning behind advice", which feels like the wrong place).
   const { section, detail } = splitGapLabel(sectionName);
   const citation = stripReasoningPrefix(detail) || section || sectionName;
@@ -1200,7 +1200,7 @@ function GapTranscriptPeek({
       >
         <div className="flex items-start justify-between gap-2">
           <p className="text-[11px] text-muted-foreground leading-snug">
-            No clear match in the transcript — this may not have been said, or the wording differs from the note.
+            No clear match in the transcript - this may not have been said, or the wording differs from the note.
           </p>
           <button
             type="button"
@@ -1381,7 +1381,7 @@ function GapReviewPanel({
         </div>
         <p className="text-[11px] text-muted-foreground mt-1.5 leading-snug">
           {hasTranscript
-            ? "Check what was said, then add your reasoning. Stay on this panel — you do not need to leave the note."
+            ? "Check what was said, then add your reasoning. Stay on this panel - you do not need to leave the note."
             : "Tap a section to jump in the note. Add reasoning below each gap."}
         </p>
         {hasAmlFlag && (
@@ -1390,7 +1390,7 @@ function GapReviewPanel({
             data-testid={`banner-aml-gap-${testIdPrefix}`}
           >
             <p className="text-[11px] text-amber-700 dark:text-amber-400 font-medium leading-snug">
-              AML risk flag — document an AML decision record before saving.
+              AML risk flag - document an AML decision record before saving.
             </p>
           </div>
         )}
@@ -1732,7 +1732,7 @@ function EditableDocumentContent({
   seedReplacements?: SeededReplacement[];
   onSeedReplacementsApplied?: (result: { applied: number; missed: number }) => void;
 }) {
-  // Do not re-normalize while editing — reformatting the prop after every
+  // Do not re-normalize while editing - reformatting the prop after every
   // keystroke/toolbar action forces TipTap setContent and jumps scroll to the bottom.
   const sourceContent = isEditing
     ? editContent
@@ -2053,7 +2053,7 @@ export default function DocumentViewer({
     }
   }, [isClientMatter, activeTab]);
 
-  // Gap chip citations (Page View HTML + TipTap DOM) — jump to Advice given in that section
+  // Gap chip citations (Page View HTML + TipTap DOM) - jump to Advice given in that section
   useEffect(() => {
     const onClick = (event: MouseEvent) => {
       const target = event.target as HTMLElement | null;
@@ -2204,7 +2204,7 @@ export default function DocumentViewer({
       const exportingAttendance = selectedDocs.includes('attendance_note') || selectedDocs.includes('meeting_notes');
       const exportingSummary = selectedDocs.includes('summary');
       const primaryDoc = exportingAttendance ? attendanceNote : exportingSummary ? summary : undefined;
-      // Only include solicitorReasoningNote for attendance note or summary exports — never leak into transcript/client-care-letter exports
+      // Only include solicitorReasoningNote for attendance note or summary exports - never leak into transcript/client-care-letter exports
       const exportReasoningNote = exportingAttendance
         ? (attendanceNote?.solicitorReasoningNote ?? null)
         : exportingSummary
@@ -2324,7 +2324,7 @@ export default function DocumentViewer({
           duration: 5000,
         });
       } else {
-        // Moment B — quiet value pulse when the last adoptable doc is locked
+        // Moment B - quiet value pulse when the last adoptable doc is locked
         const durationSeconds =
           (focusSessionId
             ? sessions?.find((s) => s.id === focusSessionId)?.durationSeconds
@@ -2363,7 +2363,7 @@ export default function DocumentViewer({
           });
         }
 
-        // Moment A — once-per-matter micro-survey after full adoption
+        // Moment A - once-per-matter micro-survey after full adoption
         if (!isDemoMode) {
           let localDone = false;
           try {
@@ -2465,7 +2465,7 @@ export default function DocumentViewer({
         toast({
           title: warning.transcriptQuote ? "Passage not highlighted" : "No matching passage",
           description: warning.transcriptQuote
-            ? "Switched to the transcript — try Find in page if the highlight missed."
+            ? "Switched to the transcript - try Find in page if the highlight missed."
             : "No related meeting-record quote was stored for this warning.",
           duration: 4500,
         });
@@ -2681,7 +2681,7 @@ export default function DocumentViewer({
       requestAcknowledgementMutation.mutate({ documentId, clientEmail: knownEmail });
       return;
     }
-    // Client still loading — let the server resolve; prompt only if email is missing.
+    // Client still loading - let the server resolve; prompt only if email is missing.
     if (clientId && linkedClient === undefined) {
       requestAcknowledgementMutation.mutate({ documentId });
       return;
@@ -3606,7 +3606,7 @@ export default function DocumentViewer({
             </>
           )}
         </div>
-        {/* Soft approval gate banner — hidden in demo mode */}
+        {/* Soft approval gate banner - hidden in demo mode */}
         {pendingApprovalDocId === document.id && !isApproved && !isDemoMode && (
           <div className="w-full mt-2 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700 rounded-md" data-testid="banner-approval-gap-gate">
             <p className="text-xs font-semibold text-amber-800 dark:text-amber-300 mb-1">
@@ -4001,7 +4001,7 @@ export default function DocumentViewer({
                       <TooltipContent>Print documents</TooltipContent>
                     </Tooltip>
                   )}
-                  {/* Page View / Draft toggle — only visible outside transcript and edit modes */}
+                  {/* Page View / Draft toggle - only visible outside transcript and edit modes */}
                   {activeTab !== 'transcript' && !editingDocId && (
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -4335,7 +4335,7 @@ export default function DocumentViewer({
                   </p>
                 )}
               </CardContent>
-              {/* Advice Rationale section — hidden in demo mode */}
+              {/* Advice Rationale section - hidden in demo mode */}
               {attendanceNote && !isDemoMode && (
                 <div className="border-t border-border" data-testid="section-advice-rationale-attendance">
                   <button
@@ -4345,7 +4345,7 @@ export default function DocumentViewer({
                   >
                     <div className="flex items-center gap-2">
                       <PenLine className="w-4 h-4 text-muted-foreground" />
-                      <span>Advice Rationale — Solicitor's Record</span>
+                      <span>Advice Rationale - Solicitor's Record</span>
                       {attendanceNote.solicitorReasoningNote && (
                         <Badge variant="outline" className="text-xs no-default-hover-elevate no-default-active-elevate" data-testid="badge-solicitor-authored-attendance">
                           Solicitor-authored
@@ -4360,7 +4360,7 @@ export default function DocumentViewer({
                         This section is for your professional record of the reasoning behind advice given. It is stored separately from the produced attendance note and will be included in exports only when completed.
                       </p>
                       <Textarea
-                        placeholder="Record the reasoning and thinking behind the advice given — factors considered, legal position, client circumstances that informed the advice..."
+                        placeholder="Record the reasoning and thinking behind the advice given - factors considered, legal position, client circumstances that informed the advice..."
                         value={reasoningNoteInputs[attendanceNote.id] ?? (attendanceNote.solicitorReasoningNote ?? '')}
                         onChange={e => setReasoningNoteInputs(prev => ({ ...prev, [attendanceNote.id]: e.target.value }))}
                         className="text-sm resize-none"
@@ -4604,7 +4604,7 @@ export default function DocumentViewer({
                   </div>
                 )}
               </CardContent>
-              {/* Advice Rationale section for summary — hidden in demo mode */}
+              {/* Advice Rationale section for summary - hidden in demo mode */}
               {summary && !isDemoMode && (
                 <div className="border-t border-border" data-testid="section-advice-rationale-summary">
                   <button
@@ -4614,7 +4614,7 @@ export default function DocumentViewer({
                   >
                     <div className="flex items-center gap-2">
                       <PenLine className="w-4 h-4 text-muted-foreground" />
-                      <span>Advice Rationale — Solicitor's Record</span>
+                      <span>Advice Rationale - Solicitor's Record</span>
                       {summary.solicitorReasoningNote && (
                         <Badge variant="outline" className="text-xs no-default-hover-elevate no-default-active-elevate" data-testid="badge-solicitor-authored-summary">
                           Solicitor-authored
@@ -4629,7 +4629,7 @@ export default function DocumentViewer({
                         This section is for your professional record of the reasoning behind advice given. It is stored separately from the produced attendance note and will be included in exports only when completed.
                       </p>
                       <Textarea
-                        placeholder="Record the reasoning and thinking behind the advice given — factors considered, legal position, client circumstances that informed the advice..."
+                        placeholder="Record the reasoning and thinking behind the advice given - factors considered, legal position, client circumstances that informed the advice..."
                         value={reasoningNoteInputs[summary.id] ?? (summary.solicitorReasoningNote ?? '')}
                         onChange={e => setReasoningNoteInputs(prev => ({ ...prev, [summary.id]: e.target.value }))}
                         className="text-sm resize-none"
@@ -4706,7 +4706,7 @@ export default function DocumentViewer({
                 </CardContent>
               </Card>
             )}
-            {/* Gap review panel for summary — hidden in demo mode */}
+            {/* Gap review panel for summary - hidden in demo mode */}
             {summary && showGapPanel === summary.id && !isDemoMode && (
               <GapReviewPanel
                 documentId={summary.id}
@@ -5068,7 +5068,7 @@ export default function DocumentViewer({
           >
             <div className="flex items-center gap-2">
               <RadioGroupItem value="redaction_gdpr" id="redaction-gdpr" />
-              <Label htmlFor="redaction-gdpr" className="cursor-pointer">GDPR — Personal Data</Label>
+              <Label htmlFor="redaction-gdpr" className="cursor-pointer">GDPR - Personal Data</Label>
             </div>
             <div className="flex items-center gap-2">
               <RadioGroupItem value="redaction_privilege" id="redaction-privilege" />

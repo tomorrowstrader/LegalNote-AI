@@ -331,7 +331,7 @@ export function PageView({ content, gapAnchorLabels }: PageViewProps) {
                   </div>
                 )}
 
-                {/* A4 page card — fluid width on mobile via .page-view-page-card CSS */}
+                {/* A4 page card - fluid width on mobile via .page-view-page-card CSS */}
                 <div
                   className="page-view-page-card bg-card shadow-md"
                   style={{

@@ -9,7 +9,7 @@ import {
 } from "@/components/LegalPageFooter";
 import { Button } from "@/components/ui/button";
 
-/** Legacy DocuSign return URL — redirect users to the click-to-accept flow. */
+/** Legacy DocuSign return URL - redirect users to the click-to-accept flow. */
 export default function DpaCompletePage() {
   useEffect(() => {
     document.title = "DPA acceptance - LegalNote";

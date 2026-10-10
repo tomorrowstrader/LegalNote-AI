@@ -128,9 +128,9 @@ export function findQuoteLocation(
   return { start: nIdx, end: nIdx + nQuote.length };
 }
 
-/** Split legacy "quote — explanation" strings into parts. */
+/** Split legacy "quote - explanation" strings into parts. */
 export function splitLegacyWarningText(text: string): { documentQuote: string; explanation: string } {
-  const separators = [" — ", " – ", " - "];
+  const separators = [" \u2014 ", " \u2013 ", " - "];
   for (const sep of separators) {
     const idx = text.indexOf(sep);
     if (idx > 0) {
@@ -265,7 +265,7 @@ export function coerceVerificationWarnings(raw: unknown): VerificationWarning[] 
 export function verificationWarningSearchText(warning: VerificationWarning): string {
   return [warning.documentQuote, warning.explanation, warning.transcriptQuote ?? ""]
     .filter(Boolean)
-    .join(" — ");
+    .join(" - ");
 }
 
 export function createVerificationWarning(

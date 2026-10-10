@@ -31,7 +31,7 @@ function sessionLabel(session: MeetingSession): string {
     month: "short",
     year: "numeric",
   });
-  return `${title} — ${date}`;
+  return `${title} - ${date}`;
 }
 
 export default function TimeRecordingModal({

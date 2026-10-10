@@ -116,7 +116,7 @@ export function useBulkCaseActions({ onSuccess }: UseBulkCaseActionsOptions = {}
         toast({
           title: "Partial success",
           description: firstError
-            ? `${succeeded} ${action}, ${failed} failed — ${firstError}`
+            ? `${succeeded} ${action}, ${failed} failed - ${firstError}`
             : `${succeeded} ${action}, ${failed} failed`,
           variant: "destructive",
         });

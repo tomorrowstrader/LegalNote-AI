@@ -1,5 +1,5 @@
 /**
- * Firm billing helpers — Boutique per-seat conversion from governed evaluation.
+ * Firm billing helpers - Boutique per-seat conversion from governed evaluation.
  */
 
 import { firmHasPaidAccess } from "@shared/evaluationAccess";
@@ -65,7 +65,7 @@ export async function getBoutiqueMonthlyPrice(): Promise<BoutiquePriceInfo> {
 
 /**
  * Resolve a customer-facing promotion/coupon code to a Stripe promotion_code id.
- * Returns null if the code is missing or inactive — callers should surface a clear error.
+ * Returns null if the code is missing or inactive - callers should surface a clear error.
  */
 export async function resolvePromotionCodeId(
   code: string,

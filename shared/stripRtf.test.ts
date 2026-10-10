@@ -38,7 +38,7 @@ describe("stripRtfToPlainText", () => {
 \\f0\\b\\fs24 \\strokec2 Priya:\\
 \\f1\\b0 \\strokec2 Adam, can you hear me all right? Your video's frozen a bit.\\
 \\f0\\b \\strokec2 Adam:\\
-\\f1\\b0 \\strokec2 Yes, sorry — is that better now?\\
+\\f1\\b0 \\strokec2 Yes, sorry - is that better now?\\
 }`;
     const plain = stripRtfToPlainText(rtf);
     expect(plain).toContain("Priya:");

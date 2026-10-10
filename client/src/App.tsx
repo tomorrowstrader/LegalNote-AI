@@ -44,6 +44,7 @@ import Pricing from "@/pages/Pricing";
 import SubscribePage from "@/pages/SubscribePage";
 import ShareLinkView from "@/pages/ShareLinkView";
 import BookMeetingPage from "@/pages/BookMeetingPage";
+import JoinMeetingPage from "@/pages/JoinMeetingPage";
 import OAuthCallback from "@/pages/OAuthCallback";
 import CalendarSyncConfirmation from "@/pages/CalendarSyncConfirmation";
 import WaitlistPage from "@/pages/WaitlistPage";
@@ -90,7 +91,7 @@ function RedirectTo({ to }: { to: string }) {
   return null;
 }
 
-/** Deep link from emails — sign in first, then land on Help & Support. */
+/** Deep link from emails - sign in first, then land on Help & Support. */
 function SupportRoute() {
   const { isAuthenticated, isLoading } = useAuth();
   const [, setLocation] = useLocation();
@@ -126,6 +127,7 @@ function Router() {
       <Route path="/demo-generation" component={() => <RedirectTo to="/demo-generator" />} />
       <Route path="/share/:linkId" component={ShareLinkView} />
       <Route path="/book/:token" component={BookMeetingPage} />
+      <Route path="/join/:token" component={JoinMeetingPage} />
       <Route path="/acknowledge/:token" component={AcknowledgePage} />
       {publicComplianceBadgeVisible && <Route path="/badge/:slug" component={ComplianceBadge} />}
       <Route path="/invite/accept/:token" component={InviteAccept} />
@@ -149,7 +151,7 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/support" component={SupportRoute} />
 
-      {/* Admin tools — always registered so deep links don't blank before/without auth.
+      {/* Admin tools - always registered so deep links don't blank before/without auth.
           API still enforces isAuthenticated + isAdmin. */}
       <Route path="/admin/dpa-mint" component={AdminDpaMintPage} />
       <Route path="/admin/dpa-acceptances" component={AdminDpaAcceptancesPage} />
@@ -240,7 +242,7 @@ function AuthenticatedAppContent() {
   const showAppChrome = !isLoading && hasAppAccess && !hideAppChrome;
 
   // Stray OAuth popup that landed on a full app route (e.g. Settings after
-  // opener was severed) — close it so onboarding cannot run in the wrong window.
+  // opener was severed) - close it so onboarding cannot run in the wrong window.
   useEffect(() => {
     if (!isOAuthPopup) return;
     if (location.startsWith("/oauth/callback")) return;

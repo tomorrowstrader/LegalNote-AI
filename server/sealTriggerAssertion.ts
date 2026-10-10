@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { db } from "./db";
 
-/** Trigger names installed by scripts/seal-triggers.sql — must match exactly. */
+/** Trigger names installed by scripts/seal-triggers.sql - must match exactly. */
 export const SEAL_TRIGGER_NAMES = [
   "trg_audit_trail_seal_immutable",
   "trg_consent_logs_seal_immutable",

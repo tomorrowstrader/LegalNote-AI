@@ -42,7 +42,7 @@ function statusBadgeVariant(
 }
 
 function formatDate(dateStr: string | null): string {
-  if (!dateStr) return "—";
+  if (!dateStr) return "-";
   return format(new Date(dateStr), "dd MMM yyyy HH:mm");
 }
 
@@ -209,7 +209,7 @@ export default function AdminDpaAcceptancesPage() {
                           {formatDate(row.createdAt)}
                         </td>
                         <td className="py-2 px-2 text-muted-foreground">
-                          {row.ref || "—"}
+                          {row.ref || "-"}
                         </td>
                         <td className="py-2 px-2">
                           <div className="flex flex-wrap gap-1">
@@ -226,7 +226,7 @@ export default function AdminDpaAcceptancesPage() {
                                 </a>
                               </Button>
                             ) : (
-                              <span className="text-xs text-muted-foreground px-1">—</span>
+                              <span className="text-xs text-muted-foreground px-1">-</span>
                             )}
                             {row.status === "accepted" && row.verifyToken ? (
                               <Button

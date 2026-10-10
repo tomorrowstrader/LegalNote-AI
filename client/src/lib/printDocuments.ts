@@ -1,5 +1,5 @@
 /**
- * Browser print for case documents — renders selected docs into a hidden iframe
+ * Browser print for case documents - renders selected docs into a hidden iframe
  * so the print dialog shows document content only (not app chrome).
  */
 

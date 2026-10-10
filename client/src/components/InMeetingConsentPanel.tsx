@@ -138,7 +138,7 @@ export function InMeetingConsentPanel({
     if (importData && !isRecording && importData.status === "live") {
       return (
         <p className="text-xs text-muted-foreground">
-          Waiting for the recording to start — read the consent script once the call is live.
+          Waiting for the recording to start - read the consent script once the call is live.
         </p>
       );
     }
@@ -163,7 +163,7 @@ export function InMeetingConsentPanel({
         <p className="text-sm leading-relaxed italic">&quot;{CONSENT_DISCLAIMER_TEXT}&quot;</p>
       </div>
       <p className="text-xs text-muted-foreground">
-        Recording time: {formatElapsed(recordingElapsed)} — client&apos;s verbal response is captured
+        Recording time: {formatElapsed(recordingElapsed)} - client&apos;s verbal response is captured
         on the recording.
       </p>
       <div className="flex gap-2">

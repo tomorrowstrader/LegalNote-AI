@@ -509,7 +509,7 @@ export default function QuickRecordButton() {
       consentDurationSecondsRef.current = Math.max(1, recordingDuration);
     }
     
-    // Consent is sealed server-side via POST /api/consent — no duplicate client audit entry.
+    // Consent is sealed server-side via POST /api/consent - no duplicate client audit entry.
   };
 
   const handleConsentDeclined = async () => {
@@ -702,7 +702,7 @@ export default function QuickRecordButton() {
 
       if (!audioResult) {
         throw new Error(
-          "Could not create audio record. Your consent has been saved — try Quick Record again or contact support.",
+          "Could not create audio record. Your consent has been saved - try Quick Record again or contact support.",
         );
       }
 
@@ -990,7 +990,7 @@ export default function QuickRecordButton() {
         sessionTitle: "Quick Record",
       });
 
-      // Step 2: Create audio record placeholder (may fail under rate limit — consent still saved)
+      // Step 2: Create audio record placeholder (may fail under rate limit - consent still saved)
       try {
         audioResult = await apiRequest<AudioResponse>("POST", "/api/audio", {
           caseId: caseResult.id,
@@ -1001,7 +1001,7 @@ export default function QuickRecordButton() {
         uploadFailed = true;
       }
 
-      // Step 3: Persist consent before upload — must survive upload failures
+      // Step 3: Persist consent before upload - must survive upload failures
       if (consentGiven !== null) {
         try {
           await saveConsentLog(caseResult.id, audioResult?.id);
@@ -1012,7 +1012,7 @@ export default function QuickRecordButton() {
       }
 
       if (!audioResult) {
-        throw new Error("Could not create audio record. Your consent has been saved — try Quick Record again or contact support.");
+        throw new Error("Could not create audio record. Your consent has been saved - try Quick Record again or contact support.");
       }
       
       await advanceStep('uploading');
@@ -1024,7 +1024,7 @@ export default function QuickRecordButton() {
         } catch (uploadError: any) {
           console.error('Chunked upload finalization failed:', uploadError);
           // Fallback: server may have lost in-memory session after restart/redeploy.
-          // Client still has the full recording blob — upload it directly.
+          // Client still has the full recording blob - upload it directly.
           if (audioBlobRef.current) {
             console.warn('Falling back to direct audio upload after chunk finalize failure');
             try {
@@ -1337,7 +1337,7 @@ export default function QuickRecordButton() {
   if (countdown !== null) {
     return (
       <>
-        {/* Keep nav mic slot empty while countdown runs — controls live in the corner */}
+        {/* Keep nav mic slot empty while countdown runs - controls live in the corner */}
         <span className="sr-only" data-testid="text-countdown">
           Recording in {countdown}
         </span>

@@ -33,7 +33,7 @@ export async function logAuditEvent(
     await storage.createAuditLog(auditData);
   } catch (error) {
     console.error(
-      `[AUDIT-FAILURE-CRITICAL] Audit write failed — eventType=${eventType} userId=${userId}`,
+      `[AUDIT-FAILURE-CRITICAL] Audit write failed - eventType=${eventType} userId=${userId}`,
       error,
     );
   }
