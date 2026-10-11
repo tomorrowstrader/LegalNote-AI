@@ -114,10 +114,21 @@ export async function createMeetingBookingProposal(
     );
   }
 
-  let provider: "google" | "outlook" =
-    input.calendarProvider || (outlookConnected ? "outlook" : "google");
-  if (provider === "google" && !googleConnected) provider = "outlook";
-  if (provider === "outlook" && !outlookConnected) provider = "google";
+  if (input.calendarProvider === "google" && !googleConnected) {
+    throw Object.assign(new Error("Google Calendar is not connected."), {
+      status: 400,
+      needsCalendarConnection: true,
+    });
+  }
+  if (input.calendarProvider === "outlook" && !outlookConnected) {
+    throw Object.assign(new Error("Outlook Calendar is not connected."), {
+      status: 400,
+      needsCalendarConnection: true,
+    });
+  }
+
+  const provider: "google" | "outlook" =
+    input.calendarProvider || (googleConnected ? "google" : "outlook");
 
   const clientEmail = input.clientEmail?.trim().toLowerCase() || null;
   const token = generateToken();

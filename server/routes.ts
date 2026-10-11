@@ -13166,28 +13166,22 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         });
       }
 
+      if (data.provider === "google" && !googleConnected) {
+        return res.status(400).json({
+          message: "Google Calendar is not connected.",
+          needsCalendarConnection: true,
+        });
+      }
+      if (data.provider === "outlook" && !outlookConnected) {
+        return res.status(400).json({
+          message: "Outlook Calendar is not connected.",
+          needsCalendarConnection: true,
+        });
+      }
+
       let provider: "google" | "outlook" =
         data.provider ||
-        (outlookConnected ? "outlook" : "google");
-
-      if (provider === "google" && !googleConnected) {
-        if (!outlookConnected) {
-          return res.status(400).json({
-            message: "Google Calendar is not connected.",
-            needsCalendarConnection: true,
-          });
-        }
-        provider = "outlook";
-      }
-      if (provider === "outlook" && !outlookConnected) {
-        if (!googleConnected) {
-          return res.status(400).json({
-            message: "Outlook Calendar is not connected.",
-            needsCalendarConnection: true,
-          });
-        }
-        provider = "google";
-      }
+        (googleConnected ? "google" : "outlook");
 
       const providedMeetingUrl =
         data.meetingUrl && data.meetingUrl.trim().length > 0

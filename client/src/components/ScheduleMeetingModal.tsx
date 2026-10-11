@@ -40,6 +40,12 @@ import { apiRequest, getApiErrorMessage, queryClient } from "@/lib/queryClient";
 import { getSafeHttpsMeetingUrl } from "@/lib/meetingUrl";
 import { format } from "date-fns";
 import type { Case, Client, MatterKind, ScheduledMeeting } from "@shared/schema";
+import {
+  nextHalfHourSlot,
+  parseLocalDateTime,
+  resolveScheduleProvider,
+} from "@shared/scheduleMeeting";
+import { useAuth } from "@/hooks/useAuth";
 import { MATTER_KIND_LABELS } from "@shared/schema";
 import { isClientMatterKind } from "@shared/matterKinds";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -154,6 +160,8 @@ export default function ScheduleMeetingModal({
   onNeedsCalendarConnection,
 }: ScheduleMeetingModalProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const providerTouched = useRef(false);
   const [scheduleMode, setScheduleMode] = useState<ScheduleMode>("fixed");
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
@@ -192,7 +200,11 @@ export default function ScheduleMeetingModal({
   });
 
   const bothConnected = googleConnected && outlookConnected;
-  const defaultProvider: "google" | "outlook" = outlookConnected ? "outlook" : "google";
+  const defaultProvider = resolveScheduleProvider({
+    preferred: user?.preferredCalendarProvider,
+    googleConnected,
+    outlookConnected,
+  });
   const activeProvider = bothConnected ? provider : defaultProvider;
   const autoConferenceName = conferenceLabel(activeProvider);
   const computedEndTime = useMemo(
@@ -201,12 +213,16 @@ export default function ScheduleMeetingModal({
   );
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      providerTouched.current = false;
+      return;
+    }
+    const slot = nextHalfHourSlot();
     setScheduleMode("fixed");
     setTitle("");
-    setDate(format(new Date(), "yyyy-MM-dd"));
-    setStartTime("");
-    setProposedSlots([newSlotDraft(), newSlotDraft()]);
+    setDate(slot.date);
+    setStartTime(slot.time);
+    setProposedSlots([newSlotDraft(slot.date), newSlotDraft(slot.date)]);
     setDurationMinutes(DEFAULT_DURATION_MINUTES);
     setMeetingUrl("");
     setShowExistingLink(false);
@@ -214,6 +230,7 @@ export default function ScheduleMeetingModal({
     setDescription("");
     setCaseId(null);
     setCaseSearch("");
+    providerTouched.current = false;
     setProvider(defaultProvider);
     setSelectedClient(null);
     setClientName("");
@@ -221,6 +238,13 @@ export default function ScheduleMeetingModal({
     setShowClientDropdown(false);
     setMatterKind("client");
     setShareLink(null);
+    // Reset only when the dialog opens. Calendar connection arriving later must not wipe the time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || providerTouched.current) return;
+    setProvider(defaultProvider);
   }, [open, defaultProvider]);
 
   useEffect(() => {
@@ -318,9 +342,12 @@ export default function ScheduleMeetingModal({
         throw new Error("Enter the attendee's name");
       }
 
-      const start = new Date(`${date}T${startTime}`);
-      if (isNaN(start.getTime()) || start <= new Date()) {
-        throw new Error("Start time must be in the future");
+      const start = parseLocalDateTime(date, startTime);
+      if (!start) {
+        throw new Error("Enter a valid date and start time");
+      }
+      if (start.getTime() <= Date.now()) {
+        throw new Error("That start time has already passed. Choose a later time or another date.");
       }
 
       const end = new Date(start.getTime() + durationMinutes * 60 * 1000);
@@ -417,11 +444,11 @@ export default function ScheduleMeetingModal({
         throw new Error("You can propose at most five times");
       }
 
-      const now = new Date();
+      const now = Date.now();
       const slots = filled.map((s) => {
-        const start = new Date(`${s.date}T${s.startTime}`);
-        if (isNaN(start.getTime()) || start <= now) {
-          throw new Error("All proposed times must be in the future");
+        const start = parseLocalDateTime(s.date, s.startTime);
+        if (!start || start.getTime() <= now) {
+          throw new Error("Each proposed time must be later than now");
         }
         return {
           startsAt: start.toISOString(),
@@ -488,6 +515,9 @@ export default function ScheduleMeetingModal({
   );
   const proposeSlotsReady =
     proposedSlots.filter((s) => s.date && s.startTime).length >= 2;
+  const fixedStart = !isProposeMode ? parseLocalDateTime(date, startTime) : null;
+  const fixedStartInPast = !!fixedStart && fixedStart.getTime() <= Date.now();
+  const today = format(new Date(), "yyyy-MM-dd");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -746,6 +776,7 @@ export default function ScheduleMeetingModal({
                 id="schedule-start"
                 type="time"
                 value={startTime}
+                min={date === today ? format(new Date(), "HH:mm") : undefined}
                 onChange={(e) => setStartTime(e.target.value)}
                 data-testid="input-schedule-start"
               />
@@ -777,6 +808,11 @@ export default function ScheduleMeetingModal({
                   const crossesMidnight = h * 60 + m + durationMinutes >= 24 * 60;
                   return crossesMidnight ? " (next day)" : "";
                 })()}
+              </p>
+            )}
+            {fixedStartInPast && (
+              <p className="col-span-2 text-xs text-destructive" role="alert" data-testid="text-schedule-start-past">
+                That start time has already passed. Choose a later time or another date.
               </p>
             )}
           </div>
@@ -978,7 +1014,10 @@ export default function ScheduleMeetingModal({
               <Label>Calendar</Label>
               <Select
                 value={provider}
-                onValueChange={(v) => setProvider(v as "google" | "outlook")}
+                onValueChange={(v) => {
+                  providerTouched.current = true;
+                  setProvider(v as "google" | "outlook");
+                }}
               >
                 <SelectTrigger data-testid="select-schedule-provider">
                   <SelectValue />
@@ -1123,7 +1162,7 @@ export default function ScheduleMeetingModal({
               !title.trim() ||
               (isClientMeeting && !selectedClient) ||
               (!isClientMeeting && !isProposeMode && !hasAttendeeName) ||
-              (isProposeMode ? !proposeSlotsReady : !date || !startTime)
+              (isProposeMode ? !proposeSlotsReady : !date || !startTime || fixedStartInPast)
             }
             data-testid={isProposeMode ? "button-confirm-propose" : "button-confirm-schedule"}
           >
