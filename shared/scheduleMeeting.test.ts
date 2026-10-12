@@ -31,6 +31,33 @@ describe("resolveScheduleProvider", () => {
       }),
     ).toBe("outlook");
   });
+
+  it("uses Google when the login email is the connected Google calendar, even if a Microsoft login is also on the account", () => {
+    expect(
+      resolveScheduleProvider({
+        preferred: "outlook",
+        loginEmail: "jazz@gmail.com",
+        googleEmail: "Jazz@gmail.com",
+        outlookEmail: "jazz@outlook.com",
+        googleConnected: true,
+        outlookConnected: true,
+      }),
+    ).toBe("google");
+  });
+
+  it("uses Teams when this session signed in with Microsoft and Outlook is connected", () => {
+    expect(
+      resolveScheduleProvider({
+        sessionProvider: "microsoft",
+        preferred: "google",
+        loginEmail: "jazz@firm.com",
+        googleEmail: "jazz@firm.com",
+        outlookEmail: "jazz@firm.com",
+        googleConnected: true,
+        outlookConnected: true,
+      }),
+    ).toBe("outlook");
+  });
 });
 
 describe("parseLocalDateTime", () => {

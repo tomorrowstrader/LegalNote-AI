@@ -471,11 +471,11 @@ export async function createMeetingCalendarEvent(
       summary: data.title,
       description: formatMeetingDescription(data.title, data.description, data.meetingUrl),
       start: {
-        dateTime: data.startTime.toISOString(),
+        dateTime: formatGraphLocalDateTime(data.startTime),
         timeZone: 'Europe/London',
       },
       end: {
-        dateTime: endTime.toISOString(),
+        dateTime: formatGraphLocalDateTime(endTime),
         timeZone: 'Europe/London',
       },
       reminders: {

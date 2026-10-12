@@ -1,20 +1,51 @@
 export type CalendarProviderChoice = "google" | "outlook";
 
+function sameEmail(a?: string | null, b?: string | null): boolean {
+  const left = a?.trim().toLowerCase() || "";
+  const right = b?.trim().toLowerCase() || "";
+  return left.length > 0 && left === right;
+}
+
 /**
  * Default the meeting calendar to the account they signed in with.
- * Use the other calendar only when the preferred one is not connected and the other is.
+ * A connected calendar whose email is the login email wins over a second linked login.
+ * Use the other calendar only when the matching one is not connected.
  */
 export function resolveScheduleProvider(input: {
+  /** This browser session: google login or microsoft login. */
+  sessionProvider?: "google" | "microsoft" | null;
+  /** Login email, compared with each connected calendar account. */
+  loginEmail?: string | null;
+  googleEmail?: string | null;
+  outlookEmail?: string | null;
+  /** Fallback from auth identities when the session and emails do not decide. */
   preferred?: CalendarProviderChoice | null;
   googleConnected: boolean;
   outlookConnected: boolean;
 }): CalendarProviderChoice {
+  const googleOn = input.googleConnected;
+  const outlookOn = input.outlookConnected;
+  const sessionChoice: CalendarProviderChoice | null =
+    input.sessionProvider === "microsoft"
+      ? "outlook"
+      : input.sessionProvider === "google"
+        ? "google"
+        : null;
+
+  if (sessionChoice === "google" && googleOn) return "google";
+  if (sessionChoice === "outlook" && outlookOn) return "outlook";
+
+  const googleMatch = googleOn && sameEmail(input.loginEmail, input.googleEmail);
+  const outlookMatch = outlookOn && sameEmail(input.loginEmail, input.outlookEmail);
+  if (googleMatch && !outlookMatch) return "google";
+  if (outlookMatch && !googleMatch) return "outlook";
+
   const preferred = input.preferred === "outlook" ? "outlook" : "google";
-  if (preferred === "google" && input.googleConnected) return "google";
-  if (preferred === "outlook" && input.outlookConnected) return "outlook";
-  if (input.googleConnected && !input.outlookConnected) return "google";
-  if (input.outlookConnected && !input.googleConnected) return "outlook";
-  return preferred;
+  if (preferred === "google" && googleOn) return "google";
+  if (preferred === "outlook" && outlookOn) return "outlook";
+  if (googleOn && !outlookOn) return "google";
+  if (outlookOn && !googleOn) return "outlook";
+  return sessionChoice ?? preferred;
 }
 
 /** Local wall-clock datetime. Avoids `Date.parse` treating a time without a zone as UTC. */

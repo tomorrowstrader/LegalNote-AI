@@ -1657,6 +1657,8 @@ export function ScheduledMeetingsViewer() {
         onOpenChange={setShowScheduleModal}
         googleConnected={!!connections?.google?.connected}
         outlookConnected={!!connections?.outlook?.connected}
+        googleEmail={connections?.google?.email}
+        outlookEmail={connections?.outlook?.email}
         onNeedsCalendarConnection={() => setShowCalendarModal(true)}
       />
 

@@ -56,6 +56,8 @@ interface ScheduleMeetingModalProps {
   onOpenChange: (open: boolean) => void;
   googleConnected: boolean;
   outlookConnected: boolean;
+  googleEmail?: string | null;
+  outlookEmail?: string | null;
   onNeedsCalendarConnection?: () => void;
 }
 
@@ -157,6 +159,8 @@ export default function ScheduleMeetingModal({
   onOpenChange,
   googleConnected,
   outlookConnected,
+  googleEmail,
+  outlookEmail,
   onNeedsCalendarConnection,
 }: ScheduleMeetingModalProps) {
   const { toast } = useToast();
@@ -201,6 +205,9 @@ export default function ScheduleMeetingModal({
 
   const bothConnected = googleConnected && outlookConnected;
   const defaultProvider = resolveScheduleProvider({
+    loginEmail: user?.email,
+    googleEmail,
+    outlookEmail,
     preferred: user?.preferredCalendarProvider,
     googleConnected,
     outlookConnected,
@@ -517,7 +524,6 @@ export default function ScheduleMeetingModal({
     proposedSlots.filter((s) => s.date && s.startTime).length >= 2;
   const fixedStart = !isProposeMode ? parseLocalDateTime(date, startTime) : null;
   const fixedStartInPast = !!fixedStart && fixedStart.getTime() <= Date.now();
-  const today = format(new Date(), "yyyy-MM-dd");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -776,7 +782,6 @@ export default function ScheduleMeetingModal({
                 id="schedule-start"
                 type="time"
                 value={startTime}
-                min={date === today ? format(new Date(), "HH:mm") : undefined}
                 onChange={(e) => setStartTime(e.target.value)}
                 data-testid="input-schedule-start"
               />
@@ -801,19 +806,28 @@ export default function ScheduleMeetingModal({
               </Select>
             </div>
             {!isProposeMode && startTime && computedEndTime && (
-              <p className="col-span-2 text-xs text-muted-foreground" data-testid="text-schedule-end-preview">
-                Ends at {computedEndTime}
-                {(() => {
-                  const [h, m] = startTime.split(":").map(Number);
-                  const crossesMidnight = h * 60 + m + durationMinutes >= 24 * 60;
-                  return crossesMidnight ? " (next day)" : "";
-                })()}
-              </p>
-            )}
-            {fixedStartInPast && (
-              <p className="col-span-2 text-xs text-destructive" role="alert" data-testid="text-schedule-start-past">
-                That start time has already passed. Choose a later time or another date.
-              </p>
+              <div className="col-span-2 space-y-1">
+                <p className="text-xs text-muted-foreground" data-testid="text-schedule-end-preview">
+                  {fixedStart
+                    ? `${format(fixedStart, "EEE d MMM yyyy")}, ${format(fixedStart, "HH:mm")}–${computedEndTime}`
+                    : `Ends at ${computedEndTime}`}
+                  {(() => {
+                    const [h, m] = startTime.split(":").map(Number);
+                    const crossesMidnight = h * 60 + m + durationMinutes >= 24 * 60;
+                    return crossesMidnight ? " (next day)" : "";
+                  })()}
+                </p>
+                {!date && (
+                  <p className="text-xs text-destructive" role="alert">
+                    Choose a date. A start time on its own cannot be scheduled.
+                  </p>
+                )}
+                {fixedStartInPast && (
+                  <p className="text-xs text-destructive" role="alert" data-testid="text-schedule-start-past">
+                    That start time has already passed. Choose a later time or another date.
+                  </p>
+                )}
+              </div>
             )}
           </div>
 
@@ -1134,6 +1148,30 @@ export default function ScheduleMeetingModal({
           </div>
           )}
         </div>
+        )}
+
+        {!shareLink && !isProposeMode && startTime && (
+          <div
+            className={`rounded-md border px-3 py-2 text-sm ${fixedStartInPast || !date ? "border-destructive/40" : ""}`}
+            data-testid="text-schedule-slot-summary"
+          >
+            {fixedStart ? (
+              <>
+                <p className="font-medium">
+                  {format(fixedStart, "EEE d MMM yyyy")}, {format(fixedStart, "HH:mm")}–{computedEndTime}
+                </p>
+                {fixedStartInPast && (
+                  <p className="mt-1 text-xs text-destructive" role="alert">
+                    That start time has already passed. Choose a later time or another date.
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="text-xs text-destructive" role="alert">
+                Choose a date. A start time on its own cannot be scheduled.
+              </p>
+            )}
+          </div>
         )}
 
         <DialogFooter className="gap-2">

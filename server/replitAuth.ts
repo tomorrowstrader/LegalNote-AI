@@ -203,13 +203,16 @@ function getMicrosoftLoginCallbackURL(): string {
     : `http://localhost:${port}/api/auth/microsoft/callback`;
 }
 
-function buildSessionUser(user: {
-  id: string;
-  email?: string | null;
-  firstName?: string | null;
-  lastName?: string | null;
-  profileImageUrl?: string | null;
-}) {
+function buildSessionUser(
+  user: {
+    id: string;
+    email?: string | null;
+    firstName?: string | null;
+    lastName?: string | null;
+    profileImageUrl?: string | null;
+  },
+  authProvider: "google" | "microsoft",
+) {
   return {
     claims: {
       sub: user.id,
@@ -218,6 +221,7 @@ function buildSessionUser(user: {
       last_name: user.lastName ?? null,
       profile_image_url: user.profileImageUrl ?? null,
     },
+    authProvider,
     expires_at: Math.floor(Date.now() / 1000) + SESSION_TTL / 1000,
   };
 }
@@ -282,7 +286,7 @@ export async function setupAuth(app: Express) {
               firstName: user.firstName || profile.name?.givenName || null,
               lastName: user.lastName || profile.name?.familyName || null,
               profileImageUrl: user.profileImageUrl || profile.photos?.[0]?.value || null,
-            }));
+            }, "google"));
           } catch (error) {
             done(error, null);
           }
@@ -347,7 +351,7 @@ export async function setupAuth(app: Express) {
               firstName: user.firstName,
               lastName: user.lastName,
               profileImageUrl: user.profileImageUrl,
-            }));
+            }, "microsoft"));
           } catch (error) {
             done(error, null);
           }

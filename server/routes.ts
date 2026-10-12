@@ -109,6 +109,7 @@ import { defaultRecordingTypeForMatterKind, validateRecordingType } from "@share
 import { toAssignableRecordings } from "./services/assignableRecordingView";
 import { getAmlRiskDefault } from "./services/practiceAreaConfig";
 import { isFeatureVisible, type FeatureKey } from "@shared/featureVisibility";
+import { resolveScheduleProvider } from "@shared/scheduleMeeting";
 import { documentMatchesSharedType, getUnadoptedSharedDocumentTypes } from "@shared/shareDocumentTypes";
 import { z } from "zod";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
@@ -2104,11 +2105,35 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         .filter((provider): provider is "google" | "microsoft" =>
           provider === "google" || provider === "microsoft",
         );
-      // Preferred calendar matches how they signed in (Google → Google Calendar, Microsoft → Outlook).
-      const preferredCalendarProvider: "google" | "outlook" =
-        authProviders.includes("microsoft") && !authProviders.includes("google")
-          ? "outlook"
-          : "google";
+      const sessionProvider =
+        req.user?.authProvider === "google" || req.user?.authProvider === "microsoft"
+          ? req.user.authProvider
+          : null;
+      let calendarAccounts: {
+        google: { connected: boolean; email?: string };
+        outlook: { connected: boolean; email?: string };
+      } = {
+        google: { connected: false },
+        outlook: { connected: false },
+      };
+      try {
+        calendarAccounts = await getConnectedProviders(userId, storage);
+      } catch (calendarErr) {
+        console.warn("[AUTH] Could not read calendar accounts for meeting default:", calendarErr);
+      }
+      // This login, then the calendar email that matches the signed-in address.
+      const preferredCalendarProvider = resolveScheduleProvider({
+        sessionProvider,
+        loginEmail: user?.email ?? req.user.claims?.email,
+        googleEmail: calendarAccounts.google.email,
+        outlookEmail: calendarAccounts.outlook.email,
+        googleConnected: calendarAccounts.google.connected,
+        outlookConnected: calendarAccounts.outlook.connected,
+        preferred:
+          authProviders.includes("microsoft") && !authProviders.includes("google")
+            ? "outlook"
+            : "google",
+      });
 
       let firmIsEvaluation = false;
       let evaluationActive = false;
@@ -13134,8 +13159,10 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
 
       const data = parsed.data;
       const startTime = new Date(data.startTime);
-      if (isNaN(startTime.getTime()) || startTime <= new Date()) {
-        return res.status(400).json({ message: "Start time must be a valid future date" });
+      if (isNaN(startTime.getTime()) || startTime.getTime() <= Date.now()) {
+        return res.status(400).json({
+          message: "That start time has already passed. Choose a later time or another date.",
+        });
       }
 
       let endTime: Date | undefined;
@@ -13179,9 +13206,20 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         });
       }
 
-      let provider: "google" | "outlook" =
+      const sessionProvider =
+        req.user?.authProvider === "google" || req.user?.authProvider === "microsoft"
+          ? req.user.authProvider
+          : null;
+      const provider: "google" | "outlook" =
         data.provider ||
-        (googleConnected ? "google" : "outlook");
+        resolveScheduleProvider({
+          sessionProvider,
+          loginEmail: req.user?.claims?.email,
+          googleEmail: connections.google.email,
+          outlookEmail: connections.outlook.email,
+          googleConnected,
+          outlookConnected,
+        });
 
       const providedMeetingUrl =
         data.meetingUrl && data.meetingUrl.trim().length > 0
