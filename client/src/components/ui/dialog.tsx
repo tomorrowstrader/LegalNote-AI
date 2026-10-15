@@ -38,18 +38,17 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed z-[70] grid gap-4 border bg-background p-6 shadow-lg duration-200",
-        // Mobile: inset bottom sheet - rounded, not edge-to-edge blocky
-        "left-1/2 w-[calc(100%-1.5rem)] max-w-lg -translate-x-1/2",
-        "bottom-[max(0.75rem,env(safe-area-inset-bottom,0px))] top-auto translate-y-0 rounded-2xl",
-        "max-h-[min(85dvh,calc(100dvh-5.5rem))] overflow-x-hidden overflow-y-auto",
+        "ln-mobile-dialog fixed z-[70] grid gap-4 border bg-background p-6 shadow-lg duration-200",
+        // Below lg: top of the visual viewport, so the keyboard does not cover the field
+        "left-1/2 w-[calc(100%-1.5rem)] max-w-lg -translate-x-1/2 translate-y-0 rounded-2xl",
+        "top-[max(0.75rem,env(safe-area-inset-top,0px))]",
+        "max-h-[calc(var(--vvh,100dvh)-max(0.75rem,env(safe-area-inset-top,0px))-0.75rem)] overflow-x-hidden overflow-y-auto",
         "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
-        "data-[state=closed]:slide-out-to-bottom-4 data-[state=open]:slide-in-from-bottom-4",
         // Desktop: centered modal
-        "sm:bottom-auto sm:top-[50%] sm:translate-y-[-50%] sm:rounded-lg sm:max-h-[90vh]",
-        "sm:data-[state=closed]:zoom-out-95 sm:data-[state=open]:zoom-in-95",
-        "sm:data-[state=closed]:slide-out-to-left-1/2 sm:data-[state=closed]:slide-out-to-top-[48%]",
-        "sm:data-[state=open]:slide-in-from-left-1/2 sm:data-[state=open]:slide-in-from-top-[48%]",
+        "lg:top-[50%] lg:translate-y-[-50%] lg:rounded-lg lg:max-h-[90vh]",
+        "lg:data-[state=closed]:zoom-out-95 lg:data-[state=open]:zoom-in-95",
+        "lg:data-[state=closed]:slide-out-to-left-1/2 lg:data-[state=closed]:slide-out-to-top-[48%]",
+        "lg:data-[state=open]:slide-in-from-left-1/2 lg:data-[state=open]:slide-in-from-top-[48%]",
         className
       )}
       // Keep portalled Select menus interactive while this dialog is open

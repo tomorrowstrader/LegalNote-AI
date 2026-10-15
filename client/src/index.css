@@ -4,7 +4,8 @@
 
 /* Smooth scroll behavior for the entire page */
 html, body, #root {
-  overflow-x: hidden;
+  /* clip does not create a scroll container, so iOS keeps a single scroller */
+  overflow-x: clip;
   min-height: 100%;
   background-color: hsl(var(--background));
 }
@@ -24,6 +25,43 @@ body {
   --safe-area-top: env(safe-area-inset-top, 0px);
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);
   --mobile-bottom-nav-height: 4rem;
+  --vvh: 100dvh;
+  --vv-offset-top: 0px;
+  --keyboard-inset: 0px;
+}
+
+/* Signed-out screens (home-screen app) start below the status bar. */
+@media (max-width: 1023px) {
+  .ln-signed-out {
+    padding-top: var(--safe-area-top);
+    padding-bottom: var(--safe-area-bottom);
+  }
+
+  /* Bars that already clear the status bar should not stack a second inset. */
+  .ln-signed-out .ln-safe-top {
+    padding-top: 0;
+    top: var(--safe-area-top);
+  }
+
+  html.ln-keyboard-open [data-testid="mobile-bottom-nav"] {
+    display: none;
+  }
+
+  html.ln-keyboard-open main {
+    padding-bottom: 0.75rem;
+  }
+
+  /* Dialogs follow the visual viewport so the keyboard does not cover the field. */
+  .ln-mobile-dialog {
+    top: calc(var(--vv-offset-top, 0px) + max(0.75rem, var(--safe-area-top))) !important;
+    right: auto !important;
+    bottom: auto !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: calc(100% - 1.5rem) !important;
+    max-height: calc(var(--vvh, 100dvh) - var(--vv-offset-top, 0px) - max(0.75rem, var(--safe-area-top)) - 0.75rem) !important;
+    overflow-y: auto !important;
+  }
 }
 
 /* Reduced motion preference */
@@ -684,6 +722,20 @@ select {
   background: hsl(var(--background) / 0.5) !important;
 }
 
+/* Frosted fields hide the caret on iOS. Keep the blur on desktop only. */
+@media (max-width: 1023px) {
+  input:not([type="checkbox"]):not([type="radio"]):not(.global-search-input),
+  textarea,
+  select,
+  .dark input:not([type="checkbox"]):not([type="radio"]):not(.global-search-input),
+  .dark textarea,
+  .dark select {
+    background: hsl(var(--background)) !important;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
 /* Top nav global search: pure white + dark text in light mode; dark keeps glass.
    Specificity must beat the glass input rule (two :not() attribute selectors). */
 input.global-search-input:not([type="checkbox"]):not([type="radio"]) {
@@ -826,7 +878,7 @@ nav.sticky {
    !important is required: tiptap-pagination-plus (and our margin pin effect) set
    width / --rm-* as inline styles, which otherwise keep the page at 794px and
    blow out flex parents (min-width: auto) so docs appear clipped to the right. */
-@media (max-width: 767px) {
+@media (max-width: 1023px) {
   .paginated-page-card {
     width: 100%;
     min-height: unset;
@@ -835,7 +887,6 @@ nav.sticky {
     padding: 24px 16px;
     min-height: unset;
     overflow-wrap: break-word;
-    word-break: break-word;
   }
 
   .pagination-plus-host {
@@ -859,7 +910,7 @@ nav.sticky {
     padding-left: 16px !important;
     padding-right: 16px !important;
     overflow-wrap: break-word;
-    word-break: break-word;
+    font-size: 1rem;
   }
 
   .page-gutter-widget {
@@ -879,6 +930,32 @@ nav.sticky {
   }
   .page-view-page-separator {
     width: 100% !important;
+  }
+
+  /* Mobile note is one continuous page. These rules do not apply at lg and above. */
+  .rm-pagination-gap,
+  .rm-page-break,
+  .breaker,
+  [data-rm-pagination],
+  .rm-first-page-header,
+  .page-gutter-widget,
+  .page-view-page-separator {
+    display: none !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    min-height: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .ProseMirror.rm-with-pagination {
+    min-height: 0 !important;
+  }
+
+  .page-view-page-card {
+    box-shadow: none !important;
+    margin: 0 !important;
   }
 }
 
@@ -1239,8 +1316,9 @@ nav.sticky {
   100% { background-position: -200% 0; }
 }
 
-/* Editor canvas. Edit mode (.ln-editor-continuous) is one solid page: the
-   pagination gap is removed. Reading view (.page-view-page-separator) is unchanged. */
+/* Editor canvas. Edit mode, and the mobile shell, use .ln-editor-continuous
+   so the note is one solid page. Desktop reading view (.page-view-page-separator)
+   is unchanged. */
 .ln-editor-desk {
   --ln-editor-desk: color-mix(in srgb, hsl(var(--muted)) 70%, hsl(var(--background)));
   background-color: var(--ln-editor-desk);

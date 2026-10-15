@@ -67,7 +67,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex">
+    <div className="flex min-h-[calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px))] lg:min-h-screen">
       {/* Left panel - brand */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden items-center justify-center"
         style={{ background: "linear-gradient(135deg, hsl(0,0%,6%) 0%, hsl(220,12%,15%) 50%, hsl(0,0%,8%) 100%)" }}>
@@ -127,7 +127,7 @@ export default function Login() {
       </div>
 
       {/* Right panel - login */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center px-6 py-12 bg-background">
+      <div className="w-full lg:w-1/2 flex items-start lg:items-center justify-center px-6 pt-8 pb-12 lg:py-12 bg-background">
         <div className="w-full max-w-sm space-y-8">
           {/* Mobile logo - only visible on small screens */}
           <div className="lg:hidden text-center mb-4">

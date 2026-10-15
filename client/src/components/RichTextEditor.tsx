@@ -14,6 +14,8 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { ReplaceStep, ReplaceAroundStep } from '@tiptap/pm/transform';
 import { Fragment } from '@tiptap/pm/model';
 import { useAuth } from "@/hooks/useAuth";
+import { useMediaQuery } from "@/hooks/use-mobile";
+import { isMobileShell, visibleViewportBottom } from "@/lib/mobileViewport";
 import { PaginationPlus } from 'tiptap-pagination-plus';
 import { Markdown } from 'tiptap-markdown';
 import { Button } from "@/components/ui/button";
@@ -927,6 +929,7 @@ export function RichTextEditor({
   const spellHintDismissedRef = useRef(false);
   const disabledRef = useRef(disabled);
   useEffect(() => { disabledRef.current = disabled; }, [disabled]);
+  const compactToolbar = useMediaQuery("(max-width: 1023px)");
 
   useEffect(() => {
     isTrackingRef.current = trackChangesEnabled;
@@ -1034,10 +1037,10 @@ export function RichTextEditor({
       }),
       UkSpellcheckHighlight,
       // A4 @ 96dpi with Word/Google Docs default 1" (96px) margins on all sides.
-      // Edit mode starts with pagination off so the note is one continuous page.
-      // Reading view uses PageView and is not this editor.
+      // Edit mode, and the whole mobile shell, start as one continuous page.
+      // Desktop reading view uses PageView and is not this editor.
       PaginationPlus.configure({
-        enabled: !!disabled,
+        enabled: !!disabled && !isMobileShell(),
         pageHeight: 1122,
         pageWidth: 794,
         pageGap: 48,
@@ -1069,11 +1072,17 @@ export function RichTextEditor({
           const { from } = view.state.selection;
           const coords = view.coordsAtPos(from);
           const parentRect = scrollParent.getBoundingClientRect();
-          const pad = 32;
-          if (coords.top < parentRect.top + pad) {
-            scrollParent.scrollTop -= parentRect.top + pad - coords.top;
-          } else if (coords.bottom > parentRect.bottom - pad) {
-            scrollParent.scrollTop += coords.bottom - (parentRect.bottom - pad);
+          const narrow = isMobileShell();
+          // Desktop keeps a small pad so pagination widgets cannot fling the page.
+          // On a phone the caret must clear the sticky toolbar and the keyboard or bottom bar.
+          const padTop = narrow ? 72 : 32;
+          const padBottom = narrow ? 20 : 32;
+          const visibleTop = parentRect.top + padTop;
+          const visibleBottom = Math.min(parentRect.bottom, visibleViewportBottom()) - padBottom;
+          if (coords.top < visibleTop) {
+            scrollParent.scrollTop -= visibleTop - coords.top;
+          } else if (coords.bottom > visibleBottom) {
+            scrollParent.scrollTop += coords.bottom - visibleBottom;
           }
         } catch {
           // coordsAtPos can throw while pagination is mid-reflow
@@ -1131,7 +1140,7 @@ export function RichTextEditor({
         disablePagination?: () => boolean;
         enablePagination?: () => boolean;
       };
-      if (disabledRef.current) commands.enablePagination?.();
+      if (disabledRef.current && !isMobileShell()) commands.enablePagination?.();
       else commands.disablePagination?.();
     },
   });
@@ -1508,17 +1517,17 @@ export function RichTextEditor({
     }
   }, [editor, disabled]);
 
-  // Edit mode is one continuous page, matching mobile. Page breaks stay in
-  // the reading view (PageView), which does not use this editor.
+  // Edit mode is one continuous page. The mobile shell is continuous in
+  // reading view too. Desktop page breaks stay in PageView.
   useEffect(() => {
     if (!editor) return;
     const commands = editor.commands as {
       disablePagination?: () => boolean;
       enablePagination?: () => boolean;
     };
-    if (disabled) commands.enablePagination?.();
+    if (disabled && !compactToolbar) commands.enablePagination?.();
     else commands.disablePagination?.();
-  }, [editor, disabled]);
+  }, [editor, disabled, compactToolbar]);
 
   // Keep page geometry applied even if pagination-plus onCreate races with
   // TipTap remounts (Strict Mode) or drops inline styles. On narrow viewports
@@ -1526,7 +1535,7 @@ export function RichTextEditor({
   useEffect(() => {
     if (!editor) return;
     const dom = editor.view.dom as HTMLElement;
-    const mq = window.matchMedia('(max-width: 767px)');
+    const mq = window.matchMedia('(max-width: 1023px)');
 
     const applyPageMargins = () => {
       const mobile = mq.matches;
@@ -1780,28 +1789,33 @@ export function RichTextEditor({
     onClick, active, icon: Icon, tooltip, disabled: btnDisabled, testId,
   }: { 
     onClick: () => void; active?: boolean; icon: any; tooltip: string; disabled?: boolean; testId?: string;
-  }) => (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          type="button"
-          size="icon"
-          variant={active ? 'secondary' : 'ghost'}
-          onClick={onClick}
-          disabled={btnDisabled ?? disabled}
-          className="h-7 w-7"
-          data-testid={testId}
-        >
-          <Icon className="h-3.5 w-3.5" />
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>{tooltip}</TooltipContent>
-    </Tooltip>
-  );
+  }) => {
+    const button = (
+      <Button
+        type="button"
+        size="icon"
+        variant={active ? 'secondary' : 'ghost'}
+        onClick={onClick}
+        disabled={btnDisabled ?? disabled}
+        className="h-11 w-11 lg:h-7 lg:w-7 shrink-0"
+        aria-label={tooltip}
+        data-testid={testId}
+      >
+        <Icon className="h-5 w-5 lg:h-3.5 lg:w-3.5" />
+      </Button>
+    );
+    if (compactToolbar) return button;
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>{button}</TooltipTrigger>
+        <TooltipContent>{tooltip}</TooltipContent>
+      </Tooltip>
+    );
+  };
 
-  const RibbonGroup = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <div className="flex flex-col items-center gap-0.5 px-2 border-r border-border/50 last:border-r-0">
-      <span className="text-[9px] text-muted-foreground/70 uppercase tracking-wider leading-none select-none">{label}</span>
+  const RibbonGroup = ({ label, children }: { label: string; children: ReactNode }) => (
+    <div className="flex flex-col items-center gap-0.5 px-2 border-r border-border/50 last:border-r-0 shrink-0">
+      <span className="hidden lg:block text-[9px] text-muted-foreground/70 uppercase tracking-wider leading-none select-none">{label}</span>
       <div className="flex items-center gap-0.5">
         {children}
       </div>
@@ -1828,7 +1842,7 @@ export function RichTextEditor({
               {editActions}
             </div>
           ) : null}
-          <div className="flex items-start gap-0 p-1.5 flex-wrap bg-muted/40">
+          <div className="flex items-center gap-0 p-1.5 bg-muted/40 max-lg:flex-nowrap max-lg:overflow-x-auto lg:flex-wrap lg:items-start">
             <RibbonGroup label="Font">
               <ToolbarButton onClick={() => editorFocusChain(editor).toggleBold().run()} active={editor.isActive('bold')} icon={Bold} tooltip="Bold (Ctrl+B)" />
               <ToolbarButton onClick={() => editorFocusChain(editor).toggleItalic().run()} active={editor.isActive('italic')} icon={Italic} tooltip="Italic (Ctrl+I)" />
@@ -1869,6 +1883,20 @@ export function RichTextEditor({
             </RibbonGroup>
 
             <RibbonGroup label="Legal">
+              {compactToolbar ? (
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  onClick={handleRedact}
+                  disabled={disabled}
+                  className="h-11 w-11 shrink-0"
+                  aria-label="Redact selection (select text first)"
+                  data-testid="button-redact-selection"
+                >
+                  <EyeOff className="h-5 w-5" />
+                </Button>
+              ) : (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -1885,6 +1913,7 @@ export function RichTextEditor({
                 </TooltipTrigger>
                 <TooltipContent>Redact selection (select text first)</TooltipContent>
               </Tooltip>
+              )}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -1892,11 +1921,11 @@ export function RichTextEditor({
                     size="sm"
                     variant="ghost"
                     disabled={disabled}
-                    className="h-7 gap-0.5 text-xs px-1.5"
+                    className="h-11 lg:h-7 gap-0.5 text-xs px-2 lg:px-1.5 shrink-0"
                     data-testid="button-insert-field"
                   >
                     <Hash className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">Field</span>
+                    <span>Field</span>
                     <ChevronDown className="h-2.5 w-2.5" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -1920,6 +1949,26 @@ export function RichTextEditor({
               <ToolbarButton onClick={() => setShowSearch(s => !s)} active={showSearch} icon={Search} tooltip="Find & Replace" />
               <ToolbarButton onClick={() => { void runSpellcheck(); }} active={spellOpen} icon={SpellCheck} tooltip="Spell check (UK English)" testId="button-spell-check-editor" />
               {onTrackChangesToggle && (
+                compactToolbar ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={trackChangesEnabled ? 'default' : 'ghost'}
+                    onClick={() => onTrackChangesToggle(!trackChangesEnabled)}
+                    disabled={disabled}
+                    className="gap-1 text-xs h-11 shrink-0"
+                    aria-label={trackChangesEnabled ? 'Track Changes: ON' : 'Track Changes: OFF'}
+                    data-testid="button-toggle-track-changes"
+                  >
+                    <GitCompareArrows className="h-5 w-5" />
+                    <span>Track</span>
+                    {trackChangesEnabled && changeCount > 0 && (
+                      <Badge variant="secondary" className="ml-0.5 text-[10px] px-1 py-0" data-testid="badge-change-count">
+                        {changeCount}
+                      </Badge>
+                    )}
+                  </Button>
+                ) : (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
@@ -1942,6 +1991,7 @@ export function RichTextEditor({
                   </TooltipTrigger>
                   <TooltipContent>{trackChangesEnabled ? 'Track Changes: ON' : 'Track Changes: OFF'}</TooltipContent>
                 </Tooltip>
+                )
               )}
             </RibbonGroup>
 
@@ -1989,14 +2039,14 @@ export function RichTextEditor({
                 placeholder="Find..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                className="h-7 text-xs w-36"
+                className="h-11 text-base w-full min-w-[8rem] flex-1 lg:h-7 lg:text-xs lg:w-36 lg:flex-none"
                 onKeyDown={e => e.key === 'Enter' && handleSearch()}
               />
               <Input
                 placeholder="Replace with..."
                 value={replaceTerm}
                 onChange={e => setReplaceTerm(e.target.value)}
-                className="h-7 text-xs w-36"
+                className="h-11 text-base w-full min-w-[8rem] flex-1 lg:h-7 lg:text-xs lg:w-36 lg:flex-none"
               />
               <Button size="sm" variant="outline" onClick={handleSearch} className="h-7 text-xs px-2">Find</Button>
               <Button size="sm" variant="outline" onClick={handleReplace} className="h-7 text-xs px-2">Replace All</Button>
@@ -2041,7 +2091,7 @@ export function RichTextEditor({
         </div>
       )}
 
-      <div className="flex min-w-0 max-w-full">
+      <div className="flex min-w-0 max-w-full max-lg:flex-col">
         <div className="relative flex-1 min-w-0" onKeyDown={handleKeyDown}>
         {structuralNotice && (
           <div
@@ -2051,7 +2101,7 @@ export function RichTextEditor({
             Structural deletions are blocked while Track Changes is on. Turn Track Changes off to delete table rows, columns, or list items.
           </div>
         )}
-          <div className={`ln-editor-desk border-x border-border overflow-x-auto max-w-full py-8${!disabled ? " ln-editor-continuous" : ""}`}>
+          <div className={`ln-editor-desk border-x border-border max-lg:overflow-x-clip lg:overflow-x-auto max-w-full py-8 max-lg:py-3${!disabled || compactToolbar ? " ln-editor-continuous" : ""}`}>
             <div className="pagination-plus-host mx-auto w-full max-w-full min-w-0">
               <EditorContent 
                 editor={editor} 
@@ -2115,7 +2165,7 @@ export function RichTextEditor({
         </div>
 
         {trackChangesEnabled && changeCount > 0 && !disabled && (
-          <div className="w-64 border-l border-border bg-muted/10 overflow-y-auto max-h-[500px] flex-shrink-0" data-testid="panel-tracked-changes">
+          <div className="w-full max-h-64 border-t border-border bg-muted/10 overflow-y-auto lg:w-64 lg:max-h-[500px] lg:border-t-0 lg:border-l lg:flex-shrink-0" data-testid="panel-tracked-changes">
             <div className="p-2 border-b border-border">
               <span className="text-xs font-semibold text-muted-foreground">Tracked Changes</span>
             </div>

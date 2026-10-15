@@ -1810,7 +1810,7 @@ export default function Landing() {
 
       {/* Sticky Navigation with Blur */}
       <nav 
-        className={`sticky top-0 z-[100] transition-colors duration-300 ${
+        className={`ln-safe-top sticky top-0 z-[100] transition-colors duration-300 ${
           isScrolled 
             ? 'bg-white/80 dark:bg-[hsl(25,12%,10%)]/90 backdrop-blur-lg shadow-sm border-b border-[hsl(30,20%,90%)] dark:border-[hsl(25,12%,18%)] dark:border-[hsl(25,12%,18%)]' 
             : 'bg-white dark:bg-[hsl(25,12%,10%)] border-b border-[hsl(30,20%,90%)] dark:border-[hsl(25,12%,18%)] dark:border-[hsl(25,12%,18%)]'

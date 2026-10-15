@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -110,7 +110,15 @@ export function NoteCorrectionPanel({
             The rest of the note stays as it is. Each change comes back for you to accept.
           </p>
         </div>
-        <Button type="button" size="sm" variant="ghost" onClick={onClose} data-testid="button-close-correction">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={onClose}
+          className="h-8 shrink-0 gap-1.5 border-foreground/30 bg-background px-3 font-medium text-foreground shadow-sm"
+          data-testid="button-close-correction"
+        >
+          <X className="h-3.5 w-3.5" />
           Close
         </Button>
       </div>

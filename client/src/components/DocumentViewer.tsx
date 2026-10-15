@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileDown, FileSearch, FileText, CheckCircle, Lock, Unlock, AlertCircle, Edit, Save, CloudUpload, Shield, ZoomIn, ZoomOut, Maximize2, Minimize2, Printer, MessageSquare, MessageSquarePlus, Check, Eye, EyeOff, X, GitCompareArrows, ChevronDown, ChevronUp, Mail, MailCheck, BookOpen, Pencil, AlertTriangle, PenLine, Share2, Quote, Play, MoreHorizontal, Clock, ArrowUp, SpellCheck } from "lucide-react";
+import { FileDown, FileSearch, FileText, CheckCircle, Lock, Unlock, AlertCircle, Edit, Save, CloudUpload, Shield, ZoomIn, ZoomOut, Maximize2, Minimize2, Printer, MessageSquare, MessageSquarePlus, Check, Eye, EyeOff, X, GitCompareArrows, ChevronDown, ChevronUp, Mail, MailCheck, BookOpen, Pencil, AlertTriangle, PenLine, Share2, Quote, Play, MoreHorizontal, Clock, ArrowUp } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -38,6 +38,7 @@ import { AdoptFeedbackDialog } from "@/components/AdoptFeedbackDialog";
 import { apiRequest, getApiErrorMessage, queryClient } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
+import { useMediaQuery } from "@/hooks/use-mobile";
 import {
   adoptFeedbackStorageKey,
   buildValuePulseCopy,
@@ -47,10 +48,6 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 import { RichTextEditor, type SeededReplacement, type TrackedChange, type TrackChangeAuditRecord } from "@/components/RichTextEditor";
-import { SpellcheckReview } from "@/components/SpellcheckReview";
-import { loadUkSpellchecker } from "@/lib/ukSpellcheck";
-import { clearDomHits, collectDomWordHits, paintDomHits, type DomWordHit } from "@/lib/spellcheckDom";
-import { addSpellVocabulary, spellingSuggestions, type SpellAdapter } from "@shared/ukSpellcheck";
 import { NoteCorrectionPanel, type CorrectionProposal } from "@/components/NoteCorrectionPanel";
 import { attendanceNoteToPlain, resolvePassage } from "@shared/noteCorrections";
 import { PageView } from "@/components/PageView";
@@ -923,10 +920,88 @@ function findQuoteRangeInRoots(roots: Element[], quote: string): Range | null {
 }
 
 let quoteHighlightCleanup: (() => void) | null = null;
+let readableSettleGeneration = 0;
 
 function clearNoteQuoteHighlight() {
   quoteHighlightCleanup?.();
   quoteHighlightCleanup = null;
+}
+
+/** Viewport band where note text can be read, below the sticky Documents chrome. */
+function readableNoteBand(): { top: number; bottom: number } {
+  const chrome = document.querySelector("[data-doc-sticky-chrome]");
+  let top = 88;
+  if (chrome instanceof HTMLElement) {
+    const scroller = findScrollableAncestors(chrome)[0];
+    const scrollerTop = scroller ? scroller.getBoundingClientRect().top : 0;
+    const chromeHeight = chrome.getBoundingClientRect().height;
+    top = scrollerTop + (chromeHeight > 40 ? chromeHeight : 168) + 16;
+  }
+  const mobileNav = window.matchMedia("(max-width: 1023px)").matches ? 76 : 20;
+  return { top, bottom: Math.max(top + 96, window.innerHeight - mobileNav) };
+}
+
+/** How far to scroll so the quote sits just under the sticky chrome, with the line above it still readable. */
+function scrollDeltaForRect(rect: DOMRect, band: { top: number; bottom: number }): number {
+  if (rect.height < 1) return 0;
+  const fullyVisible = rect.top >= band.top - 1 && rect.bottom <= band.bottom + 1;
+  if (fullyVisible) return 0;
+  const room = band.bottom - band.top;
+  if (rect.height >= room - 8) return rect.top - band.top;
+  const desiredTop = Math.min(band.top + 36, band.bottom - rect.height - 8);
+  return rect.top - Math.max(band.top, desiredTop);
+}
+
+function applyScrollDelta(
+  ancestors: HTMLElement[],
+  delta: number,
+  behavior: ScrollBehavior,
+) {
+  if (Math.abs(delta) < 2) return;
+  let remaining = delta;
+  for (const parent of ancestors) {
+    if (Math.abs(remaining) < 1) break;
+    const maxDown = parent.scrollHeight - parent.clientHeight - parent.scrollTop;
+    const applied = remaining > 0
+      ? Math.min(remaining, Math.max(0, maxDown))
+      : Math.max(remaining, -parent.scrollTop);
+    if (Math.abs(applied) < 1) continue;
+    parent.scrollBy({ top: applied, behavior });
+    remaining -= applied;
+  }
+}
+
+function scheduleReadableSettle(anchor: HTMLElement, measure: () => DOMRect | null) {
+  const generation = ++readableSettleGeneration;
+  window.setTimeout(() => {
+    if (generation !== readableSettleGeneration) return;
+    const rect = measure();
+    if (!rect || rect.height < 1) return;
+    const delta = scrollDeltaForRect(rect, readableNoteBand());
+    if (Math.abs(delta) < 8) return;
+    applyScrollDelta(findScrollableAncestors(anchor), delta, "auto");
+  }, 800);
+}
+
+function scrollRectIntoReadableBand(
+  anchor: HTMLElement,
+  rect: DOMRect,
+  remeasure?: () => DOMRect | null,
+) {
+  const ancestors = findScrollableAncestors(anchor);
+  if (ancestors.length === 0) {
+    anchor.scrollIntoView({ behavior: "smooth", block: "center" });
+    return;
+  }
+  if (rect.height < 1 && rect.width < 1) {
+    anchor.scrollIntoView({ behavior: "smooth", block: "center" });
+    return;
+  }
+  const delta = scrollDeltaForRect(rect, readableNoteBand());
+  applyScrollDelta(ancestors, delta, "smooth");
+  if (Math.abs(delta) >= 2) {
+    scheduleReadableSettle(anchor, remeasure ?? (() => anchor.getBoundingClientRect()));
+  }
 }
 
 function paintNoteQuoteHighlight(range: Range) {
@@ -934,19 +1009,26 @@ function paintNoteQuoteHighlight(range: Range) {
   const layer = document.createElement("div");
   layer.id = "note-quote-highlight";
   layer.setAttribute("data-testid", "note-quote-highlight");
-  layer.style.cssText = "position:fixed;inset:0;pointer-events:none;z-index:55;";
+  // Below the sticky Documents chrome (z-40) so boxes never sit on the tab bar.
+  layer.style.cssText = "position:fixed;inset:0;pointer-events:none;z-index:30;";
 
   const draw = () => {
     layer.replaceChildren();
+    const band = readableNoteBand();
     const rects = Array.from(range.getClientRects()).filter((rect) => rect.width > 2 && rect.height > 2);
     for (const rect of rects) {
+      const top = Math.max(rect.top, band.top);
+      const bottom = Math.min(rect.bottom, band.bottom);
+      if (bottom - top < 8 || rect.width < 4) continue;
+      const boxTop = Math.max(band.top, top - 2);
+      const boxBottom = Math.min(band.bottom, bottom + 2);
       const box = document.createElement("div");
       box.style.cssText = [
         "position:fixed",
         `left:${rect.left - 4}px`,
-        `top:${rect.top - 2}px`,
+        `top:${boxTop}px`,
         `width:${rect.width + 8}px`,
-        `height:${rect.height + 4}px`,
+        `height:${boxBottom - boxTop}px`,
         "border:2px solid rgba(217,119,6,0.95)",
         "background:rgba(251,191,36,0.22)",
         "border-radius:4px",
@@ -976,18 +1058,10 @@ function scrollRangeIntoView(range: Range) {
   const node = range.startContainer;
   const el = node instanceof Element ? node : node.parentElement;
   if (!el) return;
-  const targetRect = range.getBoundingClientRect();
-  const ancestors = findScrollableAncestors(el);
-  if (ancestors.length > 0) {
-    for (const parent of ancestors) {
-      const parentRect = parent.getBoundingClientRect();
-      const stickyOffset = Math.min(140, Math.max(64, parentRect.height * 0.18));
-      const nextTop = parent.scrollTop + (targetRect.top - parentRect.top) - stickyOffset;
-      parent.scrollTo({ top: Math.max(0, nextTop), behavior: "smooth" });
-    }
-    return;
-  }
-  el.scrollIntoView({ behavior: "smooth", block: "center" });
+  scrollRectIntoReadableBand(el, range.getBoundingClientRect(), () => {
+    const rect = range.getBoundingClientRect();
+    return rect.width > 1 || rect.height > 1 ? rect : null;
+  });
 }
 
 function revealQuoteInNote(quote: string, roots: Element[]): boolean {
@@ -1059,30 +1133,10 @@ function findScrollableAncestors(el: HTMLElement): HTMLElement[] {
   return ancestors;
 }
 
-function scrollElementIntoViewCentered(scrollParent: HTMLElement, target: HTMLElement) {
-  const parentRect = scrollParent.getBoundingClientRect();
-  const targetRect = target.getBoundingClientRect();
-  // Keep sticky docs chrome / mobile section menu from covering the highlight
-  const stickyOffset = Math.min(140, Math.max(64, parentRect.height * 0.18));
-  const nextTop =
-    scrollParent.scrollTop +
-    (targetRect.top - parentRect.top) -
-    stickyOffset -
-    Math.min(targetRect.height, parentRect.height * 0.25);
-  scrollParent.scrollTo({ top: Math.max(0, nextTop), behavior: "smooth" });
-}
-
 function highlightAndScrollToElement(target: HTMLElement) {
-  // Scroll every overflow ancestor (Page View + <main>) so mobile layouts where the
-  // gap panel sits below the note still bring the citation into the visible viewport.
-  const ancestors = findScrollableAncestors(target);
-  if (ancestors.length > 0) {
-    for (const parent of ancestors) {
-      scrollElementIntoViewCentered(parent, target);
-    }
-  } else {
-    target.scrollIntoView({ behavior: "smooth", block: "center" });
-  }
+  // One viewport delta, shared across nested scrollers, so the citation clears
+  // the sticky Documents chrome instead of stopping underneath the tabs.
+  scrollRectIntoReadableBand(target, target.getBoundingClientRect());
 
   // Briefly emphasise the marker chip inside the block, if present.
   const chip = target.querySelector?.("[data-reasoning-gap-index]") as HTMLElement | null;
@@ -1737,84 +1791,8 @@ function EditableDocumentContent({
   const sourceContent = isEditing
     ? editContent
     : formatAttendanceNoteMarkdown(document.content, document.type);
-  const noteBodyRef = useRef<HTMLDivElement>(null);
-  const viewSpellRef = useRef<SpellAdapter | null>(null);
-  const [viewSpellOpen, setViewSpellOpen] = useState(false);
-  const [viewSpellLoading, setViewSpellLoading] = useState(false);
-  const [viewSpellError, setViewSpellError] = useState<string | null>(null);
-  const [viewSpellHits, setViewSpellHits] = useState<DomWordHit[]>([]);
-  const [viewSpellIndex, setViewSpellIndex] = useState(0);
-  const [viewSpellSuggestions, setViewSpellSuggestions] = useState<string[]>([]);
-
-  const closeViewSpellcheck = useCallback(() => {
-    setViewSpellOpen(false);
-    setViewSpellHits([]);
-    setViewSpellSuggestions([]);
-    clearDomHits();
-  }, []);
-
-  useEffect(() => {
-    if (isEditing) closeViewSpellcheck();
-  }, [isEditing, closeViewSpellcheck]);
-
-  useEffect(() => () => clearDomHits(), []);
-
-  const showViewSpellIssue = useCallback((hits: DomWordHit[], index: number, spell: SpellAdapter | null) => {
-    const safeIndex = hits.length === 0 ? 0 : Math.min(index, hits.length - 1);
-    setViewSpellIndex(safeIndex);
-    setViewSpellSuggestions(hits[safeIndex] && spell ? spellingSuggestions(hits[safeIndex].word, spell) : []);
-    paintDomHits(hits, safeIndex);
-  }, []);
-
-  const runViewSpellcheck = useCallback(async () => {
-    setViewSpellOpen(true);
-    setViewSpellLoading(true);
-    setViewSpellError(null);
-    try {
-      const spell = viewSpellRef.current ?? await loadUkSpellchecker();
-      viewSpellRef.current = spell;
-      addSpellVocabulary(spell, [
-        legalContext?.clientName,
-        legalContext?.solicitorName,
-        legalContext?.firmName,
-        legalContext?.matterRef,
-      ]);
-      const body = noteBodyRef.current;
-      const pages = body ? Array.from(body.querySelectorAll<HTMLElement>("[data-page-view-visible]")) : [];
-      const roots = pages.length
-        ? pages
-        : Array.from(body?.querySelectorAll<HTMLElement>(".ProseMirror") ?? [])
-            .filter((el) => !el.closest("[data-page-view-measure]"));
-      if (roots.length === 0) {
-        setViewSpellHits([]);
-        setViewSpellError("The note is still laying out. Try the spell check again in a moment.");
-        return;
-      }
-      const hits = collectDomWordHits(roots, spell);
-      setViewSpellHits(hits);
-      showViewSpellIssue(hits, 0, spell);
-    } catch (err) {
-      console.error("[DocumentViewer] UK spell check failed:", err);
-      setViewSpellError("UK English spell check could not be loaded. Try again in a moment.");
-    } finally {
-      setViewSpellLoading(false);
-    }
-  }, [legalContext, showViewSpellIssue]);
-
-  const ignoreViewSpellIssue = useCallback(() => {
-    const next = viewSpellHits.filter((_, i) => i !== viewSpellIndex);
-    setViewSpellHits(next);
-    showViewSpellIssue(next, Math.min(viewSpellIndex, Math.max(0, next.length - 1)), viewSpellRef.current);
-  }, [viewSpellHits, viewSpellIndex, showViewSpellIssue]);
-
-  const ignoreAllViewSpellIssues = useCallback(() => {
-    const current = viewSpellHits[viewSpellIndex];
-    if (!current) return;
-    viewSpellRef.current?.add(current.word);
-    const next = viewSpellHits.filter((hit) => hit.word.toLowerCase() !== current.word.toLowerCase());
-    setViewSpellHits(next);
-    showViewSpellIssue(next, Math.min(viewSpellIndex, Math.max(0, next.length - 1)), viewSpellRef.current);
-  }, [viewSpellHits, viewSpellIndex, showViewSpellIssue]);
+  // Phones and tablets use one continuous note. Desktop page view is unchanged.
+  const mobileShell = useMediaQuery("(max-width: 1023px)");
 
   return (
     <div
@@ -1823,45 +1801,13 @@ function EditableDocumentContent({
         usesJustifiedLegalLayout(document.type) && 'legal-document-justified',
         usesAttendanceNoteLayout(document.type) && 'legal-document-attendance',
       )}
-    >      {!isEditing && (
-        <div className="flex justify-end px-4">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-8 gap-1.5 text-xs"
-            onClick={() => { void runViewSpellcheck(); }}
-            data-testid="button-spell-check"
-          >
-            <SpellCheck className="w-3.5 h-3.5" />
-            Spell check
-          </Button>
-        </div>
-      )}
-
-      {!isEditing && viewSpellOpen && (
-        <SpellcheckReview
-          loading={viewSpellLoading}
-          error={viewSpellError}
-          wordCount={viewSpellHits.length}
-          index={viewSpellIndex}
-          word={viewSpellHits[viewSpellIndex]?.word ?? null}
-          suggestions={viewSpellSuggestions}
-          canReplace={false}
-          onPrev={() => showViewSpellIssue(viewSpellHits, (viewSpellIndex - 1 + viewSpellHits.length) % viewSpellHits.length, viewSpellRef.current)}
-          onNext={() => showViewSpellIssue(viewSpellHits, (viewSpellIndex + 1) % viewSpellHits.length, viewSpellRef.current)}
-          onIgnore={ignoreViewSpellIssue}
-          onIgnoreAll={ignoreAllViewSpellIssues}
-          onReplace={() => {}}
-          onClose={closeViewSpellcheck}
-        />
-      )}
-
+    >
       {/* Page View: accurate multi-page layout renderer.
           Display uses indexed gap tokens so the panel can jump to the exact advice point,
-          and each marker chip shows the specific advice point that still needs reasoning. */}
-      <div ref={noteBodyRef} className="min-w-0 max-w-full">
-      {pageViewMode && !isEditing ? (
+          and each marker chip shows the specific advice point that still needs reasoning.
+          The mobile shell uses the continuous editor instead of page cards. */}
+      <div className="min-w-0 max-w-full">
+      {pageViewMode && !isEditing && !mobileShell ? (
         <PageView
           content={prepareReasoningGapDisplayContent(sourceContent)}
           gapAnchorLabels={parseReasoningGaps(document.content)}
@@ -3455,7 +3401,7 @@ export default function DocumentViewer({
             data-testid="button-correct-document"
           >
             <PenLine className="w-3 h-3" />
-            Correct
+            Make Correction
           </Button>
         )}
       </div>
@@ -3505,9 +3451,9 @@ export default function DocumentViewer({
                     const opening = showGapPanel !== document.id;
                     setShowGapPanel(opening ? document.id : null);
                     if (opening && docGaps[0]) {
-                      // Wait for panel layout (mobile stacks above the note) then jump to advice
-                      window.setTimeout(() => scrollToReasoningGap(docGaps[0], 0), 120);
-                      window.setTimeout(() => scrollToReasoningGap(docGaps[0], 0), 320);
+                      // Wait for panel layout (mobile stacks above the note) then jump once.
+                      // A second jump mid-scroll parked the highlight under the tab bar.
+                      window.setTimeout(() => scrollToReasoningGap(docGaps[0], 0), 180);
                     }
                   }}
                   className={cn(
@@ -3907,7 +3853,7 @@ export default function DocumentViewer({
         </div>
       )}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full min-w-0 max-w-full">
-        <div ref={stickyHeaderRef} className={`sticky top-0 z-40 pt-1 pb-3 ${focusMode ? 'print:hidden' : ''}`}>
+        <div ref={stickyHeaderRef} data-doc-sticky-chrome="" className={`sticky top-0 z-40 pt-1 pb-3 ${focusMode ? 'print:hidden' : ''}`}>
           <div className="rounded-2xl border border-border/60 bg-card/95 backdrop-blur-sm shadow-sm px-4 pt-4 pb-3">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
             <div>
@@ -4010,7 +3956,7 @@ export default function DocumentViewer({
                           variant={pageViewMode ? 'secondary' : 'ghost'}
                           onClick={() => setPageViewMode(m => !m)}
                           data-testid="button-page-view-toggle"
-                          className="hidden sm:flex"
+                          className="hidden lg:flex"
                         >
                           {pageViewMode ? <Pencil className="w-4 h-4" /> : <BookOpen className="w-4 h-4" />}
                         </Button>
@@ -4258,7 +4204,7 @@ export default function DocumentViewer({
           <div className={`flex gap-4 items-start min-w-0 max-w-full ${showComments || (attendanceNote && showGapPanel === attendanceNote.id) ? 'flex-col-reverse lg:flex-row' : ''}`}>
             <Card className={cn(
               showComments || (attendanceNote && showGapPanel === attendanceNote.id) ? 'flex-1' : 'w-full',
-              'min-w-0 max-w-full overflow-x-clip overscroll-x-none touch-pan-y',
+              'min-w-0 max-w-full overflow-x-clip overscroll-x-none',
             )} data-testid="attendance-note-card" data-correction-document-id={attendanceNote?.status === "draft" ? attendanceNote.id : undefined}>
               <CardHeader>
                 <div className="flex items-center justify-between gap-2 flex-wrap">

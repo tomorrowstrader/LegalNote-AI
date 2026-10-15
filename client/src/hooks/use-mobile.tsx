@@ -1,6 +1,7 @@
 import * as React from "react"
 
-const MOBILE_BREAKPOINT = 768
+/** Matches the app shell: bottom bar below Tailwind `lg` (1024px). */
+const MOBILE_BREAKPOINT = 1024
 
 export function useIsMobile() {
   const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined)
@@ -16,4 +17,20 @@ export function useIsMobile() {
   }, [])
 
   return !!isMobile
+}
+
+export function useMediaQuery(query: string) {
+  const [matches, setMatches] = React.useState(() =>
+    typeof window !== "undefined" ? window.matchMedia(query).matches : false
+  )
+
+  React.useEffect(() => {
+    const mql = window.matchMedia(query)
+    const onChange = () => setMatches(mql.matches)
+    onChange()
+    mql.addEventListener("change", onChange)
+    return () => mql.removeEventListener("change", onChange)
+  }, [query])
+
+  return matches
 }

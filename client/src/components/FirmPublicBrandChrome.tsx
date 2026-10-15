@@ -24,7 +24,7 @@ export function FirmPublicBrandBar({ firmProfile }: FirmPublicBrandChromeProps) 
 
   return (
     <header
-      className="sticky top-0 z-40 border-b border-border/60 bg-background/95 backdrop-blur-sm pt-[env(safe-area-inset-top,0px)]"
+      className="ln-safe-top sticky top-0 z-40 border-b border-border/60 bg-background/95 backdrop-blur-sm pt-[env(safe-area-inset-top,0px)]"
       data-testid="firm-public-brand-bar"
     >
       <div className="container max-w-5xl mx-auto px-4 h-14 flex items-center gap-3">
