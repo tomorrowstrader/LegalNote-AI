@@ -38,7 +38,7 @@ import { useAuth } from "@/hooks/useAuth";
 import type { Case, Client, MatterKind } from "@shared/schema";
 import { RECORDING_TYPE_LABELS, MATTER_KIND_LABELS, type RecordingType } from "@shared/schema";
 import { PRACTICE_AREAS, PRACTICE_AREA_LABELS, type PracticeArea } from "@shared/schema";
-import { isClientMatterKind, partyLabelForMatterKind, normalizeMatterKind, requiresParticipantConsent } from "@shared/matterKinds";
+import { CAPTURE_CONFLICT_DEFERRAL_NOTE, isClientMatterKind, partyLabelForMatterKind, normalizeMatterKind, requiresParticipantConsent } from "@shared/matterKinds";
 import { MeetingCastFields } from "@/components/MeetingCastFields";
 import { emptyMeetingCast, meetingCastError, meetingCastIsDefault, type MeetingCast } from "@shared/meetingCast";
 import {
@@ -232,14 +232,6 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
         });
         return;
       }
-      if (isClientMatter && !conflictCheckCompleted && !conflictCheckNote.trim()) {
-        toast({
-          title: "Conflict check required",
-          description: "Either confirm the conflict check or provide a reason for deferral",
-          variant: "destructive",
-        });
-        return;
-      }
     } else {
       if (!selectedCaseId) {
         toast({
@@ -280,7 +272,9 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
       matterRef: matterRef || undefined,
       practiceArea: isClientMatter ? practiceArea : "",
       conflictCheckCompleted: isClientMatter ? conflictCheckCompleted : false,
-      conflictCheckNote: isClientMatter ? (conflictCheckNote || undefined) : undefined,
+      conflictCheckNote: isClientMatter
+        ? (conflictCheckCompleted ? undefined : (conflictCheckNote.trim() || CAPTURE_CONFLICT_DEFERRAL_NOTE))
+        : undefined,
       costsEstimate: isClientMatter ? (costsEstimate || undefined) : undefined,
       instructionStatus: isClientMatter ? instructionStatus : "instructed",
       templateId: activeTemplate?.id || undefined,
@@ -330,15 +324,6 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
       });
       return;
     }
-    if (isClientMatter && !conflictCheckCompleted && !conflictCheckNote.trim()) {
-      toast({
-        title: "Conflict check required",
-        description: "Either confirm the conflict check or provide a reason for deferral",
-        variant: "destructive",
-      });
-      return;
-    }
-
     try {
       const caseResult = await apiRequest<CaseResponse>("POST", "/api/cases", {
         title: caseTitle,
@@ -350,11 +335,12 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
         sourceType: "text",
         status: "pending",
         priority: "normal",
-        riskLevel: isClientMatter ? (selectedClient?.amlRiskLevel || undefined) : undefined,
         templateId: activeTemplate?.id || undefined,
         practiceArea: isClientMatter ? (practiceArea || undefined) : undefined,
         conflictCheckCompleted: isClientMatter ? conflictCheckCompleted : false,
-        conflictCheckNote: isClientMatter ? (conflictCheckNote || undefined) : undefined,
+        conflictCheckNote: isClientMatter
+          ? (conflictCheckCompleted ? undefined : (conflictCheckNote.trim() || CAPTURE_CONFLICT_DEFERRAL_NOTE))
+          : undefined,
         costsEstimate: isClientMatter ? (costsEstimate || undefined) : undefined,
         instructionStatus: isClientMatter ? instructionStatus : "instructed",
       });
@@ -439,15 +425,6 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
       return;
     }
 
-    if (isClientMatter && !conflictCheckCompleted && !conflictCheckNote.trim()) {
-      toast({
-        title: "Conflict check required",
-        description: "Either confirm the conflict check or provide a reason for deferral",
-        variant: "destructive",
-      });
-      return;
-    }
-    
     const createTextCase = async () => {
       let targetCaseId: string;
 
@@ -465,12 +442,13 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
           sourceType: "text",
           status: "pending",
           priority: "normal",
-          riskLevel: isClientMatter ? (clientForCase?.amlRiskLevel || undefined) : undefined,
           notes: data.notes,
           templateId: activeTemplate?.id || undefined,
           practiceArea: isClientMatter ? (practiceArea || undefined) : undefined,
           conflictCheckCompleted: isClientMatter ? conflictCheckCompleted : false,
-          conflictCheckNote: isClientMatter ? (conflictCheckNote || undefined) : undefined,
+          conflictCheckNote: isClientMatter
+            ? (conflictCheckCompleted ? undefined : (conflictCheckNote.trim() || CAPTURE_CONFLICT_DEFERRAL_NOTE))
+            : undefined,
           costsEstimate: isClientMatter ? (costsEstimate || undefined) : undefined,
           instructionStatus: isClientMatter ? instructionStatus : "instructed",
         });
@@ -930,7 +908,7 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
                       <Alert className="mt-2 border-amber-300 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-700" data-testid="alert-client-risk-continuity">
                         <Shield className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                         <AlertDescription className="text-xs text-amber-800 dark:text-amber-200">
-                          This client is assessed as <span className="font-semibold">{selectedClient.amlRiskLevel.toUpperCase()} risk</span>. This risk level will be applied to the new matter.{" "}
+                          This client is assessed as <span className="font-semibold">{selectedClient.amlRiskLevel.toUpperCase()} risk</span> on their profile. The matter's AML risk is set separately.{" "}
                           <a
                             href={`/clients/${selectedClient.id}`}
                             className="underline font-medium text-amber-700 dark:text-amber-300"
@@ -974,11 +952,6 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
                         ))}
                       </SelectContent>
                     </Select>
-                    {practiceArea && (practiceArea === "residential_conveyancing" || practiceArea === "commercial_property") && (
-                      <p className="text-xs text-amber-600 dark:text-amber-400">
-                        This practice area is classified as HIGH AML risk by default.
-                      </p>
-                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="costs-estimate">Costs Estimate (Optional)</Label>

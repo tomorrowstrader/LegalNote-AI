@@ -13,23 +13,12 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToastAction } from "@/components/ui/toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -40,12 +29,13 @@ import { createProcessingStepTimer } from "@/lib/processingStepTimer";
 import TextNotesModal from "@/components/TextNotesModal";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, getApiErrorMessage, queryClient } from "@/lib/queryClient";
-import type { Client } from "@shared/schema";
+import type { Case, Client } from "@shared/schema";
 import { PRACTICE_AREAS, PRACTICE_AREA_LABELS, type PracticeArea } from "@shared/schema";
+import { CAPTURE_CONFLICT_DEFERRAL_NOTE, isClientMatterKind } from "@shared/matterKinds";
 import { CONSENT_DISCLAIMER_TEXT, CONSENT_DISCLAIMER_VERSION } from "@shared/consent";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { logAuditEvent } from "@/lib/auditLogger";
 import { useChunkedRecording } from "@/hooks/useChunkedRecording";
 import { QUICK_RECORD_SHORTCUT_EVENT } from "@/hooks/useQuickRecordShortcut";
@@ -109,9 +99,19 @@ export default function QuickRecordButton() {
   const { toast } = useToast();
   const { user } = useAuth();
   const [location, setLocation] = useLocation();
+  const searchString = useSearch();
   const caseMatch = location.match(/\/case\/([^/]+)/);
-  const contextCaseId = caseMatch ? caseMatch[1] : null;
-  const { data: contextCase } = useQuery<{ id: string; title: string; clientName?: string }>({
+  const queryCaseId = new URLSearchParams(
+    searchString.startsWith("?") ? searchString.slice(1) : searchString,
+  ).get("caseId");
+  const contextCaseId = caseMatch ? caseMatch[1] : queryCaseId;
+  const { data: contextCase } = useQuery<{
+    id: string;
+    title: string;
+    clientName?: string;
+    practiceArea?: string | null;
+    matterKind?: string | null;
+  }>({
     queryKey: ["/api/cases", contextCaseId],
     enabled: !!contextCaseId,
   });
@@ -131,21 +131,24 @@ export default function QuickRecordButton() {
   const [isRecordingLocal, setIsRecordingLocal] = useState(false);
   const [consentGiven, setConsentGiven] = useState<boolean | null>(null);
   const [showMetadataModal, setShowMetadataModal] = useState(false);
+  const { data: filingCases = [] } = useQuery<Case[]>({
+    queryKey: ["/api/cases"],
+    enabled: showMetadataModal,
+  });
   const [showTextNotesModal, setShowTextNotesModal] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStep, setProcessingStep] = useState<ProcessingStep>('saving');
   const [caseTitle, setCaseTitle] = useState("");
-  const [matterRef, setMatterRef] = useState("");
+  const [clientQuery, setClientQuery] = useState("");
+  const [fileMode, setFileMode] = useState<"existing" | "new">("new");
+  const [existingCaseId, setExistingCaseId] = useState("");
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [practiceArea, setPracticeArea] = useState<PracticeArea | "">("");
-  const [conflictCheckCompleted, setConflictCheckCompleted] = useState(false);
-  const [conflictCheckNote, setConflictCheckNote] = useState("");
   const [showInterruptedWarning, setShowInterruptedWarning] = useState(false);
   const [interruptedDuration, setInterruptedDuration] = useState(0);
   const [batteryLevel, setBatteryLevel] = useState<number | null>(null);
   const [showLowBatteryWarning, setShowLowBatteryWarning] = useState(false);
-  const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
   const [useChunkedUpload, setUseChunkedUpload] = useState(true);
   const [offlineStopAcknowledged, setOfflineStopAcknowledged] = useState(false);
   
@@ -597,6 +600,20 @@ export default function QuickRecordButton() {
       setStopConfirmationPending(false);
       const targetCaseId = recordingTargetCaseIdRef.current;
       if (targetCaseId) {
+        let matter = contextCase?.id === targetCaseId ? contextCase : null;
+        if (!matter) {
+          try {
+            matter = await apiRequest<Case>("GET", `/api/cases/${targetCaseId}`);
+          } catch {
+            matter = null;
+          }
+        }
+        if (matter && isClientMatterKind(matter.matterKind) && !matter.practiceArea) {
+          setFileMode("existing");
+          setExistingCaseId(targetCaseId);
+          setShowMetadataModal(true);
+          return;
+        }
         if (endedOffline) {
           // Defer matter attach until connectivity returns
           pendingOfflineSaveRef.current = { type: "existing_case", caseId: targetCaseId };
@@ -856,6 +873,7 @@ export default function QuickRecordButton() {
 
       clearRecordingSession();
       recordingTargetCaseIdRef.current = null;
+      setShowMetadataModal(false);
       setIsProcessing(false);
       setProcessingStep("saving");
       setRecordingDuration(0);
@@ -927,16 +945,36 @@ export default function QuickRecordButton() {
     if (!practiceArea) {
       toast({
         title: "Practice area required",
-        description: "Please select a practice area for this matter",
+        description: "Choose a practice area before the note is produced.",
         variant: "destructive",
       });
       return;
     }
 
-    if (!conflictCheckCompleted && !conflictCheckNote.trim()) {
+    let clientForCase = selectedClient;
+    const typedName = clientQuery.trim();
+    if (!clientForCase && typedName) {
+      try {
+        const matches = await apiRequest<Client[]>("GET", `/api/clients/search?q=${encodeURIComponent(typedName)}`);
+        clientForCase = matches.find((item) => item.name.toLowerCase() === typedName.toLowerCase()) ?? null;
+        if (!clientForCase) {
+          clientForCase = await apiRequest<Client>("POST", "/api/clients", { name: typedName });
+          queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
+        }
+        setSelectedClient(clientForCase);
+      } catch (err: any) {
+        toast({
+          title: "Could not save the client",
+          description: err?.message || "Enter the client name and try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+    if (!clientForCase) {
       toast({
-        title: "Conflict check required",
-        description: "Either confirm the conflict check or provide a reason for deferral",
+        title: "Client required",
+        description: "Enter the client name for this matter.",
         variant: "destructive",
       });
       return;
@@ -972,15 +1010,14 @@ export default function QuickRecordButton() {
       // Step 1: Create case
       caseResult = await apiRequest<CaseResponse>("POST", "/api/cases", {
         title: caseTitle,
-        clientName: selectedClient!.name,
-        clientId: selectedClient!.id,
-        matterReference: matterRef || undefined,
+        clientName: clientForCase.name,
+        clientId: clientForCase.id,
         sourceType: "audio",
         status: "pending",
         priority: "normal",
-        practiceArea: practiceArea || undefined,
-        conflictCheckCompleted,
-        conflictCheckNote: conflictCheckNote || undefined,
+        practiceArea,
+        conflictCheckCompleted: false,
+        conflictCheckNote: CAPTURE_CONFLICT_DEFERRAL_NOTE,
         instructionStatus: "enquiry",
       });
 
@@ -1199,7 +1236,7 @@ export default function QuickRecordButton() {
         setProcessingStep('saving');
         setRecordingDuration(0);
         setCaseTitle("");
-        setMatterRef("");
+        setClientQuery("");
         setSelectedClient(null);
         audioBlobRef.current = null;
         setConsentGiven(null);
@@ -1261,19 +1298,49 @@ export default function QuickRecordButton() {
     }
   };
 
-  const handleCancelClick = () => {
-    // Always show confirmation since canceling will discard the recording
-    setShowCancelConfirmation(true);
+  const filingMatter = (id: string) =>
+    filingCases.find((item) => item.id === id)
+    ?? (contextCase?.id === id ? contextCase : undefined);
+
+  const matterNeedsPracticeArea = (id: string) => {
+    const matter = filingMatter(id);
+    if (!matter) return true;
+    return isClientMatterKind(matter.matterKind) && !matter.practiceArea;
   };
 
-  const confirmCancel = () => {
-    setShowCancelConfirmation(false);
-    setShowMetadataModal(false);
-    setRecordingDuration(0);
-    setOfflineStopAcknowledged(false);
-    setCaseTitle("");
-    setMatterRef("");
-    setSelectedClient(null);
+  const fileRecording = async () => {
+    if (fileMode === "existing") {
+      if (!existingCaseId) {
+        toast({
+          title: "Choose a matter",
+          description: "Select the matter this recording belongs to.",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (matterNeedsPracticeArea(existingCaseId)) {
+        if (!practiceArea) {
+          toast({
+            title: "Practice area required",
+            description: "Choose a practice area before the note is produced.",
+            variant: "destructive",
+          });
+          return;
+        }
+        await apiRequest("PATCH", `/api/cases/${existingCaseId}`, { practiceArea });
+      }
+      await saveSessionToExistingCase(existingCaseId);
+      return;
+    }
+    if (!caseTitle.trim()) {
+      toast({
+        title: "Matter title required",
+        description: "Name the matter before the note is produced.",
+        variant: "destructive",
+      });
+      return;
+    }
+    await saveCase();
   };
 
   const saveTextNotes = async (data: { caseTitle: string; clientName: string; matterRef: string; notes: string }) => {
@@ -1320,8 +1387,8 @@ export default function QuickRecordButton() {
       status: "pending",
       priority: "normal",
       practiceArea: practiceArea || undefined,
-      conflictCheckCompleted,
-      conflictCheckNote: conflictCheckNote || undefined,
+      conflictCheckCompleted: false,
+      conflictCheckNote: CAPTURE_CONFLICT_DEFERRAL_NOTE,
       instructionStatus: "enquiry",
     });
     
@@ -1428,7 +1495,7 @@ export default function QuickRecordButton() {
         </TooltipTrigger>
         <TooltipContent>
           <p className="text-sm max-w-[220px]">
-            <strong>Record now:</strong> Starts immediately. On a matter, adds a session; otherwise creates a new matter after you stop.
+            <strong>Record now:</strong> Starts immediately. On a matter, adds a session. Otherwise you file the matter and practice area after you stop.
             <span className="block mt-1 text-muted-foreground font-mono text-xs">Ctrl+L</span>
           </p>
         </TooltipContent>
@@ -1453,152 +1520,135 @@ export default function QuickRecordButton() {
         />
       )}
 
-      <Dialog open={showMetadataModal} onOpenChange={(open) => !isProcessing && setShowMetadataModal(open)}>
-        <DialogContent data-testid="dialog-metadata" className="sm:max-w-md overflow-visible">
+      <Dialog open={showMetadataModal} onOpenChange={(open) => { if (open) setShowMetadataModal(true); }}>
+        <DialogContent
+          data-testid="dialog-metadata"
+          className="sm:max-w-md overflow-visible"
+          onPointerDownOutside={(event) => event.preventDefault()}
+          onEscapeKeyDown={(event) => event.preventDefault()}
+        >
           {isProcessing ? (
             <MeetingToMatterProcessingOverlay processingStep={processingStep} />
           ) : (
             <>
               <DialogHeader>
-                <DialogTitle>Add Case Details</DialogTitle>
+                <DialogTitle>File this recording</DialogTitle>
                 <DialogDescription>
-                  Recording complete. Add case information while we process the transcription.
+                  The recording stays here until it is filed. Processing starts once the matter and practice area are set.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="quick-case-title">
-                    Case Title <span className="text-accent">*</span>
-                  </Label>
-                  <Input
-                    id="quick-case-title"
-                    placeholder="e.g., Estate Planning Consultation"
-                    value={caseTitle}
-                    onChange={(e) => setCaseTitle(e.target.value)}
-                    data-testid="input-quick-case-title"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="quick-client-name">
-                    Client Name <span className="text-accent">*</span>
-                  </Label>
-                  <ClientNameAutocomplete
-                    id="quick-client-name"
-                    selectedClient={selectedClient}
-                    onSelect={setSelectedClient}
-                    onClear={() => setSelectedClient(null)}
-                    data-testid="input-quick-client-name"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="quick-matter-ref">Matter Reference</Label>
-                  <Input
-                    id="quick-matter-ref"
-                    placeholder="e.g., MAT-2025-001"
-                    value={matterRef}
-                    onChange={(e) => setMatterRef(e.target.value)}
-                    data-testid="input-quick-matter-ref"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="quick-practice-area">Practice Area <span className="text-destructive">*</span></Label>
-                  <Select
-                    value={practiceArea}
-                    onValueChange={(val) => setPracticeArea(val as PracticeArea)}
+                <div className="flex rounded-md border overflow-hidden">
+                  <button
+                    type="button"
+                    className={`flex-1 px-3 py-2 text-xs font-medium ${fileMode === "existing" ? "bg-accent text-accent-foreground" : "text-muted-foreground"}`}
+                    onClick={() => setFileMode("existing")}
+                    data-testid="button-file-existing"
                   >
-                    <SelectTrigger id="quick-practice-area" data-testid="select-quick-practice-area">
-                      <SelectValue placeholder="Select practice area..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PRACTICE_AREAS.map((pa) => (
-                        <SelectItem key={pa} value={pa} data-testid={`option-quick-practice-area-${pa}`}>
-                          {PRACTICE_AREA_LABELS[pa]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    Existing matter
+                  </button>
+                  <button
+                    type="button"
+                    className={`flex-1 px-3 py-2 text-xs font-medium ${fileMode === "new" ? "bg-accent text-accent-foreground" : "text-muted-foreground"}`}
+                    onClick={() => setFileMode("new")}
+                    data-testid="button-file-new"
+                  >
+                    New matter
+                  </button>
                 </div>
-                <div className="flex items-start gap-3 pt-2">
-                  <Checkbox
-                    id="quick-conflict-check"
-                    checked={conflictCheckCompleted}
-                    onCheckedChange={(checked) => {
-                      setConflictCheckCompleted(checked === true);
-                      if (checked) setConflictCheckNote("");
-                    }}
-                    data-testid="checkbox-quick-conflict-check"
-                  />
-                  <div className="space-y-1">
-                    <Label htmlFor="quick-conflict-check" className="text-sm font-medium cursor-pointer">
-                      Conflict of interest check completed
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      SRA compliance requirement
-                    </p>
+                {fileMode === "existing" ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="quick-existing-matter">Matter</Label>
+                    <Select value={existingCaseId || undefined} onValueChange={setExistingCaseId}>
+                      <SelectTrigger id="quick-existing-matter" data-testid="select-quick-existing-matter">
+                        <SelectValue placeholder="Choose a matter" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {filingCases.filter((item) => !item.archived).map((item) => (
+                          <SelectItem key={item.id} value={item.id}>
+                            {item.title}{item.clientName ? ` · ${item.clientName}` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {existingCaseId && matterNeedsPracticeArea(existingCaseId) && (
+                      <p className="text-xs text-muted-foreground">This matter has no practice area yet. Choose one before the note is produced.</p>
+                    )}
                   </div>
-                </div>
-                {!conflictCheckCompleted && (
-                  <div className="space-y-1">
-                    <Label htmlFor="quick-conflict-note" className="text-xs text-amber-600 dark:text-amber-400">
-                      Reason for deferring conflict check:
-                    </Label>
-                    <Input
-                      id="quick-conflict-note"
-                      placeholder="e.g., To be completed by compliance team"
-                      value={conflictCheckNote}
-                      onChange={(e) => setConflictCheckNote(e.target.value)}
-                      data-testid="input-quick-conflict-note"
-                    />
+                ) : (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="quick-case-title">
+                        Matter title <span className="text-accent">*</span>
+                      </Label>
+                      <Input
+                        id="quick-case-title"
+                        placeholder="e.g., Estate Planning Consultation"
+                        value={caseTitle}
+                        onChange={(e) => setCaseTitle(e.target.value)}
+                        data-testid="input-quick-case-title"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="quick-client-name">
+                        Client name <span className="text-accent">*</span>
+                      </Label>
+                      <ClientNameAutocomplete
+                        id="quick-client-name"
+                        selectedClient={selectedClient}
+                        onSelect={(client) => {
+                          setSelectedClient(client);
+                          setClientQuery(client.name);
+                        }}
+                        onClear={() => {
+                          setSelectedClient(null);
+                          setClientQuery("");
+                        }}
+                        onQueryChange={setClientQuery}
+                        data-testid="input-quick-client-name"
+                      />
+                    </div>
+                  </>
+                )}
+                {(fileMode === "new" || (fileMode === "existing" && !!existingCaseId && matterNeedsPracticeArea(existingCaseId))) && (
+                  <div className="space-y-2">
+                    <Label htmlFor="quick-practice-area">Practice area <span className="text-destructive">*</span></Label>
+                    <Select
+                      value={practiceArea}
+                      onValueChange={(val) => setPracticeArea(val as PracticeArea)}
+                    >
+                      <SelectTrigger id="quick-practice-area" data-testid="select-quick-practice-area">
+                        <SelectValue placeholder="Select practice area..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PRACTICE_AREAS.map((pa) => (
+                          <SelectItem key={pa} value={pa} data-testid={`option-quick-practice-area-${pa}`}>
+                            {PRACTICE_AREA_LABELS[pa]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 )}
               </div>
-              <div className="flex justify-end gap-2">
+              <div className="flex justify-end">
                 <Button
-                  variant="outline"
-                  onClick={handleCancelClick}
-                  data-testid="button-cancel-metadata"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={saveCase}
-                  disabled={!caseTitle || !selectedClient || !practiceArea}
+                  onClick={fileRecording}
+                  disabled={
+                    fileMode === "existing"
+                      ? !existingCaseId || (matterNeedsPracticeArea(existingCaseId) && !practiceArea)
+                      : !caseTitle.trim() || (!selectedClient && !clientQuery.trim()) || !practiceArea
+                  }
                   className="bg-accent hover:bg-accent"
                   data-testid="button-save-case"
                 >
-                  Save & Process
+                  File & process
                 </Button>
               </div>
             </>
           )}
         </DialogContent>
       </Dialog>
-
-      <AlertDialog open={showCancelConfirmation} onOpenChange={setShowCancelConfirmation}>
-        <AlertDialogContent data-testid="dialog-cancel-confirmation">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-amber-500" />
-              Discard Recording?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Complete the case details to save, or discard to permanently delete this recording.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel data-testid="button-keep-editing">
-              Keep Editing
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmCancel}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              data-testid="button-confirm-discard"
-            >
-              Discard
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       <TextNotesModal
         open={showTextNotesModal}

@@ -448,18 +448,6 @@ export function buildNativePrompt(params: {
   return parts.join(' ');
 }
 
-export function getAmlRiskDefault(practiceArea: PracticeArea): "low" | "medium" | "high" {
-  switch (practiceArea) {
-    case "residential_conveyancing":
-    case "commercial_property":
-      return "high";
-    case "criminal_defence":
-      return "low";
-    default:
-      return "medium";
-  }
-}
-
 export function getPracticeAreaPromptContext(practiceArea: PracticeArea): string {
   const contexts: Record<PracticeArea, string> = {
     residential_conveyancing: `PRACTICE AREA CONTEXT — RESIDENTIAL CONVEYANCING:
@@ -468,16 +456,14 @@ This attendance note relates to a residential conveyancing matter. Use conveyanc
 - Use terms like "exchange", "completion", "title deeds", "requisitions on title", "property information form"
 - Reference relevant forms: TA6, TA7, TA10, TA13
 - Note any chain-related issues, mortgage conditions, or indemnity insurance requirements
-- Ensure next steps reference Land Registry registration, SDLT return filing, and post-completion tasks
-- This is a HIGH AML risk area — note any source of funds or beneficial ownership discussions`,
+- Ensure next steps reference Land Registry registration, SDLT return filing, and post-completion tasks`,
 
     commercial_property: `PRACTICE AREA CONTEXT — COMMERCIAL PROPERTY:
 This attendance note relates to a commercial property matter. Use commercial property terminology:
 - Reference Landlord and Tenant Act provisions, Section 25/26 notices, break clauses, rent reviews
 - Use terms like "FRI lease", "alienation", "user clause", "dilapidations", "heads of terms"
 - Note any SDLT considerations, licence requirements, or guarantor arrangements
-- Reference authorised guarantee agreements (AGA) where relevant
-- This is a HIGH AML risk area — note any source of funds or beneficial ownership discussions`,
+- Reference authorised guarantee agreements (AGA) where relevant`,
 
     wills_probate: `PRACTICE AREA CONTEXT — WILLS & PROBATE:
 This attendance note relates to a wills and probate matter. Use probate-specific terminology:
@@ -573,8 +559,7 @@ This attendance note relates to a criminal defence matter. Use criminal law term
 - Reference CPIA (Criminal Procedure and Investigations Act) for disclosure obligations
 - Note CPS (Crown Prosecution Service) charging decisions, sentencing guidelines
 - Reference bail conditions, remand, plea considerations
-- Note legal aid eligibility: representation order, means test, interests of justice test
-- This is a LOW AML risk area by default`,
+- Note legal aid eligibility: representation order, means test, interests of justice test`,
 
     immigration: `PRACTICE AREA CONTEXT — IMMIGRATION:
 This attendance note relates to an immigration matter. Use immigration terminology:

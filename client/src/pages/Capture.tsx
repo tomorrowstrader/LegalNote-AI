@@ -40,7 +40,7 @@ const MODE_TILES: ModeTile[] = [
   {
     mode: "record",
     title: "Record in person",
-    description: "Prepare matter details, then start mic recording with consent capture.",
+    description: "Start the microphone now. File the matter and practice area when you stop.",
     icon: Mic,
     testId: "capture-mode-record",
   },
@@ -234,7 +234,13 @@ export default function Capture() {
               <Card
                 key={tile.mode}
                 className="hover-elevate cursor-pointer transition-colors"
-                onClick={() => openMode(tile.mode)}
+                onClick={() => {
+                  if (tile.mode === "record") {
+                    window.dispatchEvent(new CustomEvent(QUICK_RECORD_SHORTCUT_EVENT));
+                    return;
+                  }
+                  openMode(tile.mode);
+                }}
                 data-testid={tile.testId}
               >
                 <CardContent className="p-5 flex gap-4 items-start">
@@ -253,16 +259,15 @@ export default function Capture() {
 
         <div className="mt-8 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
           <Keyboard className="w-4 h-4" />
-          <span>Client already in the room?</span>
+          <span>Need the file open before anyone arrives?</span>
           <Button
             variant="outline"
             size="sm"
             className="gap-2"
-            onClick={() => window.dispatchEvent(new CustomEvent(QUICK_RECORD_SHORTCUT_EVENT))}
-            data-testid="button-capture-start-now"
+            onClick={() => openMode("record")}
+            data-testid="button-capture-prepare-matter"
           >
-            <Mic className="w-3.5 h-3.5" />
-            Start recording now
+            Prepare matter details
           </Button>
         </div>
       </div>

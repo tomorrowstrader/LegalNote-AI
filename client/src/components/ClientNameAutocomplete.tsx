@@ -15,6 +15,7 @@ interface ClientNameAutocompleteProps {
   selectedClient: Client | null;
   onSelect: (client: Client) => void;
   onClear: () => void;
+  onQueryChange?: (value: string) => void;
   disabled?: boolean;
   placeholder?: string;
   className?: string;
@@ -38,6 +39,7 @@ export default function ClientNameAutocomplete({
   selectedClient,
   onSelect,
   onClear,
+  onQueryChange,
   disabled = false,
   placeholder = "Search existing clients or type a new name...",
   className,
@@ -111,12 +113,14 @@ export default function ClientNameAutocomplete({
   const handleClear = () => {
     onClear();
     setQuery("");
+    onQueryChange?.("");
     setOpen(false);
     requestAnimationFrame(() => inputRef.current?.focus());
   };
 
   const handleInputChange = (value: string) => {
     setQuery(value);
+    onQueryChange?.(value);
     setOpen(true);
     if (selectedClient) {
       onClear();

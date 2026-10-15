@@ -44,9 +44,9 @@ import {
 import { format } from "date-fns";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { Case, MatterKind } from "@shared/schema";
-import { MATTER_KIND_LABELS, RECORDING_TYPE_LABELS, type RecordingType } from "@shared/schema";
-import { isClientMatterKind, normalizeMatterKind, partyLabelForMatterKind, requiresParticipantConsent, requiresSealedConsentForProcessing } from "@shared/matterKinds";
+import type { Case, MatterKind, PracticeArea } from "@shared/schema";
+import { MATTER_KIND_LABELS, PRACTICE_AREAS, PRACTICE_AREA_LABELS, RECORDING_TYPE_LABELS, type RecordingType } from "@shared/schema";
+import { CAPTURE_CONFLICT_DEFERRAL_NOTE, isClientMatterKind, normalizeMatterKind, partyLabelForMatterKind, requiresParticipantConsent, requiresSealedConsentForProcessing } from "@shared/matterKinds";
 import {
   defaultRecordingTypeForMatterKind,
   recordingTypesForMatterKind,
@@ -247,7 +247,9 @@ export function LiveBotModal({
   const [newCaseClient, setNewCaseClient] = useState(suggestedClientName || "");
   const [newCaseMatterKind, setNewCaseMatterKind] = useState<MatterKind>("client");
   const [newCaseHasExternalAttendees, setNewCaseHasExternalAttendees] = useState(false);
+  const [newCasePracticeArea, setNewCasePracticeArea] = useState<PracticeArea | "">("");
   const [postMeetingMatterKind, setPostMeetingMatterKind] = useState<MatterKind>("client");
+  const [postMeetingPracticeArea, setPostMeetingPracticeArea] = useState<PracticeArea | "">("");
   const [postMeetingHasExternalAttendees, setPostMeetingHasExternalAttendees] = useState(false);
   /** Whether the live consent UI should use the participant (non-client external) script. */
   const [useParticipantConsentScript, setUseParticipantConsentScript] = useState(false);
@@ -435,7 +437,7 @@ export function LiveBotModal({
   };
 
   const postAssignMutation = useMutation({
-    mutationFn: async ({ assignCaseId, recordingType, createCase: shouldCreate, caseData }: {
+    mutationFn: async ({ assignCaseId, recordingType, createCase: shouldCreate, caseData, practiceArea }: {
       assignCaseId?: string;
       recordingType: string;
       createCase?: boolean;
@@ -444,7 +446,9 @@ export function LiveBotModal({
         clientName?: string;
         matterKind?: MatterKind;
         hasExternalAttendees?: boolean;
+        practiceArea?: string;
       };
+      practiceArea?: string;
     }) => {
       if (!importId) throw new Error("No import ID");
       return apiRequest<{ success: boolean; caseId: string; importId: string }>(
@@ -455,6 +459,7 @@ export function LiveBotModal({
           recordingType,
           createCase: shouldCreate,
           caseData,
+          practiceArea,
         },
       );
     },
@@ -801,6 +806,8 @@ export function LiveBotModal({
     setIsCreatingCase(false);
     setNewCaseTitle("");
     setNewCaseClient(suggestedClientName || "");
+    setNewCasePracticeArea("");
+    setPostMeetingPracticeArea("");
     setBrowseAllCases(false);
   };
 
@@ -1096,6 +1103,7 @@ export function LiveBotModal({
                   />
                 </div>
                 {isClientMatterKind(newCaseMatterKind) && (
+                <>
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="new-case-client">Client name</Label>
                   <Input
@@ -1105,6 +1113,23 @@ export function LiveBotModal({
                     onChange={(e) => setNewCaseClient(e.target.value)}
                   />
                 </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="new-case-practice-area">Practice area</Label>
+                  <Select
+                    value={newCasePracticeArea}
+                    onValueChange={(value) => setNewCasePracticeArea(value as PracticeArea)}
+                  >
+                    <SelectTrigger id="new-case-practice-area" data-testid="select-new-case-practice-area">
+                      <SelectValue placeholder="Select practice area..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PRACTICE_AREAS.map((area) => (
+                        <SelectItem key={area} value={area}>{PRACTICE_AREA_LABELS[area]}</SelectItem>
+                      ))}
+                    </SelectContent>
+                    </Select>
+                  </div>
+                </>
                 )}
                 <div className="flex gap-2">
                   <Button
@@ -1118,7 +1143,7 @@ export function LiveBotModal({
                     className="flex-1"
                     disabled={
                       !newCaseTitle.trim() ||
-                      (isClientMatterKind(newCaseMatterKind) && !newCaseClient.trim()) ||
+                      (isClientMatterKind(newCaseMatterKind) && (!newCaseClient.trim() || !newCasePracticeArea)) ||
                       createCaseMutation.isPending
                     }
                     onClick={() =>
@@ -1136,8 +1161,8 @@ export function LiveBotModal({
                         ...(isClientMatterKind(newCaseMatterKind)
                           ? {
                               conflictCheckCompleted: false,
-                              conflictCheckNote: "Deferred - matter opened from live video join",
-                              practiceArea: "corporate_commercial",
+                              conflictCheckNote: CAPTURE_CONFLICT_DEFERRAL_NOTE,
+                              practiceArea: newCasePracticeArea,
                               instructionStatus: "enquiry" as const,
                             }
                           : { instructionStatus: "instructed" as const }),
@@ -1669,12 +1694,50 @@ export function LiveBotModal({
                         </SelectContent>
                       </Select>
                     </div>
+                    {(() => {
+                      const selected = cases?.find((c) => c.id === postMeetingCaseId);
+                      const needsArea = !!selected && isClientMatterKind(selected.matterKind) && !selected.practiceArea;
+                      if (!needsArea) return null;
+                      return (
+                        <div className="space-y-1.5">
+                          <Label htmlFor="post-existing-area">Practice area <span className="text-accent">*</span></Label>
+                          <Select
+                            value={postMeetingPracticeArea}
+                            onValueChange={(value) => setPostMeetingPracticeArea(value as PracticeArea)}
+                          >
+                            <SelectTrigger id="post-existing-area" data-testid="select-post-existing-practice-area">
+                              <SelectValue placeholder="Select practice area..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {PRACTICE_AREAS.map((area) => (
+                                <SelectItem key={area} value={area}>{PRACTICE_AREA_LABELS[area]}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      );
+                    })()}
                     <div className="flex gap-2">
                       <Button variant="outline" className="flex-1" onClick={() => setPostMeetingMode("choose")} data-testid="button-post-back">Back</Button>
                       <Button
                         className="flex-1"
-                        disabled={!postMeetingCaseId || postAssignMutation.isPending}
-                        onClick={() => postAssignMutation.mutate({ assignCaseId: postMeetingCaseId, recordingType: postMeetingRecordingType })}
+                        disabled={
+                          !postMeetingCaseId ||
+                          postAssignMutation.isPending ||
+                          (() => {
+                            const selected = cases?.find((c) => c.id === postMeetingCaseId);
+                            return !!selected && isClientMatterKind(selected.matterKind) && !selected.practiceArea && !postMeetingPracticeArea;
+                          })()
+                        }
+                        onClick={() => {
+                          const selected = cases?.find((c) => c.id === postMeetingCaseId);
+                          const needsArea = !!selected && isClientMatterKind(selected.matterKind) && !selected.practiceArea;
+                          postAssignMutation.mutate({
+                            assignCaseId: postMeetingCaseId,
+                            recordingType: postMeetingRecordingType,
+                            practiceArea: needsArea ? postMeetingPracticeArea : undefined,
+                          });
+                        }}
                         data-testid="button-post-assign-existing"
                       >
                         {postAssignMutation.isPending ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Assigning…</> : "Assign & process"}
@@ -1756,6 +1819,7 @@ export function LiveBotModal({
                       </Select>
                     </div>
                     {isClientMatterKind(postMeetingMatterKind) && (
+                    <>
                     <div className="space-y-1.5">
                       <Label htmlFor="post-matter-client">Client name <span className="text-accent">*</span></Label>
                       <Input
@@ -1766,6 +1830,23 @@ export function LiveBotModal({
                         data-testid="input-post-matter-client"
                       />
                     </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="post-matter-area">Practice area <span className="text-accent">*</span></Label>
+                      <Select
+                        value={postMeetingPracticeArea}
+                        onValueChange={(value) => setPostMeetingPracticeArea(value as PracticeArea)}
+                      >
+                        <SelectTrigger id="post-matter-area" data-testid="select-post-practice-area">
+                          <SelectValue placeholder="Select practice area..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PRACTICE_AREAS.map((area) => (
+                            <SelectItem key={area} value={area}>{PRACTICE_AREA_LABELS[area]}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    </>
                     )}
                     <div className="flex gap-2">
                       <Button variant="outline" className="flex-1" onClick={() => setPostMeetingMode("choose")} data-testid="button-post-back-create">Back</Button>
@@ -1773,7 +1854,7 @@ export function LiveBotModal({
                         className="flex-1"
                         disabled={
                           !postMeetingTitle.trim() ||
-                          (isClientMatterKind(postMeetingMatterKind) && !postMeetingClient.trim()) ||
+                          (isClientMatterKind(postMeetingMatterKind) && (!postMeetingClient.trim() || !postMeetingPracticeArea)) ||
                           postAssignMutation.isPending
                         }
                         onClick={() => postAssignMutation.mutate({
@@ -1788,7 +1869,9 @@ export function LiveBotModal({
                             clientName: isClientMatterKind(postMeetingMatterKind)
                               ? postMeetingClient.trim()
                               : partyLabelForMatterKind(postMeetingMatterKind),
-                            instructionStatus: isClientMatterKind(postMeetingMatterKind) ? "enquiry" : "instructed",
+                            practiceArea: isClientMatterKind(postMeetingMatterKind)
+                              ? postMeetingPracticeArea
+                              : undefined,
                           },
                         })}
                         data-testid="button-post-create-assign"

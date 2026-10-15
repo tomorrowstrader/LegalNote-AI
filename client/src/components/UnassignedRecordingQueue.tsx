@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { CalendarCheck, Loader2, PlusCircle, Trash2, Video } from "lucide-react";
-import type { Case } from "@shared/schema";
+import type { Case, PracticeArea } from "@shared/schema";
+import { PRACTICE_AREAS, PRACTICE_AREA_LABELS } from "@shared/schema";
+import { isClientMatterKind } from "@shared/matterKinds";
 import {
   defaultRecordingTypeForMatterKind,
   recordingTypesForMatterKind,
@@ -67,6 +69,8 @@ export function UnassignedRecordingQueue({
   const [recordingType, setRecordingType] = useState("full_meeting");
   const [newTitle, setNewTitle] = useState("");
   const [newClient, setNewClient] = useState("");
+  const [newPracticeArea, setNewPracticeArea] = useState<PracticeArea | "">("");
+  const [existingPracticeArea, setExistingPracticeArea] = useState<PracticeArea | "">("");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteReason, setDeleteReason] = useState("");
 
@@ -105,6 +109,8 @@ export function UnassignedRecordingQueue({
     setMode("existing");
     setNewTitle("");
     setNewClient("");
+    setNewPracticeArea("");
+    setExistingPracticeArea("");
     setCaseId(current.suggestedMatter?.caseId ?? "");
     setRecordingType("full_meeting");
   }, [current?.id]);
@@ -141,7 +147,8 @@ export function UnassignedRecordingQueue({
       caseId?: string;
       recordingType: string;
       createCase?: boolean;
-      caseData?: { title: string; clientName: string };
+      caseData?: { title: string; clientName: string; practiceArea?: string };
+      practiceArea?: string;
     }) =>
       apiRequest<{ success: boolean; caseId: string; importId: string }>(
         "POST",
@@ -151,6 +158,7 @@ export function UnassignedRecordingQueue({
           recordingType: payload.recordingType,
           createCase: payload.createCase,
           caseData: payload.caseData,
+          practiceArea: payload.practiceArea,
         },
       ),
     onSuccess: async (data, variables) => {
@@ -225,9 +233,12 @@ export function UnassignedRecordingQueue({
       : selectedCase
         ? `Assign to ${matterChoiceLabel(selectedCase.title, selectedCase.clientName)}`
         : "Assign & process";
+  const selectedNeedsPracticeArea = !!selectedCase
+    && isClientMatterKind(selectedCase.matterKind)
+    && !selectedCase.practiceArea;
   const canAssign = mode === "existing"
-    ? !!caseId
-    : !!newTitle.trim() && !!newClient.trim();
+    ? !!caseId && (!selectedNeedsPracticeArea || !!existingPracticeArea)
+    : !!newTitle.trim() && !!newClient.trim() && !!newPracticeArea;
   const deleteReasonReady = deleteReason.trim().length >= 3;
   const busy = assignMutation.isPending || discardMutation.isPending;
 
@@ -238,6 +249,7 @@ export function UnassignedRecordingQueue({
         importId: current.id,
         caseId,
         recordingType,
+        practiceArea: selectedNeedsPracticeArea ? existingPracticeArea : undefined,
       });
       return;
     }
@@ -245,7 +257,11 @@ export function UnassignedRecordingQueue({
       importId: current.id,
       recordingType,
       createCase: true,
-      caseData: { title: newTitle.trim(), clientName: newClient.trim() },
+      caseData: {
+        title: newTitle.trim(),
+        clientName: newClient.trim(),
+        practiceArea: newPracticeArea,
+      },
     });
   };
 
@@ -369,20 +385,37 @@ export function UnassignedRecordingQueue({
       </div>
 
       {mode === "existing" ? (
-        <div className="space-y-1.5">
-          <Label htmlFor="queue-assign-case">Matter</Label>
-          <Select value={caseId || undefined} onValueChange={setCaseId}>
-            <SelectTrigger id="queue-assign-case" data-testid="select-assign-case">
-              <SelectValue placeholder="Search and select a matter..." />
-            </SelectTrigger>
-            <SelectContent>
-              {cases.filter((item) => !item.archived).map((item) => (
-                <SelectItem key={item.id} value={item.id}>
-                  {matterChoiceLabel(item.title, item.clientName)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="queue-assign-case">Matter</Label>
+            <Select value={caseId || undefined} onValueChange={setCaseId}>
+              <SelectTrigger id="queue-assign-case" data-testid="select-assign-case">
+                <SelectValue placeholder="Search and select a matter..." />
+              </SelectTrigger>
+              <SelectContent>
+                {cases.filter((item) => !item.archived).map((item) => (
+                  <SelectItem key={item.id} value={item.id}>
+                    {matterChoiceLabel(item.title, item.clientName)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {selectedNeedsPracticeArea && (
+            <div className="space-y-1.5">
+              <Label htmlFor="queue-existing-area">Practice area</Label>
+              <Select value={existingPracticeArea} onValueChange={(value) => setExistingPracticeArea(value as PracticeArea)}>
+                <SelectTrigger id="queue-existing-area" data-testid="select-existing-practice-area">
+                  <SelectValue placeholder="This matter needs a practice area" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PRACTICE_AREAS.map((area) => (
+                    <SelectItem key={area} value={area}>{PRACTICE_AREA_LABELS[area]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
       ) : (
         <div className="space-y-3">
@@ -405,6 +438,19 @@ export function UnassignedRecordingQueue({
               placeholder="e.g. Jane Smith"
               data-testid="input-new-matter-client"
             />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="queue-new-area">Practice area</Label>
+            <Select value={newPracticeArea} onValueChange={(value) => setNewPracticeArea(value as PracticeArea)}>
+              <SelectTrigger id="queue-new-area" data-testid="select-new-practice-area">
+                <SelectValue placeholder="Select practice area..." />
+              </SelectTrigger>
+              <SelectContent>
+                {PRACTICE_AREAS.map((area) => (
+                  <SelectItem key={area} value={area}>{PRACTICE_AREA_LABELS[area]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
       )}

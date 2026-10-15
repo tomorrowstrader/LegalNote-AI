@@ -107,7 +107,7 @@ import { scrubInsightComment } from "@shared/productInsights";
 import { CONSENT_DISCLAIMER_TEXT, CONSENT_DISCLAIMER_VERSION } from "@shared/consent";
 import { defaultRecordingTypeForMatterKind, validateRecordingType } from "@shared/recordingTypes";
 import { toAssignableRecordings } from "./services/assignableRecordingView";
-import { getAmlRiskDefault } from "./services/practiceAreaConfig";
+import { CAPTURE_CONFLICT_DEFERRAL_NOTE } from "@shared/matterKinds";
 import { isFeatureVisible, type FeatureKey } from "@shared/featureVisibility";
 import { resolveScheduleProvider } from "@shared/scheduleMeeting";
 import { documentMatchesSharedType, getUnadoptedSharedDocumentTypes } from "@shared/shareDocumentTypes";
@@ -2507,10 +2507,6 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         return res.status(400).json({ message: "Either confirm the conflict check or provide a reason for deferral" });
       }
 
-      if (validatedData.practiceArea) {
-        validatedData.riskLevel = getAmlRiskDefault(validatedData.practiceArea);
-      }
-
       if (!isClientMatter) {
         validatedData.instructionStatus = "instructed";
       }
@@ -3376,7 +3372,6 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       if (practiceArea !== undefined) {
         if ((PRACTICE_AREAS as readonly string[]).includes(practiceArea)) {
           updates.practiceArea = practiceArea;
-          updates.riskLevel = getAmlRiskDefault(practiceArea);
         }
       }
       
@@ -11764,6 +11759,12 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         if (isClientMatter && !resolvedClientName) {
           return res.status(400).json({ message: "caseData.clientName is required when createCase is true for a client matter" });
         }
+        const requestedPracticeArea = typeof newCaseData?.practiceArea === "string"
+          ? newCaseData.practiceArea
+          : "";
+        if (isClientMatter && !(PRACTICE_AREAS as readonly string[]).includes(requestedPracticeArea)) {
+          return res.status(400).json({ message: "Practice area is required before the note is produced." });
+        }
 
         let newCase;
         if (isClientMatter) {
@@ -11773,7 +11774,10 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
             clientId: clientData.id,
             clientName: resolvedClientName,
             matterKind: "client",
-            instructionStatus: newCaseData?.instructionStatus === "instructed" ? "instructed" : "enquiry",
+            instructionStatus: "enquiry",
+            practiceArea: requestedPracticeArea as InsertCase["practiceArea"],
+            conflictCheckCompleted: false,
+            conflictCheckNote: CAPTURE_CONFLICT_DEFERRAL_NOTE,
             status: 'pending',
             priority: 'normal',
             sourceType: 'audio',
@@ -11796,6 +11800,19 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         const caseData = await storage.getCase(caseId, userId);
         if (!caseData) {
           return res.status(404).json({ message: "Case not found" });
+        }
+        if (isClientMatterKind(caseData.matterKind) && !caseData.practiceArea) {
+          const requestedPracticeArea = typeof req.body?.practiceArea === "string"
+            ? req.body.practiceArea
+            : "";
+          if (!(PRACTICE_AREAS as readonly string[]).includes(requestedPracticeArea)) {
+            return res.status(400).json({ message: "Practice area is required before the note is produced." });
+          }
+          await storage.updateCase(
+            caseId,
+            { practiceArea: requestedPracticeArea as InsertCase["practiceArea"] },
+            userId,
+          );
         }
       }
 

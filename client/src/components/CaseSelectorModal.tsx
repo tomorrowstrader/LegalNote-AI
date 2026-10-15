@@ -13,9 +13,10 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { Case, Client, MatterKind } from "@shared/schema";
-import { MATTER_KIND_LABELS } from "@shared/schema";
-import { isClientMatterKind, partyLabelForMatterKind } from "@shared/matterKinds";
+import type { Case, Client, MatterKind, PracticeArea } from "@shared/schema";
+import { MATTER_KIND_LABELS, PRACTICE_AREAS, PRACTICE_AREA_LABELS } from "@shared/schema";
+import { CAPTURE_CONFLICT_DEFERRAL_NOTE, isClientMatterKind, partyLabelForMatterKind } from "@shared/matterKinds";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface CaseSelectorModalProps {
   open: boolean;
@@ -42,6 +43,7 @@ export default function CaseSelectorModal({
   const [newCaseClient, setNewCaseClient] = useState("");
   const [newCaseMatterKind, setNewCaseMatterKind] = useState<MatterKind>("client");
   const [newCaseHasExternalAttendees, setNewCaseHasExternalAttendees] = useState(false);
+  const [newCasePracticeArea, setNewCasePracticeArea] = useState<PracticeArea | "">("");
 
   const { data: cases, isLoading } = useQuery<Case[]>({
     queryKey: ["/api/cases"],
@@ -54,6 +56,7 @@ export default function CaseSelectorModal({
     setNewCaseClient("");
     setNewCaseMatterKind("client");
     setNewCaseHasExternalAttendees(false);
+    setNewCasePracticeArea("");
   };
 
   const handleOpenChange = (next: boolean) => {
@@ -77,6 +80,9 @@ export default function CaseSelectorModal({
       if (isClientMatter && !clientTrimmed) {
         throw new Error("Client name is required");
       }
+      if (isClientMatter && !newCasePracticeArea) {
+        throw new Error("Practice area is required");
+      }
 
       if (isClientMatter) {
         const client = await apiRequest<Client>("POST", "/api/clients", {
@@ -91,8 +97,8 @@ export default function CaseSelectorModal({
           status: "pending",
           priority: "normal",
           conflictCheckCompleted: false,
-          conflictCheckNote: "Deferred - matter opened from capture selector",
-          practiceArea: "corporate_commercial",
+          conflictCheckNote: CAPTURE_CONFLICT_DEFERRAL_NOTE,
+          practiceArea: newCasePracticeArea,
           instructionStatus: "enquiry",
         });
       }
@@ -212,16 +218,36 @@ export default function CaseSelectorModal({
               />
             </div>
             {isClientMatterKind(newCaseMatterKind) && (
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="selector-new-case-client">Client name</Label>
-                <Input
-                  id="selector-new-case-client"
-                  placeholder="e.g. Mr James Smith"
-                  value={newCaseClient}
-                  onChange={(e) => setNewCaseClient(e.target.value)}
-                  data-testid="input-selector-new-case-client"
-                />
-              </div>
+              <>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="selector-new-case-client">Client name</Label>
+                  <Input
+                    id="selector-new-case-client"
+                    placeholder="e.g. Mr James Smith"
+                    value={newCaseClient}
+                    onChange={(e) => setNewCaseClient(e.target.value)}
+                    data-testid="input-selector-new-case-client"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="selector-new-case-area">Practice area</Label>
+                  <Select
+                    value={newCasePracticeArea}
+                    onValueChange={(value) => setNewCasePracticeArea(value as PracticeArea)}
+                  >
+                    <SelectTrigger id="selector-new-case-area" data-testid="select-selector-practice-area">
+                      <SelectValue placeholder="Select practice area..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PRACTICE_AREAS.map((area) => (
+                        <SelectItem key={area} value={area}>
+                          {PRACTICE_AREA_LABELS[area]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
             )}
             <div className="flex gap-2 pt-1">
               <Button
@@ -237,7 +263,7 @@ export default function CaseSelectorModal({
                 className="flex-1"
                 disabled={
                   !newCaseTitle.trim() ||
-                  (isClientMatterKind(newCaseMatterKind) && !newCaseClient.trim()) ||
+                  (isClientMatterKind(newCaseMatterKind) && (!newCaseClient.trim() || !newCasePracticeArea)) ||
                   createCaseMutation.isPending
                 }
                 onClick={() => createCaseMutation.mutate()}

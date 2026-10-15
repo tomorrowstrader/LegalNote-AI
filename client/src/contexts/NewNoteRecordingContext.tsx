@@ -470,7 +470,6 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
           sourceType: "audio",
           status: "pending",
           priority: "normal",
-          riskLevel: snapshot.clientAmlRiskLevel || undefined,
           templateId: snapshot.templateId || undefined,
           practiceArea: snapshot.practiceArea || undefined,
           conflictCheckCompleted: snapshot.conflictCheckCompleted,

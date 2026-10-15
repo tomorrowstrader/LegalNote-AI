@@ -65,3 +65,7 @@ export function partyLabelForMatterKind(kind: string | null | undefined): string
   const normalized = normalizeMatterKind(kind);
   return MATTER_KIND_PARTY_LABELS[normalized] || "Non-client";
 }
+
+/** Written when a matter is opened from a call before a conflict check is confirmed. */
+export const CAPTURE_CONFLICT_DEFERRAL_NOTE =
+  "Deferred at capture - complete before the note is approved";
