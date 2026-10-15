@@ -314,7 +314,7 @@ export function unfilledReasoningGapSentence(rawLabel: string): string {
  */
 export function replaceUnfilledReasoningGaps(text: string): string {
   if (!text) return text;
-  return stripGapEvidenceComments(text)
+  return stripGapEvidenceComments(suppressStatedReasoningGaps(text))
     .replace(/<!--\s*REASONING_GAP:\s*(.+?)\s*-->/g, (_m, label: string) =>
       unfilledReasoningGapSentence(label),
     )
@@ -416,6 +416,123 @@ export function replaceGapMarkerAndEvidence(
 /**
  * Prefer stored evidence; fall back to live resolution so older notes still work.
  */
+const STATED_REASON_RE =
+  /\b(?:because|so that|having considered|having regard to|in light of|given that|on the basis that|provided that)\b|\bunless\b|\buntil\b|\bcannot be given until\b|\bbefore\b[\s\S]{0,160}\bcan be given\b/i;
+
+/** True when a sentence already gives the ground for the advice it records. */
+export function statementStatesItsReason(text: string): boolean {
+  const flat = text.replace(/\s+/g, " ").trim();
+  if (flat.length < 24) return false;
+  return STATED_REASON_RE.test(flat);
+}
+
+function plainNoteText(text: string): string {
+  return text
+    .replace(/<!--[\s\S]*?-->/g, " ")
+    .replace(/&lt;!--[\s\S]*?--&gt;/g, " ")
+    .replace(/\{\{RGAP:[\s\S]*?\}\}/g, " ")
+    .replace(/\*\*/g, "")
+    .replace(/<[^>]+>/g, " ");
+}
+
+function normaliseGapText(text: string): string {
+  return plainNoteText(text).toLowerCase().replace(/[^a-z0-9£]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+/** The note section that contains this marker: from the previous heading up to the marker. */
+function sectionBeforeMarker(content: string, markerIndex: number): string {
+  const before = content.slice(0, markerIndex);
+  const headingRe =
+    /(?:^|\n)\s*(?:#{1,3}\s+)?(?:\*\*)?(?:\d{1,2}\.\s+)?[A-Z][A-Z0-9][A-Z0-9 ,'/&:-]{8,}(?:\*\*)?\s*(?=\n|$)/g;
+  let start = 0;
+  let match: RegExpExecArray | null;
+  while ((match = headingRe.exec(before)) !== null) {
+    start = match.index;
+  }
+  return before.slice(start);
+}
+
+function adviceUnits(sectionText: string): string[] {
+  const units: string[] = [];
+  for (const raw of plainNoteText(sectionText).split(/\n+/)) {
+    const isBullet = /^\s*(?:[-*•]|\d+\.)\s+/.test(raw);
+    const line = raw.replace(/^\s*(?:[-*•]|\d+\.)\s+/, "").trim();
+    if (line.length < 24) continue;
+    if (/^(what was discussed|advice given|key points advised|client'?s instructions|reasoning behind advice)\b/i.test(line)) {
+      continue;
+    }
+    const sentences = line.split(/(?<=[.!?])\s+(?=[A-Z])/);
+    for (const sentence of sentences) {
+      const text = sentence.trim();
+      if (text.length < 24) continue;
+      const adviceLike =
+        isBullet ||
+        /\b(i advised|i explained|the client was advised|cannot be given|not in a position to advise)\b/i.test(text);
+      if (adviceLike) units.push(text);
+    }
+  }
+  return units;
+}
+
+function sameAdvice(unit: string, citation: string): boolean {
+  const left = normaliseGapText(unit);
+  const right = normaliseGapText(citation);
+  if (right.length < 12 || left.length < 12) return false;
+  if (left.includes(right) || right.includes(left)) return true;
+  const keywords = extractGapEvidenceKeywords(citation);
+  if (keywords.length < 3) return false;
+  return keywordScore(left, keywords) >= 0.45;
+}
+
+function citationIsOnlyTheSection(citation: string, section: string): boolean {
+  const cite = normaliseGapText(stripReasoningPrefix(citation) || citation);
+  const heading = normaliseGapText(section);
+  if (!cite || cite === "advice") return true;
+  if (heading && cite === heading) return true;
+  return extractGapEvidenceKeywords(cite).length < 3;
+}
+
+function gapIsAlreadyReasoned(sectionText: string, label: string): boolean {
+  const { section, citation } = splitGapLabelForEvidence(label);
+  const units = adviceUnits(sectionText);
+  const point = citation || section;
+  if (!citationIsOnlyTheSection(point, section)) {
+    return units.some((unit) => sameAdvice(unit, point) && statementStatesItsReason(unit));
+  }
+  const advised = units.filter((unit) => /\bi advised\b/i.test(unit));
+  const pool = advised.length > 0 ? advised : units;
+  return pool.length > 0 && pool.every((unit) => statementStatesItsReason(unit));
+}
+
+/**
+ * Drop a reasoning-gap marker when the advice it cites already states its own
+ * reason. A bare recommendation with an empty reasoning heading is left in place.
+ * A reason the fee earner has already typed in is not a marker, so it is untouched.
+ */
+export function suppressStatedReasoningGaps(content: string): string {
+  if (!content || !/REASONING_GAP|\{\{RGAP:/.test(content)) return content;
+
+  const markerRe = new RegExp(GAP_MARKER_RE.source, "g");
+  const matches: RegExpExecArray[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = markerRe.exec(content)) !== null) matches.push(match);
+  if (matches.length === 0) return content;
+
+  let result = content;
+  for (let i = matches.length - 1; i >= 0; i--) {
+    const found = matches[i];
+    const label = (found[1] ?? found[2] ?? decodeGapLabel(found[3] ?? "")).trim();
+    if (!label || !gapIsAlreadyReasoned(sectionBeforeMarker(result, found.index), label)) continue;
+
+    let end = found.index + found[0].length;
+    const evidenceMatch = result.slice(end).match(/^\s*<!--\s*RGAP_EVIDENCE:\s*\{[\s\S]*?\}\s*-->/);
+    if (evidenceMatch) end += evidenceMatch[0].length;
+    result = result.slice(0, found.index) + result.slice(end);
+  }
+
+  return result.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n");
+}
+
 export function evidenceForGap(
   stored: GapTranscriptEvidence | null | undefined,
   gapLabel: string,

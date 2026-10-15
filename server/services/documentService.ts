@@ -24,7 +24,7 @@ import {
   type VerificationWarningCategory,
 } from '@shared/verificationWarnings';
 import { normalizeAttendanceSectionLabels } from '@shared/attendanceNoteFormat';
-import { enrichContentWithGapEvidence } from '@shared/reasoningGapEvidence';
+import { enrichContentWithGapEvidence, suppressStatedReasoningGaps } from '@shared/reasoningGapEvidence';
 
 /**
  * Post-process document content to ensure known section headings are bold.
@@ -1856,8 +1856,14 @@ ${transcript}`,
         );
     }
 
-    // Attach transcript pointers beside each REASONING_GAP so the review panel
-    // can open an inline "What was said" peek without hunting the full transcript.
+    // Drop a gap whose advice already states its own reason, then attach
+    // transcript pointers beside any gap that remains.
+    if (result.content) {
+      result = {
+        ...result,
+        content: suppressStatedReasoningGaps(result.content),
+      };
+    }
     if (utterances && utterances.length > 0 && result.content) {
       result = {
         ...result,

@@ -7,6 +7,7 @@ import {
   replaceUnfilledReasoningGaps,
   resolveGapTranscriptEvidence,
   stripGapEvidenceComments,
+  suppressStatedReasoningGaps,
   unfilledReasoningGapSentence,
   utterancesHaveRealTimestamps,
 } from "./reasoningGapEvidence";
@@ -148,5 +149,81 @@ describe("replaceUnfilledReasoningGaps", () => {
   it("also replaces an editor token", () => {
     const file = replaceUnfilledReasoningGaps("{{RGAP:WILLS: need for a will now}}");
     expect(file).toBe("Reasoning not recorded for: need for a will now.");
+  });
+});
+
+describe("suppressStatedReasoningGaps", () => {
+  const scopeNote = `
+**1. PURPOSE OF THE MEETING AND SCOPE OF ADVICE**
+
+Advice given:
+
+I advised the client that I am not in a position to advise on the extent of their entitlement in respect of the matrimonial home or savings until the relevant financial documentation has been obtained and reviewed.
+
+Key points advised:
+
+- The client wishes to retain as much of the matrimonial home as possible following separation
+- Substantive advice on the financial remedy position cannot be given until accurate documentation relating to the purchase of the matrimonial home and any related finances has been provided
+
+Reasoning behind advice and decisions:
+<!-- REASONING_GAP: PURPOSE OF THE MEETING AND SCOPE OF ADVICE: I advised the client that I am not in a position to advise on the extent of their entitlement in respect of the matrimonial home or savings until the relevant financial documentation has been obtained and reviewed. -->
+<!-- RGAP_EVIDENCE: {"utteranceIndex":1} -->
+`;
+
+  it("drops a gap whose advice already states why it cannot yet be given", () => {
+    const next = suppressStatedReasoningGaps(scopeNote);
+    expect(next).not.toContain("REASONING_GAP");
+    expect(next).not.toContain("RGAP_EVIDENCE");
+    expect(next).toContain("not in a position to advise");
+    expect(next).toContain("cannot be given until accurate documentation");
+  });
+
+  it("keeps a gap when the advice states no reason", () => {
+    const note = `
+**1. CLEAN BREAK**
+
+Advice given:
+
+I advised the client that a clean break may be achievable on these facts.
+
+Reasoning behind advice and decisions:
+<!-- REASONING_GAP: CLEAN BREAK: whether a full clean break is achievable on these facts -->
+`;
+    const next = suppressStatedReasoningGaps(note);
+    expect(next).toContain("REASONING_GAP: CLEAN BREAK");
+  });
+
+  it("drops a marker sitting beside advice that already says having considered", () => {
+    const note = `
+**1. COUNTER-PROPOSAL AND NEXT STEPS**
+
+Advice given:
+
+I advised the client to draft a counter-proposal, having considered the liquidity implications and the need for a balanced settlement.
+
+Key points advised:
+
+- The client wishes to retain the former matrimonial home
+
+Reasoning behind advice and decisions:
+<!-- REASONING_GAP: COUNTER-PROPOSAL AND NEXT STEPS: Reasoning behind advice -->
+`;
+    expect(suppressStatedReasoningGaps(note)).not.toContain("REASONING_GAP");
+  });
+
+  it("keeps an unreasoned point in a section that also contains a reasoned point", () => {
+    const note = `
+**2. SETTLEMENT**
+
+Advice given:
+
+I advised the client that a clean break may be achievable on these facts.
+I advised the client to disclose the bonus, having considered the duty of full and frank disclosure.
+
+Reasoning behind advice and decisions:
+<!-- REASONING_GAP: SETTLEMENT: whether a full clean break is achievable on these facts -->
+`;
+    const next = suppressStatedReasoningGaps(note);
+    expect(next).toContain("REASONING_GAP: SETTLEMENT");
   });
 });

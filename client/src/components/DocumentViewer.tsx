@@ -122,6 +122,7 @@ import {
   parseGapsWithEvidence,
   replaceGapMarkerAndEvidence,
   stripGapEvidenceComments,
+  suppressStatedReasoningGaps,
   type GapTranscriptEvidence,
   type GapTranscriptUtterance,
 } from "@shared/reasoningGapEvidence";
@@ -1882,9 +1883,23 @@ function EditableDocumentContent({
   );
 }
 
+const REASONING_NOTE_TYPES = new Set<Document["type"]>([
+  "attendance_note",
+  "meeting_notes",
+  "summary",
+]);
+
+function hideStatedReasoningGaps(docs: Document[]): Document[] {
+  return docs.map((doc) => {
+    if (!REASONING_NOTE_TYPES.has(doc.type) || !doc.content) return doc;
+    const content = suppressStatedReasoningGaps(doc.content);
+    return content === doc.content ? doc : { ...doc, content };
+  });
+}
+
 export default function DocumentViewer({
   caseId,
-  documents,
+  documents: sourceDocuments,
   transcript,
   transcriptUtterances,
   speakerCount,
@@ -1909,6 +1924,7 @@ export default function DocumentViewer({
   clientId,
   instructionStatus,
 }: DocumentViewerProps) {
+  const documents = useMemo(() => hideStatedReasoningGaps(sourceDocuments), [sourceDocuments]);
   const { toast } = useToast();
   const { role: authRole } = useAuth();
   const isClientMatter = isClientMatterKind(matterKind);
