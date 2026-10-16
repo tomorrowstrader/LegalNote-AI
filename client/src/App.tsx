@@ -85,6 +85,25 @@ import { isMeetingNotesPopoutRoute } from "@/lib/meetingNotesPopout";
 import { isCalendarOAuthPopupWindow } from "@/lib/calendarOAuthBridge";
 
 const publicComplianceBadgeVisible = isFeatureVisible("publicComplianceBadge");
+const POST_LOGIN_COOKIE = "ln_post_login";
+
+/** True only for the navigation that follows a successful OAuth redirect. */
+function hasPostLoginFlag(): boolean {
+  if (typeof document === "undefined") return false;
+  return document.cookie.split(";").some((part) => part.trim().startsWith(`${POST_LOGIN_COOKIE}=`));
+}
+
+function clearPostLoginFlag() {
+  document.cookie = `${POST_LOGIN_COOKIE}=; Max-Age=0; path=/`;
+}
+
+function SessionCheck() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+    </div>
+  );
+}
 
 function RedirectTo({ to }: { to: string }) {
   const [, setLocation] = useLocation();
@@ -119,6 +138,15 @@ function Router() {
   const firmComplianceDashboardVisible = useFeatureVisibility("firmComplianceDashboard");
   const isPendingApproval = user?.inviteStatus === "pending_approval";
   const isAccessPending = user?.accessAllowed === false && !isAdmin;
+  const [signingIn] = useState(() => hasPostLoginFlag());
+
+  useEffect(() => {
+    if (!isLoading && signingIn) clearPostLoginFlag();
+  }, [isLoading, signingIn]);
+
+  if (isLoading && signingIn) {
+    return <SessionCheck />;
+  }
 
   return (
     <Switch>

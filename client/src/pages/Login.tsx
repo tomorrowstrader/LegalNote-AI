@@ -39,14 +39,19 @@ export default function Login() {
     }
   }, [isAuthenticated, isLoading, returnTo, setLocation]);
 
+  // Hold the failure banner until the session check finishes. A successful
+  // sign-in used to land here with ?error= set and a valid cookie, so the
+  // banner painted for a moment and then the dashboard replaced it.
   const authErrorMessage =
-    authError === "email_already_registered"
-      ? "This email address is already registered. Sign in using the method you used originally."
-      : authError === "email_required"
-        ? "Your firm's Microsoft account did not release an email address. Contact your firm administrator for help."
-        : authError
-          ? "Authentication failed. Please try again or contact support."
-          : null;
+    isLoading || isAuthenticated
+      ? null
+      : authError === "email_already_registered"
+        ? "This email address is already registered. Sign in using the method you used originally."
+        : authError === "email_required"
+          ? "Your firm's Microsoft account did not release an email address. Contact your firm administrator for help."
+          : authError
+            ? "Authentication failed. Please try again or contact support."
+            : null;
 
   const showGoogle = authProvider !== "microsoft";
   const showMicrosoft = authProvider !== "google";

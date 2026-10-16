@@ -249,8 +249,43 @@ function completeOAuthLogin(
       console.error("[AUTH] Login failed:", loginErr);
       return res.redirect("/login?error=session_error");
     }
+    // Readable by the app so "/" can show a spinner instead of the public
+    // homepage while /api/auth/user confirms the new session.
+    const isProduction = process.env.NODE_ENV === "production" || !!process.env.REPLIT_DOMAINS;
+    res.cookie("ln_post_login", "1", {
+      maxAge: 60_000,
+      httpOnly: false,
+      secure: isProduction,
+      sameSite: "lax",
+      path: "/",
+    });
     res.redirect(redirectPath);
   });
+}
+
+/**
+ * Passport only invokes a custom verify-result callback when that function is
+ * passed to authenticate() itself. Wiring it as Express `next` makes a
+ * successful sign-in call next() with no user, after the session is already
+ * saved. The handler then redirects to /login?error=auth_failed, and the
+ * login page flashes that failure before bouncing to the dashboard.
+ */
+function respondToOAuthResult(
+  req: Request,
+  res: Response,
+  next: (err?: unknown) => void,
+  err: unknown,
+  user?: Express.User | false,
+) {
+  if (err instanceof AuthEmailCollisionError) {
+    return res.redirect("/login?error=email_already_registered");
+  }
+  if (err instanceof AuthEmailRequiredError) {
+    return res.redirect("/login?error=email_required");
+  }
+  if (err) return next(err);
+  if (!user) return res.redirect("/login?error=auth_failed");
+  completeOAuthLogin(req, res, user);
 }
 
 export async function setupAuth(app: Express) {
@@ -383,16 +418,9 @@ export async function setupAuth(app: Express) {
   });
 
   app.get("/api/auth/google/callback", (req, res, next) => {
-    passport.authenticate("google", {
-      failureRedirect: "/login?error=auth_failed",
-    })(req, res, (err: unknown, user?: Express.User | false) => {
-      if (err instanceof AuthEmailCollisionError) {
-        return res.redirect("/login?error=email_already_registered");
-      }
-      if (err) return next(err);
-      if (!user) return res.redirect("/login?error=auth_failed");
-      completeOAuthLogin(req, res, user);
-    });
+    passport.authenticate("google", (err: unknown, user?: Express.User | false) => {
+      respondToOAuthResult(req, res, next, err, user);
+    })(req, res, next);
   });
 
   app.get("/api/auth/microsoft", (req, res, next) => {
@@ -411,19 +439,9 @@ export async function setupAuth(app: Express) {
   });
 
   app.get("/api/auth/microsoft/callback", (req, res, next) => {
-    passport.authenticate("microsoft", {
-      failureRedirect: "/login?error=auth_failed",
-    })(req, res, (err: unknown, user?: Express.User | false) => {
-      if (err instanceof AuthEmailCollisionError) {
-        return res.redirect("/login?error=email_already_registered");
-      }
-      if (err instanceof AuthEmailRequiredError) {
-        return res.redirect("/login?error=email_required");
-      }
-      if (err) return next(err);
-      if (!user) return res.redirect("/login?error=auth_failed");
-      completeOAuthLogin(req, res, user);
-    });
+    passport.authenticate("microsoft", (err: unknown, user?: Express.User | false) => {
+      respondToOAuthResult(req, res, next, err, user);
+    })(req, res, next);
   });
 
   app.get("/api/logout", (req, res) => {
