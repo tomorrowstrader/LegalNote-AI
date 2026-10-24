@@ -4,7 +4,7 @@ import { format } from "date-fns";
 import { CalendarCheck, Loader2, PlusCircle, Trash2, Video } from "lucide-react";
 import type { Case, PracticeArea } from "@shared/schema";
 import { PRACTICE_AREAS, PRACTICE_AREA_LABELS } from "@shared/schema";
-import { isClientMatterKind } from "@shared/matterKinds";
+import { isClientMatterKind, MATTER_KIND_LABELS, type MatterKind } from "@shared/matterKinds";
 import {
   defaultRecordingTypeForMatterKind,
   recordingTypesForMatterKind,
@@ -21,6 +21,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   DialogDescription,
   DialogHeader,
@@ -68,6 +70,8 @@ export function UnassignedRecordingQueue({
   const [caseId, setCaseId] = useState("");
   const [recordingType, setRecordingType] = useState("full_meeting");
   const [newTitle, setNewTitle] = useState("");
+  const [newMatterKind, setNewMatterKind] = useState<MatterKind>("client");
+  const [newHasExternalAttendees, setNewHasExternalAttendees] = useState(false);
   const [newClient, setNewClient] = useState("");
   const [newPracticeArea, setNewPracticeArea] = useState<PracticeArea | "">("");
   const [existingPracticeArea, setExistingPracticeArea] = useState<PracticeArea | "">("");
@@ -108,6 +112,8 @@ export function UnassignedRecordingQueue({
     setDeleteReason("");
     setMode("existing");
     setNewTitle("");
+    setNewMatterKind("client");
+    setNewHasExternalAttendees(false);
     setNewClient("");
     setNewPracticeArea("");
     setExistingPracticeArea("");
@@ -147,7 +153,13 @@ export function UnassignedRecordingQueue({
       caseId?: string;
       recordingType: string;
       createCase?: boolean;
-      caseData?: { title: string; clientName: string; practiceArea?: string };
+      caseData?: {
+        title: string;
+        matterKind?: MatterKind;
+        clientName?: string;
+        practiceArea?: string;
+        hasExternalAttendees?: boolean;
+      };
       practiceArea?: string;
     }) =>
       apiRequest<{ success: boolean; caseId: string; importId: string }>(
@@ -222,7 +234,9 @@ export function UnassignedRecordingQueue({
     hints.push("This call was recorded more than once - usually a reconnect. Keep the one with the conversation and delete the others.");
   }
   const selectedCase = cases.find((item) => item.id === caseId);
-  const typeOptions = recordingTypesForMatterKind(selectedCase?.matterKind ?? "client");
+  const activeMatterKind: MatterKind = mode === "new" ? newMatterKind : (selectedCase?.matterKind as MatterKind | undefined) ?? "client";
+  const isNewMatterClient = isClientMatterKind(newMatterKind);
+  const typeOptions = recordingTypesForMatterKind(activeMatterKind);
   const suggestedLabel = current.suggestedMatter
     ? matterChoiceLabel(current.suggestedMatter.title, current.suggestedMatter.clientName)
     : null;
@@ -238,7 +252,7 @@ export function UnassignedRecordingQueue({
     && !selectedCase.practiceArea;
   const canAssign = mode === "existing"
     ? !!caseId && (!selectedNeedsPracticeArea || !!existingPracticeArea)
-    : !!newTitle.trim() && !!newClient.trim() && !!newPracticeArea;
+    : !!newTitle.trim() && (!isNewMatterClient || (!!newClient.trim() && !!newPracticeArea));
   const deleteReasonReady = deleteReason.trim().length >= 3;
   const busy = assignMutation.isPending || discardMutation.isPending;
 
@@ -257,11 +271,18 @@ export function UnassignedRecordingQueue({
       importId: current.id,
       recordingType,
       createCase: true,
-      caseData: {
-        title: newTitle.trim(),
-        clientName: newClient.trim(),
-        practiceArea: newPracticeArea,
-      },
+      caseData: isNewMatterClient
+        ? {
+            title: newTitle.trim(),
+            matterKind: newMatterKind,
+            clientName: newClient.trim(),
+            practiceArea: newPracticeArea,
+          }
+        : {
+            title: newTitle.trim(),
+            matterKind: newMatterKind,
+            hasExternalAttendees: newHasExternalAttendees,
+          },
     });
   };
 
@@ -419,39 +440,91 @@ export function UnassignedRecordingQueue({
         </div>
       ) : (
         <div className="space-y-3">
+          <div className="space-y-2">
+            <Label>Matter type</Label>
+            <RadioGroup
+              value={newMatterKind}
+              onValueChange={(value) => {
+                const next = value as MatterKind;
+                setNewMatterKind(next);
+                setRecordingType(defaultRecordingTypeForMatterKind(next));
+                if (!isClientMatterKind(next)) {
+                  setNewClient("");
+                  setNewPracticeArea("");
+                } else {
+                  setNewHasExternalAttendees(false);
+                }
+              }}
+              className="flex flex-col gap-2 sm:flex-row sm:gap-4"
+            >
+              {(Object.entries(MATTER_KIND_LABELS) as [MatterKind, string][]).map(([value, label]) => (
+                <div key={value} className="flex items-center gap-2">
+                  <RadioGroupItem value={value} id={`queue-matter-kind-${value}`} data-testid={`radio-matter-kind-${value}`} />
+                  <Label htmlFor={`queue-matter-kind-${value}`} className="cursor-pointer font-normal">
+                    {label}
+                  </Label>
+                </div>
+              ))}
+            </RadioGroup>
+            {!isNewMatterClient && (
+              <>
+                <p className="text-xs text-muted-foreground">
+                  No client registry entry, conflict check, or client letter - minutes and action points only.
+                </p>
+                <div className="flex items-start gap-2 pt-1">
+                  <Checkbox
+                    id="queue-external-attendees"
+                    checked={newHasExternalAttendees}
+                    onCheckedChange={(checked) => setNewHasExternalAttendees(checked === true)}
+                    data-testid="checkbox-external-attendees"
+                  />
+                  <Label htmlFor="queue-external-attendees" className="cursor-pointer font-normal text-sm leading-snug">
+                    External attendees present (outside the firm)
+                    <span className="block text-xs text-muted-foreground mt-0.5">
+                      e.g. chambers, vendors, BD - captures a short participant recording notice
+                    </span>
+                  </Label>
+                </div>
+              </>
+            )}
+          </div>
           <div className="space-y-1.5">
-            <Label htmlFor="queue-new-title">Matter title</Label>
+            <Label htmlFor="queue-new-title">{isNewMatterClient ? "Matter title" : "Meeting title"}</Label>
             <Input
               id="queue-new-title"
               value={newTitle}
               onChange={(event) => setNewTitle(event.target.value)}
-              placeholder="e.g. Smith v Jones - contract dispute"
+              placeholder={isNewMatterClient ? "e.g. Smith v Jones - contract dispute" : "e.g. Partners meeting - Q3 planning"}
               data-testid="input-new-matter-title"
             />
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="queue-new-client">Client name</Label>
-            <Input
-              id="queue-new-client"
-              value={newClient}
-              onChange={(event) => setNewClient(event.target.value)}
-              placeholder="e.g. Jane Smith"
-              data-testid="input-new-matter-client"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="queue-new-area">Practice area</Label>
-            <Select value={newPracticeArea} onValueChange={(value) => setNewPracticeArea(value as PracticeArea)}>
-              <SelectTrigger id="queue-new-area" data-testid="select-new-practice-area">
-                <SelectValue placeholder="Select practice area..." />
-              </SelectTrigger>
-              <SelectContent>
-                {PRACTICE_AREAS.map((area) => (
-                  <SelectItem key={area} value={area}>{PRACTICE_AREA_LABELS[area]}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {isNewMatterClient && (
+            <>
+              <div className="space-y-1.5">
+                <Label htmlFor="queue-new-client">Client name</Label>
+                <Input
+                  id="queue-new-client"
+                  value={newClient}
+                  onChange={(event) => setNewClient(event.target.value)}
+                  placeholder="e.g. Jane Smith"
+                  data-testid="input-new-matter-client"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="queue-new-area">Practice area</Label>
+                <Select value={newPracticeArea} onValueChange={(value) => setNewPracticeArea(value as PracticeArea)}>
+                  <SelectTrigger id="queue-new-area" data-testid="select-new-practice-area">
+                    <SelectValue placeholder="Select practice area..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PRACTICE_AREAS.map((area) => (
+                      <SelectItem key={area} value={area}>{PRACTICE_AREA_LABELS[area]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
+          )}
         </div>
       )}
 
