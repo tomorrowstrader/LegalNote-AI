@@ -822,7 +822,17 @@ export default function CaseDetail() {
     }
   }, [caseData?.status, caseData?.sourceType, hasPromptedTimeRecording, timeRecordingKey]);
 
-  const hasValidConsent = consentLogs.some(log => log.consentGiven === true);
+  // Mirrors the server's assertSealedConsent candidate filter (server/services/assertSealedConsent.ts)
+  // so the UI doesn't show "ready to process" for a log the server will actually reject -
+  // e.g. one left over from a previous/different audio recording after a re-process.
+  const hasValidConsent = consentLogs.some(log =>
+    log.consentGiven === true &&
+    !log.consentWithdrawn &&
+    log.sealingStatus === 'sealed' &&
+    !!log.contentHash &&
+    !!log.contentSignature &&
+    (!log.audioRecordingId || !audioData?.id || log.audioRecordingId === audioData.id),
+  );
   const hasDeclinedConsent = consentLogs.some(log => log.consentGiven === false);
   const isClientMatter = isClientMatterKind(caseData?.matterKind);
   const hasExternalAttendees = !!(caseData as { hasExternalAttendees?: boolean } | undefined)?.hasExternalAttendees;

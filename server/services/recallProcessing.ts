@@ -398,16 +398,28 @@ export async function processBotRecording(importRecord: MeetingImport): Promise<
     audioBufferForConsent = audioBuffer;
   }
 
-  // Create audio recording linked to the case
+  // Reuse the existing audio_recordings row for this import's stored file if one
+  // already exists (e.g. a retried/re-processed import), rather than inserting a
+  // new row every time. A fresh row here would orphan any sealed consent log that
+  // was already linked to the original recording's id, breaking assertSealedConsent.
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 7);
-  const audioRecord = await storage.createAudioRecording({
-    caseId,
-    filePath: audioPath,
-    mimeType,
-    duration: fresh.durationSeconds || undefined,
-    expiresAt,
-  });
+  const existingForThisFile = (await storage.getAudioRecordingsByCaseId(caseId)).find(
+    (r) => r.filePath === audioPath,
+  );
+  const audioRecord = existingForThisFile
+    ? (await storage.updateAudioRecording(existingForThisFile.id, {
+        mimeType,
+        duration: fresh.durationSeconds || existingForThisFile.duration || undefined,
+        expiresAt,
+      })) ?? existingForThisFile
+    : await storage.createAudioRecording({
+        caseId,
+        filePath: audioPath,
+        mimeType,
+        duration: fresh.durationSeconds || undefined,
+        expiresAt,
+      });
 
   let consentSegmentPath: string | undefined;
   let consentDurationSeconds: number | undefined;

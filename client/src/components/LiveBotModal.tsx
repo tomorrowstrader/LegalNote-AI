@@ -577,8 +577,12 @@ export function LiveBotModal({
         });
       }
 
-      // For pre_confirmed path, log consent immediately (only for client meetings)
-      if (consentMode === "pre_confirmed" && resolvedCaseId) {
+      // For pre_confirmed path, attest consent immediately. This records the
+      // attestation on the import even when no case is selected yet (deferred/
+      // "Listen & assign" flow) - the server marks consentConfirmed on the import
+      // regardless of caseId, and seals it onto the case's audit trail once the
+      // recording is assigned to a matter (see POST /api/recall/import/:id/assign).
+      if (consentMode === "pre_confirmed") {
         try {
           await apiRequest("PATCH", `/api/recall/import/${data.importId}/consent`, {
             userConfirmsVerbalConsent: true,
