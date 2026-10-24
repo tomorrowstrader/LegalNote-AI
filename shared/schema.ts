@@ -999,7 +999,7 @@ export const insertCaseSchema = createInsertSchema(cases).omit({
   practiceArea: z.enum(PRACTICE_AREAS).optional(),
   conflictCheckCompleted: z.boolean().default(false),
   conflictCheckNote: z.string().max(2000).transform(sanitizeString).optional(),
-  instructionStatus: z.enum(["enquiry", "instructed"]).default("instructed"),
+  instructionStatus: z.enum(["enquiry", "instructed", "not_applicable"]).default("instructed"),
   costsEstimate: z.string().max(500).transform(sanitizeString).optional(),
   textNotes: z.string().max(100000).optional(), // 100KB limit for text notes
   litigationHold: z.boolean().default(false),

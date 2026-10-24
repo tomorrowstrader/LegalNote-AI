@@ -6,10 +6,11 @@ import {
 } from "./instructionStatus";
 
 describe("instruction status", () => {
-  it("keeps an unknown or instructed value as instructed", () => {
+  it("keeps an unknown value as instructed, and recognises not_applicable", () => {
     expect(parseInstructionStatus(undefined)).toBe("instructed");
     expect(parseInstructionStatus("instructed")).toBe("instructed");
     expect(parseInstructionStatus("enquiry")).toBe("enquiry");
+    expect(parseInstructionStatus("not_applicable")).toBe("not_applicable");
   });
 
   it("lets the meeting answer override the matter", () => {
@@ -18,6 +19,8 @@ describe("instruction status", () => {
     expect(resolveInstructionsTaken("enquiry", true)).toBe(true);
     expect(resolveInstructionsTaken("instructed", null)).toBe(true);
     expect(resolveInstructionsTaken("instructed", false)).toBe(false);
+    expect(resolveInstructionsTaken("not_applicable", null)).toBe(true);
+    expect(resolveInstructionsTaken("not_applicable", false)).toBe(false);
   });
 
   it("writes the enquiry rule only when instructions have not been taken", () => {

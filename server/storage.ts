@@ -95,6 +95,7 @@ import { db } from "./db";
 import { eq, and, or, gte, lte, lt, desc, isNull, isNotNull, not, sql, count, inArray } from "drizzle-orm";
 import { generateDocumentHash } from "./utils/documentHash";
 import { looksLikeRtf, stripRtfToPlainText } from "@shared/stripRtf";
+import { parseInstructionStatus } from "@shared/instructionStatus";
 import { expandSearchWithSynonyms } from "./services/legalSynonyms";
 import {
   AUDIT_PAYLOAD_V2,
@@ -1166,7 +1167,7 @@ export class MemStorage implements IStorage {
       conflictCheckNote: insertCase.conflictCheckNote || null,
       clientCareLetterId: null,
       clientCareLetterSentAt: null,
-      instructionStatus: insertCase.instructionStatus === "enquiry" ? "enquiry" : "instructed",
+      instructionStatus: parseInstructionStatus(insertCase.instructionStatus),
       costsEstimate: insertCase.costsEstimate || null,
       textNotes: insertCase.textNotes || null,
       reviewed: insertCase.reviewed || false,
@@ -3574,7 +3575,7 @@ export class DbStorage implements IStorage {
         practiceArea: insertCase.practiceArea ?? null,
         conflictCheckCompleted: insertCase.conflictCheckCompleted ?? false,
         conflictCheckNote: insertCase.conflictCheckNote ?? null,
-        instructionStatus: insertCase.instructionStatus === "enquiry" ? "enquiry" : "instructed",
+        instructionStatus: parseInstructionStatus(insertCase.instructionStatus),
         costsEstimate: insertCase.costsEstimate ?? null,
         textNotes: insertCase.textNotes ?? null,
         reviewed: insertCase.reviewed ?? false,

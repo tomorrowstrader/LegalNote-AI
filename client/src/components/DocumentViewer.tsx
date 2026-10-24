@@ -4241,7 +4241,7 @@ export default function DocumentViewer({
                   caseId={caseId}
                   documentId={attendanceNote.id}
                   selectedText={correctionTarget.selectedText}
-                  instructionsAlreadyTaken={instructionStatus === "instructed"}
+                  instructionsAlreadyTaken={!isClientMatter || instructionStatus === "instructed"}
                   onClose={() => setCorrectionTarget(null)}
                   onProposed={(proposals, unplacedCount) => beginCorrection(attendanceNote, proposals, unplacedCount)}
                 />
@@ -4497,7 +4497,7 @@ export default function DocumentViewer({
                   caseId={caseId}
                   documentId={summary.id}
                   selectedText={correctionTarget.selectedText}
-                  instructionsAlreadyTaken={instructionStatus === "instructed"}
+                  instructionsAlreadyTaken={!isClientMatter || instructionStatus === "instructed"}
                   onClose={() => setCorrectionTarget(null)}
                   onProposed={(proposals, unplacedCount) => beginCorrection(summary, proposals, unplacedCount)}
                 />

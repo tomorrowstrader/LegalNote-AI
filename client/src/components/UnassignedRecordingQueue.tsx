@@ -243,7 +243,9 @@ export function UnassignedRecordingQueue({
     ? matterChoiceLabel(current.suggestedMatter.title, current.suggestedMatter.clientName)
     : null;
   const assignLabel = mode === "new"
-    ? "Create matter & process"
+    ? isNewMatterClient
+      ? "Create matter & process"
+      : "Log meeting & process"
     : suggestedLabel && caseId === current.suggestedMatter?.caseId
       ? `Assign to ${suggestedLabel}`
       : selectedCase

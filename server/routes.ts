@@ -2510,7 +2510,9 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       }
 
       if (!isClientMatter) {
-        validatedData.instructionStatus = "instructed";
+        // No client to instruct - record that honestly rather than claiming
+        // instructions were taken on a matter with no client.
+        validatedData.instructionStatus = "not_applicable";
       }
 
       const newCase = await storage.createCase(validatedData, userId);
@@ -11819,6 +11821,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
             priority: 'normal',
             sourceType: 'audio',
             conflictCheckCompleted: false,
+            instructionStatus: 'not_applicable',
           }, userId);
         }
         caseId = newCase.id;

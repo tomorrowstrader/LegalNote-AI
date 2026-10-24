@@ -2,24 +2,28 @@
  * Whether the firm has been instructed on a client matter.
  * Existing matters stay instructed. A new matter opens as an enquiry until
  * the fee earner says instructions have been received.
+ * Non-client matters have no client to instruct - "not_applicable" records
+ * that honestly rather than claiming instructions were taken.
  */
 
-export type InstructionStatus = "enquiry" | "instructed";
+export type InstructionStatus = "enquiry" | "instructed" | "not_applicable";
 
 export function parseInstructionStatus(value: unknown): InstructionStatus {
-  return value === "enquiry" ? "enquiry" : "instructed";
+  if (value === "enquiry") return "enquiry";
+  if (value === "not_applicable") return "not_applicable";
+  return "instructed";
 }
 
 /**
- * A session answer wins. With no answer, an enquiry matter is not instructed
- * and an instructed matter is.
+ * A session answer wins. With no answer, only an enquiry matter is not
+ * instructed - "instructed" and "not_applicable" both are.
  */
 export function resolveInstructionsTaken(
   matterStatus: InstructionStatus,
   sessionOverride: boolean | null | undefined,
 ): boolean {
   if (typeof sessionOverride === "boolean") return sessionOverride;
-  return matterStatus === "instructed";
+  return matterStatus !== "enquiry";
 }
 
 /** Appended to the attendance-note prompt when this meeting is still an enquiry. */
