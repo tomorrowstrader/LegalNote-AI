@@ -44,7 +44,8 @@ import {
 import { format } from "date-fns";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { Case, MatterKind, PracticeArea } from "@shared/schema";
+import type { Case, Client, MatterKind, PracticeArea } from "@shared/schema";
+import ClientNameAutocomplete from "@/components/ClientNameAutocomplete";
 import { MATTER_KIND_LABELS, PRACTICE_AREAS, PRACTICE_AREA_LABELS, RECORDING_TYPE_LABELS, type RecordingType } from "@shared/schema";
 import { CAPTURE_CONFLICT_DEFERRAL_NOTE, isClientMatterKind, normalizeMatterKind, partyLabelForMatterKind, requiresParticipantConsent, requiresSealedConsentForProcessing } from "@shared/matterKinds";
 import {
@@ -231,7 +232,7 @@ export function LiveBotModal({
   const [postMeetingCaseId, setPostMeetingCaseId] = useState("");
   const [postMeetingRecordingType, setPostMeetingRecordingType] = useState("full_meeting");
   const [postMeetingTitle, setPostMeetingTitle] = useState("");
-  const [postMeetingClient, setPostMeetingClient] = useState("");
+  const [postMeetingClientObj, setPostMeetingClientObj] = useState<Client | null>(null);
   const [discardConfirmed, setDiscardConfirmed] = useState(false);
   const [discardReason, setDiscardReason] = useState("");
   const [assignDone, setAssignDone] = useState(false);
@@ -244,7 +245,7 @@ export function LiveBotModal({
   );
   const [isCreatingCase, setIsCreatingCase] = useState(false);
   const [newCaseTitle, setNewCaseTitle] = useState("");
-  const [newCaseClient, setNewCaseClient] = useState(suggestedClientName || "");
+  const [newCaseClientObj, setNewCaseClientObj] = useState<Client | null>(null);
   const [newCaseMatterKind, setNewCaseMatterKind] = useState<MatterKind>("client");
   const [newCaseHasExternalAttendees, setNewCaseHasExternalAttendees] = useState(false);
   const [newCasePracticeArea, setNewCasePracticeArea] = useState<PracticeArea | "">("");
@@ -444,6 +445,7 @@ export function LiveBotModal({
       caseData?: {
         title: string;
         clientName?: string;
+        clientId?: string;
         matterKind?: MatterKind;
         hasExternalAttendees?: boolean;
         practiceArea?: string;
@@ -505,6 +507,7 @@ export function LiveBotModal({
     mutationFn: async (data: {
       title: string;
       clientName?: string;
+      clientId?: string;
       matterKind: MatterKind;
       hasExternalAttendees?: boolean;
       sourceType: "audio";
@@ -709,7 +712,7 @@ export function LiveBotModal({
     if (!open) return;
     const url = (initialMeetingUrl || "").trim();
     setBrowseAllCases(false);
-    setNewCaseClient(suggestedClientName || "");
+    setNewCaseClientObj(null);
     setDeferCaseAssignment(allocateLater);
     if (allocateLater) {
       setSelectedCaseId(null);
@@ -805,8 +808,9 @@ export function LiveBotModal({
     setSelectedCaseTitle(skipCase ? "" : caseTitle || "");
     setIsCreatingCase(false);
     setNewCaseTitle("");
-    setNewCaseClient(suggestedClientName || "");
+    setNewCaseClientObj(null);
     setNewCasePracticeArea("");
+    setPostMeetingClientObj(null);
     setPostMeetingPracticeArea("");
     setBrowseAllCases(false);
   };
@@ -1031,12 +1035,7 @@ export function LiveBotModal({
                   <Button
                     variant="outline"
                     className="w-full gap-2 border-[#e8dfd2] bg-white hover:bg-[#fbf7ef] dark:border-border dark:bg-card dark:hover:bg-accent/20"
-                    onClick={() => {
-                      setIsCreatingCase(true);
-                      if (suggestedClientName && !newCaseClient) {
-                        setNewCaseClient(suggestedClientName);
-                      }
-                    }}
+                    onClick={() => setIsCreatingCase(true)}
                   >
                     <PlusCircle className="h-4 w-4" />
                     Create new matter
@@ -1102,34 +1101,40 @@ export function LiveBotModal({
                     onChange={(e) => setNewCaseTitle(e.target.value)}
                   />
                 </div>
-                {isClientMatterKind(newCaseMatterKind) && (
-                <>
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="new-case-client">Client name</Label>
-                  <Input
+                  <Label htmlFor="new-case-client">
+                    {isClientMatterKind(newCaseMatterKind) ? "Client name" : "Link a contact (optional)"}
+                  </Label>
+                  <ClientNameAutocomplete
                     id="new-case-client"
-                    placeholder="e.g. Mr James Smith"
-                    value={newCaseClient}
-                    onChange={(e) => setNewCaseClient(e.target.value)}
+                    selectedClient={newCaseClientObj}
+                    onSelect={setNewCaseClientObj}
+                    onClear={() => setNewCaseClientObj(null)}
+                    placeholder={
+                      isClientMatterKind(newCaseMatterKind)
+                        ? "e.g. Mr James Smith"
+                        : "Search or add a person to find this meeting again later"
+                    }
+                    data-testid="input-new-case-client"
                   />
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="new-case-practice-area">Practice area</Label>
-                  <Select
-                    value={newCasePracticeArea}
-                    onValueChange={(value) => setNewCasePracticeArea(value as PracticeArea)}
-                  >
-                    <SelectTrigger id="new-case-practice-area" data-testid="select-new-case-practice-area">
-                      <SelectValue placeholder="Select practice area..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PRACTICE_AREAS.map((area) => (
-                        <SelectItem key={area} value={area}>{PRACTICE_AREA_LABELS[area]}</SelectItem>
-                      ))}
-                    </SelectContent>
+                {isClientMatterKind(newCaseMatterKind) && (
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="new-case-practice-area">Practice area</Label>
+                    <Select
+                      value={newCasePracticeArea}
+                      onValueChange={(value) => setNewCasePracticeArea(value as PracticeArea)}
+                    >
+                      <SelectTrigger id="new-case-practice-area" data-testid="select-new-case-practice-area">
+                        <SelectValue placeholder="Select practice area..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PRACTICE_AREAS.map((area) => (
+                          <SelectItem key={area} value={area}>{PRACTICE_AREA_LABELS[area]}</SelectItem>
+                        ))}
+                      </SelectContent>
                     </Select>
                   </div>
-                </>
                 )}
                 <div className="flex gap-2">
                   <Button
@@ -1143,7 +1148,7 @@ export function LiveBotModal({
                     className="flex-1"
                     disabled={
                       !newCaseTitle.trim() ||
-                      (isClientMatterKind(newCaseMatterKind) && (!newCaseClient.trim() || !newCasePracticeArea)) ||
+                      (isClientMatterKind(newCaseMatterKind) && (!newCaseClientObj || !newCasePracticeArea)) ||
                       createCaseMutation.isPending
                     }
                     onClick={() =>
@@ -1152,8 +1157,9 @@ export function LiveBotModal({
                         matterKind: newCaseMatterKind,
                         hasExternalAttendees:
                           !isClientMatterKind(newCaseMatterKind) && newCaseHasExternalAttendees,
-                        clientName: isClientMatterKind(newCaseMatterKind)
-                          ? newCaseClient.trim()
+                        clientId: newCaseClientObj?.id,
+                        clientName: newCaseClientObj
+                          ? newCaseClientObj.name
                           : partyLabelForMatterKind(newCaseMatterKind),
                         sourceType: "audio",
                         status: "pending",
@@ -1756,8 +1762,7 @@ export function LiveBotModal({
                           const next = v as MatterKind;
                           setPostMeetingMatterKind(next);
                           setPostMeetingRecordingType(defaultRecordingTypeForMatterKind(next));
-                          if (!isClientMatterKind(next)) setPostMeetingClient("");
-                          else setPostMeetingHasExternalAttendees(false);
+                          if (isClientMatterKind(next)) setPostMeetingHasExternalAttendees(false);
                         }}
                         className="flex flex-col gap-2"
                       >
@@ -1818,35 +1823,42 @@ export function LiveBotModal({
                         </SelectContent>
                       </Select>
                     </div>
-                    {isClientMatterKind(postMeetingMatterKind) && (
-                    <>
                     <div className="space-y-1.5">
-                      <Label htmlFor="post-matter-client">Client name <span className="text-accent">*</span></Label>
-                      <Input
+                      <Label htmlFor="post-matter-client">
+                        {isClientMatterKind(postMeetingMatterKind)
+                          ? <>Client name <span className="text-accent">*</span></>
+                          : "Link a contact (optional)"}
+                      </Label>
+                      <ClientNameAutocomplete
                         id="post-matter-client"
-                        placeholder="e.g. Jane Smith"
-                        value={postMeetingClient}
-                        onChange={(e) => setPostMeetingClient(e.target.value)}
+                        selectedClient={postMeetingClientObj}
+                        onSelect={setPostMeetingClientObj}
+                        onClear={() => setPostMeetingClientObj(null)}
+                        placeholder={
+                          isClientMatterKind(postMeetingMatterKind)
+                            ? "e.g. Jane Smith"
+                            : "Search or add a person to find this meeting again later"
+                        }
                         data-testid="input-post-matter-client"
                       />
                     </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="post-matter-area">Practice area <span className="text-accent">*</span></Label>
-                      <Select
-                        value={postMeetingPracticeArea}
-                        onValueChange={(value) => setPostMeetingPracticeArea(value as PracticeArea)}
-                      >
-                        <SelectTrigger id="post-matter-area" data-testid="select-post-practice-area">
-                          <SelectValue placeholder="Select practice area..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {PRACTICE_AREAS.map((area) => (
-                            <SelectItem key={area} value={area}>{PRACTICE_AREA_LABELS[area]}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    </>
+                    {isClientMatterKind(postMeetingMatterKind) && (
+                      <div className="space-y-1.5">
+                        <Label htmlFor="post-matter-area">Practice area <span className="text-accent">*</span></Label>
+                        <Select
+                          value={postMeetingPracticeArea}
+                          onValueChange={(value) => setPostMeetingPracticeArea(value as PracticeArea)}
+                        >
+                          <SelectTrigger id="post-matter-area" data-testid="select-post-practice-area">
+                            <SelectValue placeholder="Select practice area..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {PRACTICE_AREAS.map((area) => (
+                              <SelectItem key={area} value={area}>{PRACTICE_AREA_LABELS[area]}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     )}
                     <div className="flex gap-2">
                       <Button variant="outline" className="flex-1" onClick={() => setPostMeetingMode("choose")} data-testid="button-post-back-create">Back</Button>
@@ -1854,7 +1866,7 @@ export function LiveBotModal({
                         className="flex-1"
                         disabled={
                           !postMeetingTitle.trim() ||
-                          (isClientMatterKind(postMeetingMatterKind) && (!postMeetingClient.trim() || !postMeetingPracticeArea)) ||
+                          (isClientMatterKind(postMeetingMatterKind) && (!postMeetingClientObj || !postMeetingPracticeArea)) ||
                           postAssignMutation.isPending
                         }
                         onClick={() => postAssignMutation.mutate({
@@ -1866,8 +1878,9 @@ export function LiveBotModal({
                             hasExternalAttendees:
                               !isClientMatterKind(postMeetingMatterKind) &&
                               postMeetingHasExternalAttendees,
-                            clientName: isClientMatterKind(postMeetingMatterKind)
-                              ? postMeetingClient.trim()
+                            clientId: postMeetingClientObj?.id,
+                            clientName: postMeetingClientObj
+                              ? postMeetingClientObj.name
                               : partyLabelForMatterKind(postMeetingMatterKind),
                             practiceArea: isClientMatterKind(postMeetingMatterKind)
                               ? postMeetingPracticeArea

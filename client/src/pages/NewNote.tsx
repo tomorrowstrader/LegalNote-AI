@@ -256,13 +256,13 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
     const selectedCase = existingCases.find((c) => c.id === selectedCaseId);
     const partyName = isClientMatter
       ? selectedClient?.name
-      : partyLabelForMatterKind(matterKind);
+      : (selectedClient?.name ?? partyLabelForMatterKind(matterKind));
     const meta: NewNoteRecordingMeta = {
       noteMode,
       caseTitle: noteMode === "add_session" ? (selectedCase?.title || "Session") : caseTitle.trim(),
-      clientId: isClientMatter ? selectedClient?.id : undefined,
+      clientId: selectedClient?.id,
       clientName: noteMode === "add_session" ? selectedCase?.clientName : partyName,
-      clientAmlRiskLevel: isClientMatter ? selectedClient?.amlRiskLevel : undefined,
+      clientAmlRiskLevel: selectedClient?.amlRiskLevel,
       matterKind: noteMode === "add_session"
         ? (selectedCase?.matterKind as MatterKind | undefined) || "client"
         : matterKind,
@@ -289,11 +289,11 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
       displaySubtitle:
         noteMode === "add_session"
           ? selectedCase?.clientName || "Adding session"
-          : isClientMatter
-            ? selectedClient?.name
-              ? `Recording for ${selectedClient.name}`
-              : "New matter recording"
-            : MATTER_KIND_LABELS[matterKind],
+          : selectedClient?.name
+            ? `Recording for ${selectedClient.name}`
+            : isClientMatter
+              ? "New matter recording"
+              : MATTER_KIND_LABELS[matterKind],
     };
 
     startCountdown(meta);
@@ -329,8 +329,10 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
         title: caseTitle,
         matterKind,
         hasExternalAttendees: !isClientMatter && hasExternalAttendees,
-        clientName: isClientMatter ? selectedClient!.name : partyLabelForMatterKind(matterKind),
-        clientId: isClientMatter ? selectedClient!.id : undefined,
+        clientName: isClientMatter
+          ? selectedClient!.name
+          : (selectedClient?.name ?? partyLabelForMatterKind(matterKind)),
+        clientId: selectedClient?.id,
         matterReference: matterRef || undefined,
         sourceType: "text",
         status: "pending",
@@ -436,8 +438,8 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
           matterKind,
           clientName: isClientMatter
             ? clientForCase!.name
-            : partyLabelForMatterKind(matterKind),
-          clientId: isClientMatter ? clientForCase!.id : undefined,
+            : (clientForCase?.name ?? partyLabelForMatterKind(matterKind)),
+          clientId: clientForCase?.id,
           matterReference: data.matterRef || undefined,
           sourceType: "text",
           status: "pending",
@@ -772,7 +774,6 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
                         setMatterKind(next);
                         setRecordingType(defaultRecordingTypeForMatterKind(next) as RecordingType);
                         if (!isClientMatterKind(next)) {
-                          handleClearClient();
                           setPracticeArea("");
                           setConflictCheckCompleted(false);
                           setConflictCheckNote("");
@@ -829,10 +830,9 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
                       data-testid="input-case-title"
                     />
                   </div>
-                  {isClientMatter && (
                   <div className="space-y-2">
                     <Label htmlFor="client-name">
-                      Client Name <span className="text-accent">*</span>
+                      {isClientMatter ? <>Client Name <span className="text-accent">*</span></> : "Link a contact (optional)"}
                     </Label>
                     <div ref={clientSearchRef} className="relative">
                       {selectedClient ? (
@@ -859,7 +859,7 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
                       ) : (
                         <Input
                           id="client-name"
-                          placeholder="Search existing clients or type a new name..."
+                          placeholder={isClientMatter ? "Search existing clients or type a new name..." : "Search or add a person to find this meeting again later"}
                           value={clientName}
                           onChange={(e) => handleClientInputChange(e.target.value)}
                           onFocus={() => { if (clientSearchQuery.trim().length >= 2) setShowClientDropdown(true); }}
@@ -920,7 +920,6 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
                       </Alert>
                     )}
                   </div>
-                  )}
                   <div className="space-y-2">
                     <Label htmlFor="matter-ref">Matter Reference (Optional)</Label>
                     <Input

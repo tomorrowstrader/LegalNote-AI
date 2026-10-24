@@ -25,6 +25,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Client, Case } from "@shared/schema";
+import { isClientMatterKind } from "@shared/matterKinds";
 import { formatDistanceToNow } from "date-fns";
 
 export default function Clients() {
@@ -51,7 +52,9 @@ export default function Clients() {
   const clientStats = useMemo(() => {
     const stats: Record<string, { matterCount: number; lastActivity: Date | null }> = {};
     for (const c of allCases) {
-      if (!c.clientId) continue;
+      // Count real client matters only - a non-client meeting linked to a client
+      // record is for continuity (finding the same person again), not engagement.
+      if (!c.clientId || !isClientMatterKind(c.matterKind)) continue;
       if (!stats[c.clientId]) {
         stats[c.clientId] = { matterCount: 0, lastActivity: null };
       }

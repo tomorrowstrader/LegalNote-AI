@@ -464,8 +464,8 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
           hasExternalAttendees: !isClientMatterKind(kind) && !!snapshot.hasExternalAttendees,
           clientName: isClientMatterKind(kind)
             ? snapshot.clientName
-            : partyLabelForMatterKind(kind),
-          clientId: isClientMatterKind(kind) ? snapshot.clientId : undefined,
+            : (snapshot.clientName || partyLabelForMatterKind(kind)),
+          clientId: snapshot.clientId,
           matterReference: snapshot.matterRef || undefined,
           sourceType: "audio",
           status: "pending",

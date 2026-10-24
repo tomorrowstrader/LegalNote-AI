@@ -27,6 +27,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import type { Client, Case } from "@shared/schema";
+import { isClientMatterKind } from "@shared/matterKinds";
 
 export default function ClientProfile() {
   const [, setLocation] = useLocation();
@@ -293,6 +294,11 @@ export default function ClientProfile() {
                       </p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
+                      {!isClientMatterKind(c.matterKind) && (
+                        <Badge variant="outline" className="text-xs" data-testid={`badge-non-client-${c.id}`}>
+                          Non-client meeting
+                        </Badge>
+                      )}
                       {c.riskLevel && (
                         <Badge variant={riskBadgeVariant(c.riskLevel)} className="text-xs">
                           {c.riskLevel.toUpperCase()}

@@ -19,6 +19,8 @@ import {
 } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToastAction } from "@/components/ui/toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -29,9 +31,10 @@ import { createProcessingStepTimer } from "@/lib/processingStepTimer";
 import TextNotesModal from "@/components/TextNotesModal";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, getApiErrorMessage, queryClient } from "@/lib/queryClient";
-import type { Case, Client } from "@shared/schema";
+import type { Case, Client, MatterKind } from "@shared/schema";
 import { PRACTICE_AREAS, PRACTICE_AREA_LABELS, type PracticeArea } from "@shared/schema";
-import { CAPTURE_CONFLICT_DEFERRAL_NOTE, isClientMatterKind } from "@shared/matterKinds";
+import { CAPTURE_CONFLICT_DEFERRAL_NOTE, isClientMatterKind, MATTER_KIND_LABELS, partyLabelForMatterKind } from "@shared/matterKinds";
+import { defaultRecordingTypeForMatterKind } from "@shared/recordingTypes";
 import { CONSENT_DISCLAIMER_TEXT, CONSENT_DISCLAIMER_VERSION } from "@shared/consent";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -143,6 +146,8 @@ export default function QuickRecordButton() {
   const [clientQuery, setClientQuery] = useState("");
   const [fileMode, setFileMode] = useState<"existing" | "new">("new");
   const [existingCaseId, setExistingCaseId] = useState("");
+  const [fileMatterKind, setFileMatterKind] = useState<MatterKind>("client");
+  const [fileHasExternalAttendees, setFileHasExternalAttendees] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [practiceArea, setPracticeArea] = useState<PracticeArea | "">("");
   const [showInterruptedWarning, setShowInterruptedWarning] = useState(false);
@@ -693,8 +698,9 @@ export default function QuickRecordButton() {
     };
 
     try {
+      const targetMatter = filingMatter(caseId);
       sessionResult = await apiRequest<{ id: string }>("POST", `/api/cases/${caseId}/sessions`, {
-        recordingType: "full_meeting",
+        recordingType: defaultRecordingTypeForMatterKind(targetMatter?.matterKind),
         sessionTitle: "Quick Record",
       });
 
@@ -942,7 +948,9 @@ export default function QuickRecordButton() {
       return;
     }
     
-    if (!practiceArea) {
+    const isFileClientMatter = isClientMatterKind(fileMatterKind);
+
+    if (isFileClientMatter && !practiceArea) {
       toast({
         title: "Practice area required",
         description: "Choose a practice area before the note is produced.",
@@ -971,7 +979,7 @@ export default function QuickRecordButton() {
         return;
       }
     }
-    if (!clientForCase) {
+    if (isFileClientMatter && !clientForCase) {
       toast({
         title: "Client required",
         description: "Enter the client name for this matter.",
@@ -1010,20 +1018,24 @@ export default function QuickRecordButton() {
       // Step 1: Create case
       caseResult = await apiRequest<CaseResponse>("POST", "/api/cases", {
         title: caseTitle,
-        clientName: clientForCase.name,
-        clientId: clientForCase.id,
+        matterKind: fileMatterKind,
+        clientName: isFileClientMatter
+          ? clientForCase!.name
+          : (clientForCase?.name ?? partyLabelForMatterKind(fileMatterKind)),
+        clientId: clientForCase?.id,
+        hasExternalAttendees: !isFileClientMatter && fileHasExternalAttendees,
         sourceType: "audio",
         status: "pending",
         priority: "normal",
-        practiceArea,
+        practiceArea: isFileClientMatter ? practiceArea : undefined,
         conflictCheckCompleted: false,
-        conflictCheckNote: CAPTURE_CONFLICT_DEFERRAL_NOTE,
-        instructionStatus: "enquiry",
+        conflictCheckNote: isFileClientMatter ? CAPTURE_CONFLICT_DEFERRAL_NOTE : undefined,
+        instructionStatus: isFileClientMatter ? "enquiry" : "instructed",
       });
 
-      // Link to derivation engine via a meeting session (full_meeting for Quick Record)
+      // Link to derivation engine via a meeting session
       const sessionResult = await apiRequest<{ id: string }>("POST", `/api/cases/${caseResult.id}/sessions`, {
-        recordingType: "full_meeting",
+        recordingType: defaultRecordingTypeForMatterKind(fileMatterKind),
         sessionTitle: "Quick Record",
       });
 
@@ -1238,6 +1250,8 @@ export default function QuickRecordButton() {
         setCaseTitle("");
         setClientQuery("");
         setSelectedClient(null);
+        setFileMatterKind("client");
+        setFileHasExternalAttendees(false);
         audioBlobRef.current = null;
         setConsentGiven(null);
       }
@@ -1578,12 +1592,46 @@ export default function QuickRecordButton() {
                 ) : (
                   <>
                     <div className="space-y-2">
+                      <Label>Matter type</Label>
+                      <RadioGroup
+                        value={fileMatterKind}
+                        onValueChange={(v) => {
+                          const next = v as MatterKind;
+                          setFileMatterKind(next);
+                          if (isClientMatterKind(next)) setFileHasExternalAttendees(false);
+                        }}
+                        className="flex flex-col gap-2 sm:flex-row sm:gap-4"
+                      >
+                        {(Object.entries(MATTER_KIND_LABELS) as [MatterKind, string][]).map(([value, label]) => (
+                          <div key={value} className="flex items-center gap-2">
+                            <RadioGroupItem value={value} id={`quick-matter-kind-${value}`} data-testid={`radio-quick-matter-kind-${value}`} />
+                            <Label htmlFor={`quick-matter-kind-${value}`} className="cursor-pointer font-normal">
+                              {label}
+                            </Label>
+                          </div>
+                        ))}
+                      </RadioGroup>
+                      {!isClientMatterKind(fileMatterKind) && (
+                        <div className="flex items-start gap-2 pt-1">
+                          <Checkbox
+                            id="quick-external-attendees"
+                            checked={fileHasExternalAttendees}
+                            onCheckedChange={(checked) => setFileHasExternalAttendees(checked === true)}
+                            data-testid="checkbox-quick-external-attendees"
+                          />
+                          <Label htmlFor="quick-external-attendees" className="cursor-pointer font-normal text-sm leading-snug">
+                            External attendees present (outside the firm)
+                          </Label>
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-2">
                       <Label htmlFor="quick-case-title">
-                        Matter title <span className="text-accent">*</span>
+                        {isClientMatterKind(fileMatterKind) ? "Matter title" : "Meeting title"} <span className="text-accent">*</span>
                       </Label>
                       <Input
                         id="quick-case-title"
-                        placeholder="e.g., Estate Planning Consultation"
+                        placeholder={isClientMatterKind(fileMatterKind) ? "e.g., Estate Planning Consultation" : "e.g., Partners meeting - Q3 planning"}
                         value={caseTitle}
                         onChange={(e) => setCaseTitle(e.target.value)}
                         data-testid="input-quick-case-title"
@@ -1591,7 +1639,9 @@ export default function QuickRecordButton() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="quick-client-name">
-                        Client name <span className="text-accent">*</span>
+                        {isClientMatterKind(fileMatterKind)
+                          ? <>Client name <span className="text-accent">*</span></>
+                          : "Link a contact (optional)"}
                       </Label>
                       <ClientNameAutocomplete
                         id="quick-client-name"
@@ -1605,12 +1655,17 @@ export default function QuickRecordButton() {
                           setClientQuery("");
                         }}
                         onQueryChange={setClientQuery}
+                        placeholder={
+                          isClientMatterKind(fileMatterKind)
+                            ? "Search existing clients or type a new name..."
+                            : "Search or add a person to find this meeting again later"
+                        }
                         data-testid="input-quick-client-name"
                       />
                     </div>
                   </>
                 )}
-                {(fileMode === "new" || (fileMode === "existing" && !!existingCaseId && matterNeedsPracticeArea(existingCaseId))) && (
+                {((fileMode === "new" && isClientMatterKind(fileMatterKind)) || (fileMode === "existing" && !!existingCaseId && matterNeedsPracticeArea(existingCaseId))) && (
                   <div className="space-y-2">
                     <Label htmlFor="quick-practice-area">Practice area <span className="text-destructive">*</span></Label>
                     <Select
@@ -1637,7 +1692,8 @@ export default function QuickRecordButton() {
                   disabled={
                     fileMode === "existing"
                       ? !existingCaseId || (matterNeedsPracticeArea(existingCaseId) && !practiceArea)
-                      : !caseTitle.trim() || (!selectedClient && !clientQuery.trim()) || !practiceArea
+                      : !caseTitle.trim() ||
+                        (isClientMatterKind(fileMatterKind) && ((!selectedClient && !clientQuery.trim()) || !practiceArea))
                   }
                   className="bg-accent hover:bg-accent"
                   data-testid="button-save-case"

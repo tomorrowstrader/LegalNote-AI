@@ -625,7 +625,7 @@ export default function CaseDetail() {
   type ReadinessData = { overall: "green" | "amber" | "red"; outstandingCount: number; criteria: ReadinessCriterion[]; disclaimer: string };
   const { data: sraReadiness, isLoading: readinessLoading } = useQuery<ReadinessData>({
     queryKey: [`/api/cases/${caseId}/sra-readiness`],
-    enabled: !!caseId && sraReadinessVisible,
+    enabled: !!caseId && sraReadinessVisible && isClientMatterKind(caseData?.matterKind),
   });
 
   const [showSraReportModal, setShowSraReportModal] = useState(false);
@@ -1426,7 +1426,7 @@ export default function CaseDetail() {
               Handover Case
             </DropdownMenuItem>
           )}
-          {sraReadinessVisible && (
+          {sraReadinessVisible && isClientMatterKind(caseData?.matterKind) && (
             <>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => setShowSraReportModal(true)} data-testid="action-sra-report">

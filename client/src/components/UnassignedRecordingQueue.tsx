@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { CalendarCheck, Loader2, PlusCircle, Trash2, Video } from "lucide-react";
-import type { Case, PracticeArea } from "@shared/schema";
+import type { Case, Client, PracticeArea } from "@shared/schema";
 import { PRACTICE_AREAS, PRACTICE_AREA_LABELS } from "@shared/schema";
 import { isClientMatterKind, MATTER_KIND_LABELS, type MatterKind } from "@shared/matterKinds";
 import {
@@ -39,6 +39,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { flushLiveBotNotesOnAssign } from "@/lib/meetingNotesDraft";
 import { ImportAudioScrubber } from "@/components/ImportAudioScrubber";
+import ClientNameAutocomplete from "@/components/ClientNameAutocomplete";
 
 const RECORDING_TYPE_LABELS: Record<string, string> = {
   full_meeting: "Client Meeting",
@@ -72,7 +73,7 @@ export function UnassignedRecordingQueue({
   const [newTitle, setNewTitle] = useState("");
   const [newMatterKind, setNewMatterKind] = useState<MatterKind>("client");
   const [newHasExternalAttendees, setNewHasExternalAttendees] = useState(false);
-  const [newClient, setNewClient] = useState("");
+  const [newClientObj, setNewClientObj] = useState<Client | null>(null);
   const [newPracticeArea, setNewPracticeArea] = useState<PracticeArea | "">("");
   const [existingPracticeArea, setExistingPracticeArea] = useState<PracticeArea | "">("");
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -114,7 +115,7 @@ export function UnassignedRecordingQueue({
     setNewTitle("");
     setNewMatterKind("client");
     setNewHasExternalAttendees(false);
-    setNewClient("");
+    setNewClientObj(null);
     setNewPracticeArea("");
     setExistingPracticeArea("");
     setCaseId(current.suggestedMatter?.caseId ?? "");
@@ -156,6 +157,7 @@ export function UnassignedRecordingQueue({
       caseData?: {
         title: string;
         matterKind?: MatterKind;
+        clientId?: string;
         clientName?: string;
         practiceArea?: string;
         hasExternalAttendees?: boolean;
@@ -252,7 +254,7 @@ export function UnassignedRecordingQueue({
     && !selectedCase.practiceArea;
   const canAssign = mode === "existing"
     ? !!caseId && (!selectedNeedsPracticeArea || !!existingPracticeArea)
-    : !!newTitle.trim() && (!isNewMatterClient || (!!newClient.trim() && !!newPracticeArea));
+    : !!newTitle.trim() && (!isNewMatterClient || (!!newClientObj && !!newPracticeArea));
   const deleteReasonReady = deleteReason.trim().length >= 3;
   const busy = assignMutation.isPending || discardMutation.isPending;
 
@@ -275,12 +277,14 @@ export function UnassignedRecordingQueue({
         ? {
             title: newTitle.trim(),
             matterKind: newMatterKind,
-            clientName: newClient.trim(),
+            clientId: newClientObj?.id,
+            clientName: newClientObj?.name ?? "",
             practiceArea: newPracticeArea,
           }
         : {
             title: newTitle.trim(),
             matterKind: newMatterKind,
+            clientId: newClientObj?.id,
             hasExternalAttendees: newHasExternalAttendees,
           },
     });
@@ -449,7 +453,6 @@ export function UnassignedRecordingQueue({
                 setNewMatterKind(next);
                 setRecordingType(defaultRecordingTypeForMatterKind(next));
                 if (!isClientMatterKind(next)) {
-                  setNewClient("");
                   setNewPracticeArea("");
                 } else {
                   setNewHasExternalAttendees(false);
@@ -498,32 +501,37 @@ export function UnassignedRecordingQueue({
               data-testid="input-new-matter-title"
             />
           </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="queue-new-client">
+              {isNewMatterClient ? "Client name" : "Link a contact (optional)"}
+            </Label>
+            <ClientNameAutocomplete
+              id="queue-new-client"
+              selectedClient={newClientObj}
+              onSelect={setNewClientObj}
+              onClear={() => setNewClientObj(null)}
+              placeholder={
+                isNewMatterClient
+                  ? "e.g. Jane Smith"
+                  : "Search or add a person to find this meeting again later"
+              }
+              data-testid="input-new-matter-client"
+            />
+          </div>
           {isNewMatterClient && (
-            <>
-              <div className="space-y-1.5">
-                <Label htmlFor="queue-new-client">Client name</Label>
-                <Input
-                  id="queue-new-client"
-                  value={newClient}
-                  onChange={(event) => setNewClient(event.target.value)}
-                  placeholder="e.g. Jane Smith"
-                  data-testid="input-new-matter-client"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="queue-new-area">Practice area</Label>
-                <Select value={newPracticeArea} onValueChange={(value) => setNewPracticeArea(value as PracticeArea)}>
-                  <SelectTrigger id="queue-new-area" data-testid="select-new-practice-area">
-                    <SelectValue placeholder="Select practice area..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PRACTICE_AREAS.map((area) => (
-                      <SelectItem key={area} value={area}>{PRACTICE_AREA_LABELS[area]}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </>
+            <div className="space-y-1.5">
+              <Label htmlFor="queue-new-area">Practice area</Label>
+              <Select value={newPracticeArea} onValueChange={(value) => setNewPracticeArea(value as PracticeArea)}>
+                <SelectTrigger id="queue-new-area" data-testid="select-new-practice-area">
+                  <SelectValue placeholder="Select practice area..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {PRACTICE_AREAS.map((area) => (
+                    <SelectItem key={area} value={area}>{PRACTICE_AREA_LABELS[area]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           )}
         </div>
       )}

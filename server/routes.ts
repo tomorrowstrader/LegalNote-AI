@@ -2467,8 +2467,10 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       }
 
       if (!isClientMatter) {
-        // Non-client matters must not attach a client registry record
-        validatedData.clientId = undefined;
+        // Non-client matters may optionally link a real client-registry record
+        // purely for cross-matter continuity (finding the same person again) -
+        // never for billing/engagement purposes. The ownership check below
+        // (if clientId is set) overwrites clientName with the real name.
         validatedData.clientName = partyLabelForMatterKind(matterKind);
         validatedData.conflictCheckCompleted = false;
         validatedData.conflictCheckNote = undefined;
@@ -8110,6 +8112,9 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       const caseId = req.params.id;
       const caseData = await storage.getCase(caseId, userId);
       if (!caseData) return res.status(403).json({ message: "Not authorized" });
+      if (!isClientMatterKind(caseData.matterKind)) {
+        return res.status(404).json({ message: "Not found" });
+      }
 
       const [
         client,
@@ -8408,6 +8413,9 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       const caseId = req.params.id;
       const caseData = await storage.getCase(caseId, userId);
       if (!caseData) return res.status(403).json({ message: "Not authorized" });
+      if (!isClientMatterKind(caseData.matterKind)) {
+        return res.status(404).json({ message: "Not found" });
+      }
       const reportData = await assembleSraReportData(caseId, userId);
       const preview = buildSraReportPreview(reportData);
       await logPersonnelMatterAccess({
@@ -8437,6 +8445,9 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       const caseId = req.params.id;
       const caseData = await storage.getCase(caseId, userId);
       if (!caseData) return res.status(403).json({ message: "Not authorized" });
+      if (!isClientMatterKind(caseData.matterKind)) {
+        return res.status(404).json({ message: "Not found" });
+      }
 
       const reportData = await assembleSraReportData(caseId, userId);
       const pdfBytes = compileSraReportPdf(reportData);
@@ -11755,8 +11766,11 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         const matterKind = normalizeMatterKind(newCaseData?.matterKind);
         const isClientMatter = isClientMatterKind(matterKind);
         const resolvedClientName = (newCaseData?.clientName || '').trim();
+        const requestedClientId = typeof newCaseData?.clientId === "string" && newCaseData.clientId
+          ? newCaseData.clientId
+          : undefined;
 
-        if (isClientMatter && !resolvedClientName) {
+        if (isClientMatter && !resolvedClientName && !requestedClientId) {
           return res.status(400).json({ message: "caseData.clientName is required when createCase is true for a client matter" });
         }
         const requestedPracticeArea = typeof newCaseData?.practiceArea === "string"
@@ -11766,13 +11780,23 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
           return res.status(400).json({ message: "Practice area is required before the note is produced." });
         }
 
+        // Resolve an existing client when one was picked (don't create a duplicate
+        // client record), or verify ownership of a non-client-matter client link.
+        let linkedClient: Awaited<ReturnType<typeof storage.getClient>> | undefined;
+        if (requestedClientId) {
+          linkedClient = await storage.getClient(requestedClientId, userId);
+          if (!linkedClient) {
+            return res.status(400).json({ message: "Invalid client: not found or not owned by you" });
+          }
+        }
+
         let newCase;
         if (isClientMatter) {
-          const clientData = await storage.createClient({ name: resolvedClientName }, userId);
+          const clientData = linkedClient ?? await storage.createClient({ name: resolvedClientName }, userId);
           newCase = await storage.createCase({
             title: resolvedTitle,
             clientId: clientData.id,
-            clientName: resolvedClientName,
+            clientName: clientData.name,
             matterKind: "client",
             instructionStatus: "enquiry",
             practiceArea: requestedPracticeArea as InsertCase["practiceArea"],
@@ -11783,9 +11807,12 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
             sourceType: 'audio',
           }, userId);
         } else {
+          // Non-client matters may optionally link a real client-registry record,
+          // purely for cross-matter continuity - never for billing/engagement.
           newCase = await storage.createCase({
             title: resolvedTitle,
-            clientName: partyLabelForMatterKind(matterKind),
+            clientId: linkedClient?.id,
+            clientName: linkedClient?.name ?? partyLabelForMatterKind(matterKind),
             matterKind,
             hasExternalAttendees: !!newCaseData?.hasExternalAttendees,
             status: 'pending',
