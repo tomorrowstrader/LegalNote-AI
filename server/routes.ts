@@ -11661,13 +11661,24 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         "awaiting_assignment",
         "failed",
       ]);
+      // "downloading"/"transcribing" are healthy, self-driving background states
+      // (the job queue is already working on them) - only surface them here if
+      // they've been running far longer than even a long recording should take,
+      // so a genuinely stuck/orphaned job is still recoverable without the
+      // "unprocessed recording" prompt reappearing on every login for a normal
+      // multi-hour transcription that's progressing fine.
+      const activeProcessingStatuses = new Set(["downloading", "transcribing"]);
+      const stuckProcessingCutoff = Date.now() - 3 * 60 * 60 * 1000; // 3 hours
       const cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000;
-      const incomplete = imports.filter(
-        (i) =>
-          incompleteStatuses.has(i.status) &&
-          i.recallBotId &&
-          new Date(i.createdAt).getTime() >= cutoff,
-      );
+      const incomplete = imports.filter((i) => {
+        if (!incompleteStatuses.has(i.status) || !i.recallBotId) return false;
+        if (new Date(i.createdAt).getTime() < cutoff) return false;
+        if (activeProcessingStatuses.has(i.status)) {
+          const startedAt = new Date(i.importedAt ?? i.createdAt).getTime();
+          return startedAt < stuckProcessingCutoff;
+        }
+        return true;
+      });
 
       const caseIds = Array.from(
         new Set(incomplete.map((i) => i.caseId).filter((id): id is string => !!id)),

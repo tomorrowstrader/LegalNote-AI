@@ -319,7 +319,7 @@ export function VideoBotRecoveryModal({ open, onOpenChange }: VideoBotRecoveryMo
 
       acknowledgeAndClose([imp]);
       toast({
-        title: botStillLive ? "Resumed live meeting" : "Continuing video recording",
+        title: botStillLive ? "Resumed live meeting" : "Continuing video call recording",
         description: botStillLive
           ? "Watch the status pill in the bottom-right. Meeting-to-Matter will open when the call ends."
           : "LegalNote is producing (or resuming) your attendance note.",
@@ -429,7 +429,7 @@ export function VideoBotRecoveryModal({ open, onOpenChange }: VideoBotRecoveryMo
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Video className="w-5 h-5" />
-                Unprocessed video recording
+                Unprocessed video call recording
                 {otherImports.length > 1 ? "s" : ""}
               </DialogTitle>
               <DialogDescription>

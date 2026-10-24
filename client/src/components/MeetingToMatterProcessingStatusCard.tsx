@@ -6,6 +6,7 @@ import {
   estimateRemainingSeconds,
   estimateTranscriptionSeconds,
   formatEtaLabel,
+  formatEtaCountdown,
   processingStartStorageKey,
 } from "@/lib/processingEta";
 
@@ -19,6 +20,15 @@ const INITIAL_PROGRESS = 12;
 // phases still show continuous motion instead of parking at one number.
 const CREEP_EASE_PER_SEC = 0.09; // close ~9% of the remaining gap each second
 const CREEP_MIN_RATE = 0.5; // ...but always advance at least 0.5%/sec until the cap
+// A very long recording's transcription-estimate-based rate can be so slow
+// (minutes per visible percent) that the bar looks frozen even though it's
+// technically still moving. Guarantee at least one visible percent every
+// 75s during that hold so there's always something to see happening.
+const LONG_RECORDING_CREEP_FLOOR_SEC_PER_PERCENT = 75;
+// Recordings at or above this length get an explicit "this is normal" note
+// during the transcription hold, since that's the phase long meetings spend
+// the most real time in without the percentage moving much.
+const LONG_RECORDING_NOTE_THRESHOLD_SEC = 45 * 60;
 
 function getNextProcessingMilestone(progress: number): number {
   for (const milestone of PROCESSING_PROGRESS_MILESTONES) {
@@ -73,6 +83,7 @@ export default function MeetingToMatterProcessingStatusCard({
 }: MeetingToMatterProcessingStatusCardProps) {
   const [displayProgress, setDisplayProgress] = useState(INITIAL_PROGRESS);
   const [etaSeconds, setEtaSeconds] = useState<number | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const realProgressRef = useRef(realProgress);
   const displayProgressRef = useRef(INITIAL_PROGRESS);
   const audioDurationRef = useRef(audioDurationSec);
@@ -124,7 +135,12 @@ export default function MeetingToMatterProcessingStatusCard({
             // for the rest of a long meeting.
             const transcriptionSec = estimateTranscriptionSeconds(duration);
             const span = Math.max(cap - Math.max(real, INITIAL_PROGRESS), 1);
-            const rate = span / Math.max(transcriptionSec, 1);
+            const estimatedRate = span / Math.max(transcriptionSec, 1);
+            // For very long recordings the estimate-based rate alone can take
+            // minutes to move a single visible percent - floor it so there's
+            // always some motion to see within LONG_RECORDING_CREEP_FLOOR_SEC_PER_PERCENT.
+            const floorRate = 1 / LONG_RECORDING_CREEP_FLOOR_SEC_PER_PERCENT;
+            const rate = Math.max(estimatedRate, floorRate);
             display = Math.min(display + rate * dtSec, cap);
           } else {
             const remaining = cap - display;
@@ -183,6 +199,7 @@ export default function MeetingToMatterProcessingStatusCard({
     const tick = () => {
       const startedAt = processingStartedAtRef.current ?? Date.now();
       const elapsedSec = Math.max(0, (Date.now() - startedAt) / 1000);
+      setElapsedSeconds(elapsedSec);
       const progress = realProgressRef.current;
       const target = estimateRemainingSeconds({
         progress,
@@ -212,6 +229,11 @@ export default function MeetingToMatterProcessingStatusCard({
   }, [caseId, realProgress, currentStep, audioDurationSec]);
 
   const roundedDisplay = Math.round(displayProgress);
+  const isLongRecording =
+    !!audioDurationSec && audioDurationSec >= LONG_RECORDING_NOTE_THRESHOLD_SEC;
+  // The reassurance note is only useful while in the slow, mostly-flat
+  // transcription hold - once doc generation starts the bar moves on its own.
+  const showLongRecordingNote = isLongRecording && realProgress < 40;
 
   return (
     <div className="p-5 bg-card rounded-md border border-accent/30" data-testid="processing-status-card">
@@ -235,12 +257,22 @@ export default function MeetingToMatterProcessingStatusCard({
           <p className="text-xs text-muted-foreground" data-testid="text-progress-percentage">
             {roundedDisplay}% complete
           </p>
-          {etaSeconds != null && (
-            <p className="text-xs text-muted-foreground tabular-nums" data-testid="text-progress-eta">
-              {formatEtaLabel(etaSeconds, realProgress)}
+          <div className="flex items-center gap-2 shrink-0">
+            <p className="text-xs text-muted-foreground tabular-nums" data-testid="text-progress-elapsed">
+              Running {formatEtaCountdown(elapsedSeconds)}
             </p>
-          )}
+            {etaSeconds != null && (
+              <p className="text-xs text-muted-foreground tabular-nums" data-testid="text-progress-eta">
+                {formatEtaLabel(etaSeconds, realProgress)}
+              </p>
+            )}
+          </div>
         </div>
+        {showLongRecordingNote && (
+          <p className="text-xs text-muted-foreground/80 pt-0.5" data-testid="text-long-recording-note">
+            This is a long recording, so transcription can take a while and the percentage will move slowly. LegalNote is still working - no need to keep this page open; it'll be ready when you come back.
+          </p>
+        )}
       </div>
       {error && (
         <Alert variant="destructive" className="mt-3" data-testid="alert-processing-error">

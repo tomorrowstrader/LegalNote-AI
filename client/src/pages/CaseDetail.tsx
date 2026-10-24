@@ -703,6 +703,7 @@ export default function CaseDetail() {
     if (processingStatus?.status && terminalStatuses.includes(processingStatus.status) && caseData?.status === 'processing') {
       queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
       queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/documents`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/transcript`] });
       queryClient.invalidateQueries({
         predicate: (q) =>
           typeof q.queryKey[0] === "string" &&
@@ -720,6 +721,7 @@ export default function CaseDetail() {
     prevCaseStatusRef.current = caseData?.status;
     if (prev === "processing" && caseData?.status && caseData.status !== "processing") {
       void queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/documents`] });
+      void queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/transcript`] });
       void queryClient.invalidateQueries({
         predicate: (q) =>
           typeof q.queryKey[0] === "string" &&
@@ -846,6 +848,12 @@ export default function CaseDetail() {
     !audioData.deletedAt;
 
   const markCaseAsProcessing = (currentStep: string) => {
+    // Cancel any in-flight GET for these keys first - otherwise a request that was
+    // already in the air when "Process Case" was clicked can resolve just after this
+    // optimistic update and silently overwrite it with the pre-processing snapshot,
+    // leaving the "Ready for Processing" card showing until the page is refreshed.
+    void queryClient.cancelQueries({ queryKey: [`/api/cases/${caseId}`] });
+    void queryClient.cancelQueries({ queryKey: [`/api/cases/${caseId}/processing-status`] });
     queryClient.setQueryData([`/api/cases/${caseId}`], (old: Case | undefined) =>
       old
         ? {
