@@ -27,6 +27,14 @@ describe('documentGovernanceGate', () => {
     expect(scanDocumentGovernanceViolations(text)).toEqual([]);
   });
 
+  it('detects leaked continuation meta-commentary', () => {
+    const text =
+      'The document appears to have ended cleanly. Since this is a continuation task, the correct output is: the content is a duplicate and should be deleted.';
+    const violations = scanDocumentGovernanceViolations(text);
+    expect(violations.map((v) => v.type)).toContain('continuation_commentary');
+    expect(violations.length).toBeGreaterThanOrEqual(3);
+  });
+
   it('logs violations in warn mode without throwing', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const violations = logDocumentGovernanceViolations(

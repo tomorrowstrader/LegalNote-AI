@@ -1,5 +1,6 @@
 import { storage } from "../storage";
 import type { TimeEntry } from "@shared/schema";
+import { isClientMatterKind } from "@shared/matterKinds";
 
 const SIX_MINUTE_UNIT = 6;
 
@@ -24,6 +25,11 @@ export async function ensureDraftTimeEntryForSession(params: {
 
   const session = await storage.getMeetingSession(sessionId);
   if (!session || session.caseId !== caseId) {
+    return null;
+  }
+
+  const caseRecord = await storage.getCase(caseId, userId);
+  if (!caseRecord || !isClientMatterKind(caseRecord.matterKind)) {
     return null;
   }
 

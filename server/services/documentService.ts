@@ -493,9 +493,14 @@ function resolveVerificationAuthoritativeNames(
   };
 }
 
-function sanitizeModelProseDashes(document: string): string {
+/**
+ * Known headings are skipped (left untouched) because they're system-built header/metadata,
+ * not model prose. If no known heading is found, sanitize the whole document rather than
+ * silently skipping it — safer than maintaining an ever-growing heading list per document type.
+ */
+export function sanitizeModelProseDashes(document: string): string {
   const proseStart = modelProseStartIndex(document);
-  if (proseStart < 0) return document;
+  if (proseStart < 0) return replaceEmEnDashes(document);
   return document.slice(0, proseStart) + replaceEmEnDashes(document.slice(proseStart));
 }
 
@@ -637,6 +642,51 @@ export function looksLikeTruncatedDocumentBody(content: string): boolean {
     return true;
   }
   return false;
+}
+
+/**
+ * Catches cases where a "continue the document" call doesn't return new document
+ * content but instead talks ABOUT the document (e.g. explaining that it was already
+ * complete, or reasoning about what the "correct output" should be). That reasoning
+ * must never be appended to the document.
+ */
+const CONTINUATION_META_COMMENTARY_PATTERNS = [
+  /no continuation (?:is |was )?(?:required|needed)/i,
+  /does not require (?:a |any )?continuation/i,
+  /nothing (?:further |else )?to continue/i,
+  /since this is a continuation task/i,
+  /the document (?:appears to have|was|is) (?:already )?complete/i,
+  /the correct output is/i,
+  /is a duplicate and should be (?:deleted|removed)/i,
+  /the only anomaly/i,
+];
+
+export function isContinuationMetaCommentary(continuation: string): boolean {
+  const text = continuation.trim();
+  if (!text) return false;
+  return CONTINUATION_META_COMMENTARY_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+/** Catches cases where a continuation response just repeats the tail of what's already there. */
+export function isDuplicateContinuation(existing: string, continuation: string): boolean {
+  const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
+  const contHead = normalize(continuation).slice(0, 120);
+  if (contHead.length < 20) return false;
+  const existingTail = normalize(existing.slice(-1000));
+  return existingTail.includes(contHead);
+}
+
+/**
+ * Several document types (internal meeting note, file note, telephone/court attendance
+ * note, police station record) have the model write its own standard closing privilege
+ * sentence as the last line of the body. If that line is already present, the document
+ * is genuinely complete — never request a continuation for it, even when the provider
+ * reports stopReason "max_tokens" (which can happen simply because the full document
+ * used most of the output budget, not because it was cut off).
+ */
+export function hasRecognizedClosingLine(content: string): boolean {
+  const tail = content.slice(-400);
+  return /subject to legal professional privilege/i.test(tail);
 }
 
 /** Join a continuation onto a truncated body without restarting the document. */
@@ -1385,6 +1435,7 @@ List each distinct defect once. Never repeat a statement. Never restate the same
 
       let continuationPass = 0;
       while (
+        !hasRecognizedClosingLine(content) &&
         (stopReason === 'max_tokens' || looksLikeTruncatedDocumentBody(content)) &&
         continuationPass < DOCUMENT_CONTINUATION_MAX_PASSES
       ) {
@@ -1410,14 +1461,20 @@ Continue seamlessly from the cutoff.`,
           temperature: 0,
         });
         const next = sanitizeModelProseDashes(ensureBoldHeadings(cont.content));
-        content = joinDocumentContinuation(content, next);
         inputTokens += cont.inputTokens;
         outputTokens += cont.outputTokens;
         cost += cont.cost;
+        if (isContinuationMetaCommentary(next) || isDuplicateContinuation(content, next)) {
+          console.warn(
+            `[continuation-guard] Discarding continuation pass ${continuationPass} response — it reads as commentary about the document rather than new document content, or duplicates text already present. Keeping the document unchanged.`,
+          );
+          break;
+        }
+        content = joinDocumentContinuation(content, next);
         stopReason = cont.stopReason;
       }
 
-      if (stopReason === 'max_tokens' || looksLikeTruncatedDocumentBody(content)) {
+      if (!hasRecognizedClosingLine(content) && (stopReason === 'max_tokens' || looksLikeTruncatedDocumentBody(content))) {
         console.warn(
           'Document may still appear truncated after continuation passes — review before filing.',
         );

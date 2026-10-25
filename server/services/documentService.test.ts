@@ -4,6 +4,10 @@ import {
   formatRevisionInstructions,
   looksLikeTruncatedDocumentBody,
   joinDocumentContinuation,
+  hasRecognizedClosingLine,
+  isContinuationMetaCommentary,
+  isDuplicateContinuation,
+  sanitizeModelProseDashes,
   type CaseMetadata,
 } from './documentService';
 
@@ -38,6 +42,65 @@ describe('joinDocumentContinuation', () => {
     expect(joinDocumentContinuation('this may not produce', 'the intended outcome.')).toBe(
       'this may not produce the intended outcome.',
     );
+  });
+});
+
+describe('hasRecognizedClosingLine', () => {
+  it('recognizes the internal meeting note privilege closing line', () => {
+    expect(
+      hasRecognizedClosingLine(
+        '**Follow-up**\nNone recorded.\n\nThis note is an internal firm record and may be subject to legal professional privilege where it concerns client matters.',
+      ),
+    ).toBe(true);
+  });
+
+  it('recognizes the file note / telephone / court / police closing lines', () => {
+    expect(hasRecognizedClosingLine('Some body text.\n\nThis file note is subject to legal professional privilege.')).toBe(true);
+  });
+
+  it('returns false when the body has no recognized closing line', () => {
+    expect(hasRecognizedClosingLine('**Summary**\nWe discussed the budget.')).toBe(false);
+  });
+});
+
+describe('isContinuationMetaCommentary', () => {
+  it('detects leaked reasoning about whether continuation was needed', () => {
+    const leaked =
+      'The document appears to have ended cleanly at the privilege footer. The continuation required is simply the removal of the duplicate, but since this is a continuation task, the correct output is:\n\n(No continuation required — the document was complete at the first instance of the Follow-up section and privilege footer. The content after the first privilege line is a duplicate and should be deleted.)';
+    expect(isContinuationMetaCommentary(leaked)).toBe(true);
+  });
+
+  it('does not flag genuine document continuation text', () => {
+    expect(isContinuationMetaCommentary('the outcome the client intends under the intestacy rules.')).toBe(false);
+  });
+});
+
+describe('isDuplicateContinuation', () => {
+  it('detects a continuation that repeats the existing tail', () => {
+    const existing =
+      '**Follow-up**\nWeekly calls are proposed once the engagement commences.\n\nThis note is an internal firm record and may be subject to legal professional privilege where it concerns client matters.';
+    const duplicate =
+      'This note is an internal firm record and may be subject to legal professional privilege where it concerns client matters. The document appears to have ended cleanly.';
+    expect(isDuplicateContinuation(existing, duplicate)).toBe(true);
+  });
+
+  it('does not flag genuinely new content', () => {
+    const existing = 'In the absence of a will, the intestacy rules apply; this may not produce';
+    const next = 'the outcome the client intends under the intestacy rules.';
+    expect(isDuplicateContinuation(existing, next)).toBe(false);
+  });
+});
+
+describe('sanitizeModelProseDashes', () => {
+  it('sanitizes the whole document when no known heading marker is present', () => {
+    const result = sanitizeModelProseDashes('**Summary**\nWe discussed the budget — in detail.');
+    expect(result).not.toContain('—');
+    expect(result).toContain('We discussed the budget, in detail.');
+  });
+
+  it('still sanitizes dashes after a recognized heading marker', () => {
+    const result = sanitizeModelProseDashes('**MATTERS DISCUSSED**\nThe range was 2024–2025.');
+    expect(result).toContain('2024 to 2025');
   });
 });
 
@@ -166,6 +229,52 @@ Reasoning behind advice and decisions:Because the facts support that course.`,
 
     expect(chatCompletion).toHaveBeenCalledTimes(2);
     expect(result.content).toContain('**2. NEXT SECTION**');
+  });
+
+  it('does not request a continuation when the document already ends with its closing privilege line, even if stopReason is max_tokens', async () => {
+    const chatCompletion = vi.fn().mockResolvedValueOnce({
+      content:
+        '**MATTERS DISCUSSED**\n\nFollow-up\nWeekly calls are proposed once the engagement commences.\n\nThis note is an internal firm record and may be subject to legal professional privilege where it concerns client matters.',
+      inputTokens: 100,
+      outputTokens: 16384,
+      cost: 0.01,
+      stopReason: 'max_tokens',
+    });
+
+    const result = await new DocumentService({ chatCompletion }).generateAttendanceNote(
+      'Long meeting transcript.',
+      metadata,
+    );
+
+    expect(chatCompletion).toHaveBeenCalledTimes(1);
+    expect(result.content).not.toContain('continuation task');
+    expect(result.content).not.toContain('correct output is');
+  });
+
+  it('discards a continuation response that is meta-commentary instead of document content', async () => {
+    const chatCompletion = vi
+      .fn()
+      .mockResolvedValueOnce({
+        content: '**MATTERS DISCUSSED**\n\nIn the absence of a will, the intestacy rules apply; this may not produce',
+        inputTokens: 100,
+        outputTokens: 4000,
+        cost: 0.01,
+      })
+      .mockResolvedValueOnce({
+        content:
+          'The document appears to have ended cleanly. Since this is a continuation task, the correct output is: no continuation required.',
+        inputTokens: 50,
+        outputTokens: 40,
+        cost: 0.002,
+      });
+
+    const service = new DocumentService({ chatCompletion });
+    const result = await service.generateAttendanceNote('Long meeting transcript.', metadata);
+
+    expect(chatCompletion).toHaveBeenCalledTimes(2);
+    expect(result.content).not.toContain('continuation task');
+    expect(result.content).not.toContain('correct output is');
+    expect(result.content).toContain('this may not produce');
   });
 
   it('routes short transcripts through the governed attendance note prompt', async () => {
