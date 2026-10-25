@@ -96,6 +96,8 @@ function newLocalSessionId(): string {
 
 export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): UseChunkedRecordingReturn {
   const { onChunkUploaded, onNetworkStatusChange, onError } = options;
+  const onNetworkStatusChangeRef = useRef(onNetworkStatusChange);
+  onNetworkStatusChangeRef.current = onNetworkStatusChange;
 
   const [isRecording, setIsRecording] = useState(false);
   const [duration, setDuration] = useState(0);
@@ -336,7 +338,7 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
       networkOnlineRef.current = true;
       const status = { online: true };
       setNetworkStatus(status);
-      onNetworkStatusChange?.(status);
+      onNetworkStatusChangeRef.current?.(status);
       void syncPendingAfterReconnect();
     };
 
@@ -344,15 +346,17 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
       networkOnlineRef.current = false;
       const status = { online: false };
       setNetworkStatus(status);
-      onNetworkStatusChange?.(status);
+      onNetworkStatusChangeRef.current?.(status);
     };
 
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
 
+    let connection: any = null;
+    let updateConnectionInfo: (() => void) | null = null;
     if ("connection" in navigator) {
-      const connection = (navigator as any).connection;
-      const updateConnectionInfo = () => {
+      connection = (navigator as any).connection;
+      updateConnectionInfo = () => {
         setNetworkStatus((prev) => ({
           ...prev,
           effectiveType: connection.effectiveType,
@@ -366,8 +370,11 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
     return () => {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
+      if (connection && updateConnectionInfo) {
+        connection.removeEventListener("change", updateConnectionInfo);
+      }
     };
-  }, [onNetworkStatusChange, syncPendingAfterReconnect]);
+  }, [syncPendingAfterReconnect]);
 
   useEffect(() => {
     if (!("getBattery" in navigator)) return;
