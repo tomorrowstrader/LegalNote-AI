@@ -432,7 +432,7 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
   }, []);
 
   const handleNavDocuments = useCallback(() => {
-    advanceTo(8);
+    advanceTo(7);
   }, [advanceTo]);
 
   const handleNavAttendanceTab = useCallback(() => {
@@ -459,23 +459,23 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
 
   const handleActionShare = useCallback(() => {
     setShareModalOpen(true);
-    advanceTo(11);
+    advanceTo(9);
   }, [advanceTo]);
 
   const handleNavUndertakings = useCallback(() => {
-    advanceTo(14);
+    advanceTo(11);
   }, [advanceTo]);
 
   const handleNavObligations = useCallback(() => {
-    advanceTo(14);
+    advanceTo(11);
   }, [advanceTo]);
 
   const handleNavConsent = useCallback(() => {
-    advanceTo(15);
+    advanceTo(12);
   }, [advanceTo]);
 
   const handleNavAudit = useCallback(() => {
-    advanceTo(16);
+    advanceTo(13);
   }, [advanceTo]);
 
   const handleTourComplete = useCallback(() => {
