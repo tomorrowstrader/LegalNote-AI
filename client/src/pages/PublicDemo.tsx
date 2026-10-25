@@ -63,6 +63,7 @@ const DEMO_CLICK_GUARDS: Record<string, string> = {
   "button-download-word": "Document export to Word is available in your firm's live account.",
   "button-download-pdf": "Document export to PDF is available in your firm's live account.",
   "button-export": "Export is available in your firm's live account.",
+  "button-play-pause": "Full playback isn't available in this showroom - in your account, this plays the complete recording synced to the transcript.",
 };
 
 const SHOWROOM_TOAST_TITLE = "Showroom access";

@@ -717,6 +717,8 @@ ${firmName}`,
       lawfulBasis: "consent",
       consentWithdrawn: false,
       sealingStatus: "sealed",
+      contentHash: "d1e2a3f4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2",
+      contentSignature: "7f3e9a1c5d8b2e4f6a9c1d3e5f7a9b1c3d5e7f9a1b3c5d7e9f1a3b5c7d9e1f3a",
     },
     {
       id: "demo-consent-002",
@@ -731,6 +733,8 @@ ${firmName}`,
       lawfulBasis: "consent",
       consentWithdrawn: false,
       sealingStatus: "sealed",
+      contentHash: "a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5",
+      contentSignature: "2c4e6a8b0d2f4a6c8e0b2d4f6a8c0e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a4c",
     },
     {
       id: "demo-consent-003",
@@ -745,6 +749,8 @@ ${firmName}`,
       lawfulBasis: "consent",
       consentWithdrawn: false,
       sealingStatus: "sealed",
+      contentHash: "f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7",
+      contentSignature: "8e0a2c4e6b8d0f2a4c6e8b0d2f4a6c8e0b2d4f6a8c0e2b4d6f8a0c2e4b6d8f0a",
     },
   ];
 
@@ -1207,6 +1213,8 @@ ${firmName}`,
       lawfulBasis: "consent",
       consentWithdrawn: false,
       sealingStatus: "sealed",
+      contentHash: "b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4",
+      contentSignature: "5a7c9e1b3d5f7a9c1e3b5d7f9a1c3e5b7d9f1a3c5e7b9d1f3a5c7e9b1d3f5a7c",
     },
   ];
 
@@ -1685,6 +1693,8 @@ ${firmName}`,
       lawfulBasis: "consent",
       consentWithdrawn: false,
       sealingStatus: "sealed",
+      contentHash: "b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4",
+      contentSignature: "5a7c9e1b3d5f7a9c1e3b5d7f9a1c3e5b7d9f1a3c5e7b9d1f3a5c7e9b1d3f5a7c",
     },
   ];
 
@@ -1807,6 +1817,9 @@ export function createDemoQueryClient(params: DemoParams): { qc: QueryClient; re
     isAdmin: false,
     authProviders: ["google"] as ("google" | "microsoft")[],
     preferredCalendarProvider: "google" as const,
+    /** Unlocks eval-only features (SRA Matter Report, compliance dashboard) for the showroom. */
+    firmIsEvaluation: true,
+    evaluationActive: true,
   };
 
   const demoFirmProfile = {
@@ -2159,14 +2172,14 @@ export function createDemoQueryClient(params: DemoParams): { qc: QueryClient; re
     id: `demo-audio-00${index + 1}`,
     caseId: DEMO_CASE_ID,
     meetingSessionId: session.id,
-    filePath: null,
+    filePath: `demo/audio/session-${index + 1}.webm`,
     consentSegmentPath: `demo/consent/session-${index + 1}.webm`,
     consentDurationSeconds: 18 + index * 4,
     mimeType: "audio/webm",
     duration: session.durationSeconds ?? 780,
     recordedAt: session.startedAt,
     expiresAt: relDateTime(7),
-    deletedAt: relDateTime(-1),
+    deletedAt: null,
     holdReleaseGraceUntil: null,
     colpReviewStatus: null,
   }));

@@ -99,6 +99,12 @@ const getSupportedMimeType = (): { mimeType: string; extension: string } => {
 };
 
 export default function QuickRecordButton() {
+  // Real recording/device checks (mic access, battery) have no place in the public
+  // showroom - the demo has its own simulated capture flow.
+  if (typeof window !== "undefined" && window.location.pathname.startsWith("/demo/")) {
+    return null;
+  }
+
   const { toast } = useToast();
   const { user } = useAuth();
   const [location, setLocation] = useLocation();
