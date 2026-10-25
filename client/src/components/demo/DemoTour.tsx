@@ -734,7 +734,7 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
         />
         {spotlightRect && (
           <div
-            className="fixed z-[61] pointer-events-none rounded-md"
+            className="fixed z-[91] pointer-events-none rounded-md"
             style={{
               top: spotlightRect.top - spotlightPad,
               left: spotlightRect.left - spotlightPad,
@@ -758,7 +758,7 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
           />
         )}
         <div
-          className={`fixed z-[70] left-0 right-0 bg-background shadow-lg p-4 ${
+          className={`fixed z-[92] left-0 right-0 bg-background shadow-lg p-4 ${
             mobileAtTop
               ? "top-0 border-b border-border rounded-b-lg"
               : "bottom-0 border-t border-border rounded-t-lg"
@@ -790,7 +790,7 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
       />
       {spotlightRect && (
         <div
-          className="fixed z-[61] pointer-events-none rounded-md"
+          className="fixed z-[91] pointer-events-none rounded-md"
           style={{
             top: spotlightRect.top - spotlightPad,
             left: spotlightRect.left - spotlightPad,
@@ -815,7 +815,7 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
       )}
       {cursorPos && currentStep?.animatedCursor && (
         <div
-          className="fixed z-[80] pointer-events-none"
+          className="fixed z-[95] pointer-events-none"
           style={{
             top: cursorPos.y,
             left: cursorPos.x,
@@ -844,7 +844,7 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
         </div>
       )}
       <div
-        className="fixed z-[70] w-[300px] bg-background border border-border rounded-md shadow-lg p-4"
+        className="fixed z-[92] w-[300px] bg-background border border-border rounded-md shadow-lg p-4"
         style={{ top: tooltipPos.top, left: tooltipPos.left }}
         data-testid="tour-tooltip"
       >
