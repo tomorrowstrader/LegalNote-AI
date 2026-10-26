@@ -81,6 +81,8 @@ interface DemoInteractionGuardProps {
   onNavConsent: () => void;
   onNavAttendanceTab: () => void;
   onNavTranscriptTab: () => void;
+  onNavClientLetterTab: () => void;
+  onGapIndicatorTap: () => void;
 }
 
 function DemoInteractionGuard({
@@ -96,6 +98,8 @@ function DemoInteractionGuard({
   onNavConsent,
   onNavAttendanceTab,
   onNavTranscriptTab,
+  onNavClientLetterTab,
+  onGapIndicatorTap,
 }: DemoInteractionGuardProps) {
   const { toast } = useToast();
 
@@ -105,7 +109,7 @@ function DemoInteractionGuard({
 
       // ── Tab checks use closest() so taps on child <span> elements are caught ──
       if (target.closest('[data-testid="tab-attendance"]')) {
-        if (currentTourTarget === "tab-attendance" || currentTourTarget === "tab-transcript") {
+        if (currentTourTarget === "tab-attendance" || currentTourTarget === "tab-transcript" || currentTourTarget === "tab-summary") {
           if (currentTourTarget === "tab-attendance") {
             onNavAttendanceTab();
           }
@@ -118,7 +122,7 @@ function DemoInteractionGuard({
       }
 
       if (target.closest('[data-testid="tab-transcript"]')) {
-        if (currentTourTarget === "tab-transcript" || currentTourTarget === "tab-attendance") {
+        if (currentTourTarget === "tab-transcript" || currentTourTarget === "tab-attendance" || currentTourTarget === "button-gap-indicator" || currentTourTarget === "tab-summary") {
           if (currentTourTarget === "tab-transcript") {
             setTimeout(() => {
               const badge = document.querySelector('[data-testid="badge-diarized"]');
@@ -131,6 +135,19 @@ function DemoInteractionGuard({
         e.preventDefault();
         e.stopImmediatePropagation();
         toast({ title: SHOWROOM_TOAST_TITLE, description: "Follow the walkthrough to reach the transcript step.", duration: 3000 });
+        return;
+      }
+
+      if (target.closest('[data-testid="tab-summary"]')) {
+        if (currentTourTarget === "tab-summary" || currentTourTarget === "tab-transcript") {
+          if (currentTourTarget === "tab-summary") {
+            onNavClientLetterTab();
+          }
+          return;
+        }
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        toast({ title: SHOWROOM_TOAST_TITLE, description: "Follow the walkthrough to reach the client letter.", duration: 3000 });
         return;
       }
 
@@ -147,10 +164,18 @@ function DemoInteractionGuard({
         }
 
         if (testId === "nav-sessions") {
+          onNavSessions();
           return;
         }
 
         if (testId === "button-toggle-case-sidebar") {
+          return;
+        }
+
+        if (testId === "button-gap-indicator" || testId.startsWith("button-gap-citation-")) {
+          if (currentTourTarget === "button-gap-indicator") {
+            onGapIndicatorTap();
+          }
           return;
         }
 
@@ -232,7 +257,7 @@ function DemoInteractionGuard({
     };
     document.addEventListener("click", handleClick, { capture: true });
     return () => document.removeEventListener("click", handleClick, { capture: true });
-  }, [toast, currentTourTarget, tourActive, onJoinMeeting, onNavSessions, onNavDocuments, onActionShare, onNavUndertakings, onNavAudit, onNavObligations, onNavConsent, onNavAttendanceTab, onNavTranscriptTab]);
+  }, [toast, currentTourTarget, tourActive, onJoinMeeting, onNavSessions, onNavDocuments, onActionShare, onNavUndertakings, onNavAudit, onNavObligations, onNavConsent, onNavAttendanceTab, onNavTranscriptTab, onNavClientLetterTab, onGapIndicatorTap]);
 
   return null;
 }
@@ -275,10 +300,67 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
 
   const handleRestartTour = useCallback(() => setTourRestartTrigger((v) => v + 1), []);
 
+  /** Open the collapsed icon-only sidebar so the nav labels are readable, not just icons. */
+  const expandSidebarIfCollapsed = useCallback(() => {
+    const toggleBtn = document.querySelector('[data-testid="button-toggle-case-sidebar"]') as HTMLElement | null;
+    if (toggleBtn?.getAttribute("title") === "Expand menu") {
+      toggleBtn.click();
+    }
+  }, []);
+
+  const DEMO_GAP_FILL_TEXT =
+    "The solicitor advised the client to defer consenting to the Portugal holiday until proceedings are issued, so the automatic stay formalises the position and removes any risk of unilateral travel.";
+
+  /** Show the reasoning gap actually getting closed: fade the flagged chip, drop in the real wording, pulse it. */
+  const fillDemoReasoningGap = useCallback(() => {
+    const chip = document.querySelector('[data-reasoning-gap-index="0"]') as HTMLElement | null;
+    if (chip) {
+      chip.style.transition = "opacity 300ms ease";
+      chip.style.opacity = "0";
+    }
+    window.setTimeout(() => {
+      const docs = qc.getQueryData<Array<Record<string, unknown>>>([`/api/cases/${DEMO_CASE_ID}/documents`]);
+      if (!docs) return;
+      let replaced = false;
+      const updated = docs.map((d) => {
+        const content = d.content;
+        if (replaced || d.type !== "attendance_note" || typeof content !== "string" || !/<!--\s*REASONING_GAP:/.test(content)) {
+          return d;
+        }
+        replaced = true;
+        return {
+          ...d,
+          content: content.replace(/<!--\s*REASONING_GAP:[^>]*-->/, DEMO_GAP_FILL_TEXT),
+          reasoningGapsFilled: (typeof d.reasoningGapsFilled === "number" ? d.reasoningGapsFilled : 0) + 1,
+        };
+      });
+      if (!replaced) return;
+      qc.setQueryData([`/api/cases/${DEMO_CASE_ID}/documents`], updated);
+      window.setTimeout(() => {
+        const filledEl = Array.from(document.querySelectorAll("main p")).find((p) =>
+          p.textContent?.includes(DEMO_GAP_FILL_TEXT.slice(0, 50)),
+        ) as HTMLElement | undefined;
+        if (filledEl) {
+          const pulseClasses = ["ring-2", "ring-emerald-500", "ring-offset-2", "dark:ring-offset-background", "bg-emerald-50", "dark:bg-emerald-950/30", "rounded-sm", "transition-shadow", "duration-300"];
+          filledEl.classList.add(...pulseClasses);
+          window.setTimeout(() => filledEl.classList.remove(...pulseClasses), 2200);
+        }
+      }, 200);
+    }, 320);
+  }, [qc]);
+
+  const prevTourTargetRef = useRef<string | null>(null);
   const handleStepTargetChange = useCallback((target: string | null) => {
+    if (prevTourTargetRef.current === "button-gap-indicator" && target !== "button-gap-indicator") {
+      fillDemoReasoningGap();
+    }
+    if (target === "nav-sessions") {
+      expandSidebarIfCollapsed();
+    }
+    prevTourTargetRef.current = target;
     setCurrentTourTarget(target);
     setTourActive(target !== null);
-  }, []);
+  }, [fillDemoReasoningGap, expandSidebarIfCollapsed]);
 
   const advanceTo = useCallback((stepIndex: number) => {
     tourRef.current?.advanceTourToStep(stepIndex);
@@ -298,32 +380,6 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
       if (navAutoAdvanceTimerRef.current) clearTimeout(navAutoAdvanceTimerRef.current);
     };
   }, []);
-
-  const handleStepAutoAction = useCallback((stepId: number) => {
-    if (stepId === 6) {
-      setTimeout(() => {
-        const firstExpandBtn = document.querySelector('[data-testid^="button-expand-session-"]') as HTMLElement | null;
-        if (firstExpandBtn) {
-          firstExpandBtn.click();
-        }
-      }, 600);
-      advanceTo(6);
-    } else if (stepId === 11) {
-      const mainContent = document.querySelector('[data-testid="case-detail-main"]') || document.querySelector('main');
-      if (mainContent) mainContent.scrollTop = 0;
-      window.scrollTo(0, 0);
-      advanceTo(11);
-    } else if (stepId === 12) {
-      setShareModalOpen(true);
-      advanceTo(12);
-    } else if (stepId === 20) {
-      advanceTo(20);
-    } else if (stepId === 21) {
-      setTimeout(() => {
-        advanceTo(21);
-      }, 1500);
-    }
-  }, [qc, advanceTo, practiceArea, name]);
 
   const handleJoinMeeting = useCallback(() => {
     advanceFlow("meeting_setup");
@@ -373,29 +429,27 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
     }, 800);
   }, [revealCaseInCache, markCaseVisible]);
 
+  /** Sessions: real tap required, confirms this matter's whole session history before diving into one session's docs. */
   const handleNavSessions = useCallback(() => {
-  }, []);
-
-  const handleNavDocuments = useCallback(() => {
-    advanceTo(8);
+    advanceTo(7);
   }, [advanceTo]);
 
-  /** Attendance tab: scroll into the note, then straight to the reasoning-gap moment - no "Got it" needed. */
+  const handleNavDocuments = useCallback(() => {
+    advanceTo(7);
+  }, [advanceTo]);
+
+  /** Attendance tab: scroll into the note, then land on the flagged reasoning gap for the user to tap themselves. */
   const handleNavAttendanceTab = useCallback(() => {
     if (attendanceScrollFiredRef.current) return;
     attendanceScrollFiredRef.current = true;
     setTimeout(() => {
-      const main = document.querySelector("main");
+      // There are two <main> landmarks on the page (the app shell's and CaseDetail's own
+      // content pane) - pick whichever one actually has room to scroll.
+      const main = Array.from(document.querySelectorAll("main")).find((m) => m.scrollHeight > m.clientHeight + 2);
       if (main) main.scrollBy({ top: 420, behavior: "smooth" });
     }, 600);
     setTimeout(() => {
-      advanceTo(7);
-      // Let currentTourTarget re-render before the click lands, or the
-      // interaction guard still sees the old target and blocks it.
-      setTimeout(() => {
-        const gapButton = document.querySelector('[data-testid="button-gap-indicator"]') as HTMLElement | null;
-        gapButton?.click();
-      }, 150);
+      advanceTo(8);
     }, 1800);
   }, [advanceTo]);
 
@@ -405,28 +459,41 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
     }
   }, [currentTourTarget]);
 
-  /** Open the collapsed icon-only sidebar so the Obligations/Consent/Audit labels are readable, not just icons. */
-  const expandSidebarIfCollapsed = useCallback(() => {
-    const toggleBtn = document.querySelector('[data-testid="button-toggle-case-sidebar"]') as HTMLElement | null;
-    if (toggleBtn?.getAttribute("title") === "Expand menu") {
-      toggleBtn.click();
-    }
+  /** Reasoning gap: real tap on the chip or the button (either fires scrollToReasoningGap) unlocks "Got it". */
+  const handleGapIndicatorTap = useCallback(() => {
+    tourRef.current?.markActionCompleted();
   }, []);
 
   const transcriptAdvanceFiredRef = useRef(false);
-  /** Transcript tab: real tap required (no "Got it" shortcut), then expand the sidebar for the nav steps ahead. */
+  /** Transcript tab: real tap required (no "Got it" shortcut), with a beat to actually see the transcript. */
   const handleNavTranscriptTab = useCallback(() => {
     if (transcriptAdvanceFiredRef.current) return;
     transcriptAdvanceFiredRef.current = true;
-    expandSidebarIfCollapsed();
     setTimeout(() => {
-      advanceTo(9);
-    }, 300);
-  }, [advanceTo, expandSidebarIfCollapsed]);
+      advanceTo(10);
+    }, 2000);
+  }, [advanceTo]);
 
   useEffect(() => {
     if (currentTourTarget !== "tab-transcript") {
       transcriptAdvanceFiredRef.current = false;
+    }
+  }, [currentTourTarget]);
+
+  const clientLetterAdvanceFiredRef = useRef(false);
+  /** Client Letter tab: real tap required, then expand the sidebar for the nav steps ahead. */
+  const handleNavClientLetterTab = useCallback(() => {
+    if (clientLetterAdvanceFiredRef.current) return;
+    clientLetterAdvanceFiredRef.current = true;
+    expandSidebarIfCollapsed();
+    setTimeout(() => {
+      advanceTo(11);
+    }, 1500);
+  }, [advanceTo, expandSidebarIfCollapsed]);
+
+  useEffect(() => {
+    if (currentTourTarget !== "tab-summary") {
+      clientLetterAdvanceFiredRef.current = false;
     }
   }, [currentTourTarget]);
 
@@ -439,23 +506,23 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
 
   /** Click the icon -> navigate, show this step, then move to the next one by itself. */
   const handleNavUndertakings = useCallback(() => {
-    advanceTo(9);
-    scheduleNavAutoAdvance(10, 4000);
+    advanceTo(11);
+    scheduleNavAutoAdvance(12, 4000);
   }, [advanceTo, scheduleNavAutoAdvance]);
 
   const handleNavObligations = useCallback(() => {
-    advanceTo(9);
-    scheduleNavAutoAdvance(10, 4000);
+    advanceTo(11);
+    scheduleNavAutoAdvance(12, 4000);
   }, [advanceTo, scheduleNavAutoAdvance]);
 
   const handleNavConsent = useCallback(() => {
-    advanceTo(10);
-    scheduleNavAutoAdvance(11, 4000);
+    advanceTo(12);
+    scheduleNavAutoAdvance(13, 4000);
   }, [advanceTo, scheduleNavAutoAdvance]);
 
   const handleNavAudit = useCallback(() => {
-    advanceTo(11);
-    scheduleNavAutoAdvance(12, 2500);
+    advanceTo(13);
+    scheduleNavAutoAdvance(14, 2500);
   }, [advanceTo, scheduleNavAutoAdvance]);
 
   const handleTourComplete = useCallback(() => {
@@ -480,6 +547,8 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
         onNavConsent={handleNavConsent}
         onNavAttendanceTab={handleNavAttendanceTab}
         onNavTranscriptTab={handleNavTranscriptTab}
+        onNavClientLetterTab={handleNavClientLetterTab}
+        onGapIndicatorTap={handleGapIndicatorTap}
       />
       <div className="min-h-screen bg-background pb-16 overflow-x-hidden">
         <TopNavigation onRestartTour={handleRestartTour} />
@@ -494,7 +563,6 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
           firmName={firmName}
           hidden={isProcessing}
           onStepTargetChange={handleStepTargetChange}
-          onStepAutoAction={handleStepAutoAction}
           onComplete={handleTourComplete}
         />
         <DemoLockedOverlayManager />

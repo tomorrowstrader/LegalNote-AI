@@ -1179,6 +1179,31 @@ function scrollToReasoningGap(sectionName: string, gapIndex?: number) {
   scrollToGapCitation(citation, section || undefined, gapIndex);
 }
 
+/**
+ * Showroom-only: jump straight to the flagged chip, bypassing the advice-sentence matcher
+ * (which can match the chip's own rendered text as "the advice") and the shared scroll-delta
+ * helper (which can compute a zero delta while PageView's pagination is mid-remeasure).
+ * Re-applied a few times: the tour's own spotlight re-centers its target button every
+ * 300ms via scrollIntoView, which can fight the first attempt and scroll back up.
+ */
+function scrollToReasoningGapChip(gapIndex: number) {
+  const pulseClasses = ["ring-2", "ring-amber-500", "ring-offset-1", "dark:ring-offset-background"];
+  const apply = () => {
+    for (const root of getVisibleNoteRoots()) {
+      const chip = findReasoningGapAnchor(root, gapIndex);
+      if (chip) {
+        chip.scrollIntoView({ behavior: "smooth", block: "center" });
+        chip.classList.add(...pulseClasses);
+        window.setTimeout(() => chip.classList.remove(...pulseClasses), 1500);
+        return;
+      }
+    }
+  };
+  apply();
+  window.setTimeout(apply, 500);
+  window.setTimeout(apply, 1100);
+}
+
 function scrollToDocumentQuote(quote: string, cardTestId: "attendance-note-card" | "summary-note-card") {
   const trimmed = quote.trim();
   if (!trimmed) return false;
@@ -3465,8 +3490,11 @@ export default function DocumentViewer({
                   variant="outline"
                   onClick={() => {
                     if (isDemoMode) {
-                      // Showroom: jump to the flagged passage, skip the real edit/suggest panel.
-                      if (docGaps[0]) scrollToReasoningGap(docGaps[0], 0);
+                      // Showroom: jump straight to the flagged chip itself - the shared
+                      // advice-sentence matcher (scrollToReasoningGap) can match the chip's
+                      // own rendered text as "the advice", scrolling to itself instead of
+                      // the surrounding passage. Skip it and the real edit/suggest panel.
+                      scrollToReasoningGapChip(0);
                       return;
                     }
                     const opening = showGapPanel !== document.id;

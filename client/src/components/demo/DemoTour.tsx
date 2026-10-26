@@ -19,6 +19,7 @@ export interface TourStep {
   autoAction?: boolean;
   yellowWash?: boolean;
   fullScreenCard?: boolean;
+  skipSpotlightScroll?: boolean;
 }
 
 const NAV_TARGETS = ["nav-sessions", "nav-documents", "nav-obligations", "nav-undertakings", "nav-consent", "nav-audit"];
@@ -79,6 +80,16 @@ const TOUR_STEPS: TourStep[] = [
     navigationHint: "Scroll to the top of the Documents page to find the recording.",
   },
   {
+    id: 7,
+    target: "nav-sessions",
+    title: "One matter, every session connected",
+    description: "This isn't a one-off note - Sessions tracks every recorded meeting on this matter over its lifecycle, each one processed the same way. Tap Sessions to see the full history.",
+    placement: "right",
+    actionRequired: true,
+    yellowWash: true,
+    navigationHint: "Look for Sessions in the left sidebar.",
+  },
+  {
     id: 8,
     target: "tab-attendance",
     title: "Compliance-ready attendance note",
@@ -91,10 +102,11 @@ const TOUR_STEPS: TourStep[] = [
     id: 10,
     target: "button-gap-indicator",
     title: "Catches what a generic AI would miss",
-    description: "Where advice was given but the reasoning behind it wasn't captured on the recording, LegalNote flags it - instead of inventing a reason, or silently leaving it out. An invented reason is worse than no reason: this is what keeps the note defensible.",
-    placement: "bottom",
-    actionRequired: false,
-    navigationHint: "This appears above the attendance note once it's open.",
+    description: "Where advice was given but the reasoning behind it wasn't captured on the recording, LegalNote flags it - instead of inventing a reason, or silently leaving it out. Tap the flagged ⚠ passage below (or this button) to see it in context.",
+    placement: "top",
+    actionRequired: true,
+    skipSpotlightScroll: true,
+    navigationHint: "This appears above the attendance note once it's open - the flagged passage is further down in the note.",
   },
   {
     id: 9,
@@ -106,12 +118,21 @@ const TOUR_STEPS: TourStep[] = [
     navigationHint: "Look for the Transcript tab next to Attendance Note.",
   },
   {
+    id: 11,
+    target: "tab-summary",
+    title: "A client-ready letter, drafted immediately",
+    description: "Not just an internal record - a clear, client-facing letter summarising the advice given is drafted from the same recording, ready to review and send. Tap Client Letter to see it.",
+    placement: "bottom",
+    actionRequired: true,
+    navigationHint: "Look for the Client Letter tab next to Transcript.",
+  },
+  {
     id: 16,
     target: "nav-obligations",
     title: "Obligations captured from the recording",
     description: "Every undertaking or obligation given during the session was captured from the transcript. Each one is tracked until discharged, flagged, logged, and verifiable. Tap Obligations to see them.",
     placement: "right",
-    actionRequired: false,
+    actionRequired: true,
     yellowWash: true,
     navigationHint: "Look for Obligations in the left sidebar.",
   },
@@ -119,9 +140,9 @@ const TOUR_STEPS: TourStep[] = [
     id: 17,
     target: "nav-consent",
     title: "Consent evidence, sealed",
-    description: "Consent was captured in-session, timestamped, and sealed to the audit trail. GDPR Article 7 compliant, defensible if ever challenged. Tap Consent to view the evidence.",
+    description: "The full session audio is deleted after 7 days per GDPR Article 17 - but the verbal consent itself is excerpted, timestamped, and kept indefinitely as a sealed, defensible record. GDPR Article 7 compliant, ready if ever challenged. Tap Consent to view the evidence.",
     placement: "right",
-    actionRequired: false,
+    actionRequired: true,
     yellowWash: true,
     navigationHint: "Look for Consent Evidence in the left sidebar.",
   },
@@ -131,7 +152,7 @@ const TOUR_STEPS: TourStep[] = [
     title: "Tamper-evident audit trail",
     description: "Every event, consent, recording, and document approval is logged with a cryptographic fingerprint. Proof of everything, if it is ever disputed. Tap Audit Trail.",
     placement: "right",
-    actionRequired: false,
+    actionRequired: true,
     yellowWash: true,
     navigationHint: "Look for Audit Trail in the left sidebar.",
   },
@@ -220,7 +241,12 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
       setYellowWashRect(null);
       return;
     }
-    el.scrollIntoView({ behavior: "instant", block: "nearest", inline: "nearest" });
+    // Some steps deliberately scroll away from the target after the user taps it
+    // (e.g. jumping to a flagged passage further down) - re-centering here every
+    // 300ms would fight that and snap the page straight back.
+    if (!step.skipSpotlightScroll) {
+      el.scrollIntoView({ behavior: "instant", block: "nearest", inline: "nearest" });
+    }
     requestAnimationFrame(() => {
       const rect = el.getBoundingClientRect();
       setSpotlightRect({
