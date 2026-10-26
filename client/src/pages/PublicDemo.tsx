@@ -162,50 +162,13 @@ function DemoInteractionGuard({
           return;
         }
 
-        if (testId === "button-case-actions") {
-          if (
-            currentTourTarget === "button-case-actions" ||
-            currentTourTarget === "action-share" ||
-            currentTourTarget === "action-sra-report"
-          ) {
-            return;
-          }
-          e.preventDefault();
-          e.stopImmediatePropagation();
-          toast({
-            title: SHOWROOM_TOAST_TITLE,
-            description: "Follow the walkthrough to reach the secure share step.",
-            duration: 3000,
-          });
-          return;
-        }
-
         if (testId === "action-share") {
+          // Not part of the guided tour, but still a real, working feature -
+          // always redirect to the demo's own share modal rather than the
+          // live app's (which would hit real, non-mocked endpoints).
           e.preventDefault();
           e.stopImmediatePropagation();
-          if (currentTourTarget === "action-share" || currentTourTarget === "button-case-actions") {
-            onActionShare();
-          } else {
-            toast({
-              title: SHOWROOM_TOAST_TITLE,
-              description: "Follow the walkthrough to reach the secure share step.",
-              duration: 3000,
-            });
-          }
-          return;
-        }
-
-        if (testId === "action-sra-report") {
-          if (currentTourTarget === "action-sra-report" || currentTourTarget === "button-case-actions") {
-            return;
-          }
-          e.preventDefault();
-          e.stopImmediatePropagation();
-          toast({
-            title: SHOWROOM_TOAST_TITLE,
-            description: "Follow the walkthrough to reach the SRA report step.",
-            duration: 3000,
-          });
+          onActionShare();
           return;
         }
 
@@ -308,50 +271,25 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
   const handleStepTargetChange = useCallback((target: string | null) => {
     setCurrentTourTarget(target);
     setTourActive(target !== null);
-    if (target === "button-send-link") {
-      const emailInput = document.querySelector('[data-testid="input-recipient-email"]') as HTMLInputElement | null;
-      const nameInput = document.querySelector('[data-testid="input-recipient-name"]') as HTMLInputElement | null;
-      const capturedEmail = emailInput?.value || null;
-      const capturedName = nameInput?.value || null;
-      const smsInput = document.querySelector('[data-testid="input-sms-phone"]') as HTMLInputElement | null;
-      const capturedMobile = smsInput?.value || null;
-      fetch("/api/demo/leads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          practiceArea,
-          practiceAreaLabel: practiceArea,
-          name: capturedName || name || null,
-          email: capturedEmail,
-          mobile: capturedMobile,
-        }),
-      }).catch(() => {});
-    }
-    if (target === "nav-obligations") {
-      setShareModalOpen(false);
-      const now = new Date().toISOString();
-      const existingCaseLogs: unknown[] = (qc.getQueryData(["/api/audit/case", DEMO_CASE_ID]) as unknown[]) ?? [];
-      const shareEntry = {
-        id: `audit-share-demo-${Date.now()}`,
-        eventType: "document_shared",
-        userId: DEMO_USER_ID,
-        caseId: DEMO_CASE_ID,
-        documentId: "fd1",
-        transcriptId: null,
-        audioRecordingId: null,
-        timestamp: now,
-        ipAddress: "192.168.1.1",
-        userAgent: "LegalNote/2.0 (Demo)",
-        metadata: { shareMethod: "secure_link", smsVerification: true, recipientNotified: true },
-        severity: "info",
-        hmacFingerprint: `share${Date.now().toString(16)}`,
-      };
-      qc.setQueryData(["/api/audit/case", DEMO_CASE_ID], [shareEntry, ...existingCaseLogs]);
-    }
-  }, [qc, practiceArea, name]);
+  }, []);
 
   const advanceTo = useCallback((stepIndex: number) => {
     tourRef.current?.advanceTourToStep(stepIndex);
+  }, []);
+
+  const navAutoAdvanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Click a sidebar nav item -> show its step, then move on by itself after a beat - no extra tap needed. */
+  const scheduleNavAutoAdvance = useCallback((nextStepIndex: number, delayMs: number) => {
+    if (navAutoAdvanceTimerRef.current) clearTimeout(navAutoAdvanceTimerRef.current);
+    navAutoAdvanceTimerRef.current = setTimeout(() => {
+      advanceTo(nextStepIndex);
+    }, delayMs);
+  }, [advanceTo]);
+
+  useEffect(() => {
+    return () => {
+      if (navAutoAdvanceTimerRef.current) clearTimeout(navAutoAdvanceTimerRef.current);
+    };
   }, []);
 
   const handleStepAutoAction = useCallback((stepId: number) => {
@@ -432,22 +370,27 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
   }, []);
 
   const handleNavDocuments = useCallback(() => {
-    advanceTo(7);
+    advanceTo(8);
   }, [advanceTo]);
 
+  /** Attendance tab: scroll into the note, then straight to the reasoning-gap moment - no "Got it" needed. */
   const handleNavAttendanceTab = useCallback(() => {
     if (attendanceScrollFiredRef.current) return;
     attendanceScrollFiredRef.current = true;
-    tourRef.current?.markActionCompleted();
-    setTimeout(() => {
-      const exportBtn = document.querySelector('[data-testid="button-export"]');
-      if (exportBtn) exportBtn.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 600);
     setTimeout(() => {
       const main = document.querySelector("main");
-      if (main) main.scrollBy({ top: 520, behavior: "smooth" });
-    }, 1400);
-  }, []);
+      if (main) main.scrollBy({ top: 420, behavior: "smooth" });
+    }, 600);
+    setTimeout(() => {
+      advanceTo(7);
+      // Let currentTourTarget re-render before the click lands, or the
+      // interaction guard still sees the old target and blocks it.
+      setTimeout(() => {
+        const gapButton = document.querySelector('[data-testid="button-gap-indicator"]') as HTMLElement | null;
+        gapButton?.click();
+      }, 150);
+    }, 1800);
+  }, [advanceTo]);
 
   useEffect(() => {
     if (currentTourTarget !== "tab-attendance") {
@@ -457,26 +400,31 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
 
   const [shareModalOpen, setShareModalOpen] = useState(false);
 
+  /** Not part of the guided tour, but Secure Share stays a real, usable feature. */
   const handleActionShare = useCallback(() => {
     setShareModalOpen(true);
-    advanceTo(9);
-  }, [advanceTo]);
+  }, []);
 
+  /** Click the icon -> navigate, show this step, then move to the next one by itself. */
   const handleNavUndertakings = useCallback(() => {
-    advanceTo(11);
-  }, [advanceTo]);
+    advanceTo(9);
+    scheduleNavAutoAdvance(10, 4000);
+  }, [advanceTo, scheduleNavAutoAdvance]);
 
   const handleNavObligations = useCallback(() => {
-    advanceTo(11);
-  }, [advanceTo]);
+    advanceTo(9);
+    scheduleNavAutoAdvance(10, 4000);
+  }, [advanceTo, scheduleNavAutoAdvance]);
 
   const handleNavConsent = useCallback(() => {
-    advanceTo(12);
-  }, [advanceTo]);
+    advanceTo(10);
+    scheduleNavAutoAdvance(11, 4000);
+  }, [advanceTo, scheduleNavAutoAdvance]);
 
   const handleNavAudit = useCallback(() => {
-    advanceTo(13);
-  }, [advanceTo]);
+    advanceTo(11);
+    scheduleNavAutoAdvance(12, 2500);
+  }, [advanceTo, scheduleNavAutoAdvance]);
 
   const handleTourComplete = useCallback(() => {
     window.open(CALENDLY_URL, "_blank");

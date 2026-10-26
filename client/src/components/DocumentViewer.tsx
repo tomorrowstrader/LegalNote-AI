@@ -3457,13 +3457,18 @@ export default function DocumentViewer({
           <Badge variant="outline" data-testid="badge-version">
             Version {document.version}
           </Badge>
-          {gapCount > 0 && !isDemoMode && (
+          {gapCount > 0 && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={() => {
+                    if (isDemoMode) {
+                      // Showroom: jump to the flagged passage, skip the real edit/suggest panel.
+                      if (docGaps[0]) scrollToReasoningGap(docGaps[0], 0);
+                      return;
+                    }
                     const opening = showGapPanel !== document.id;
                     setShowGapPanel(opening ? document.id : null);
                     if (opening && docGaps[0]) {

@@ -372,6 +372,7 @@ The solicitor advised that following issue of the C100, the matter will typicall
 
 4. International Travel
 The solicitor advised that once proceedings are issued, an automatic stay prevents either party from removing the children from the jurisdiction without the written consent of the other party or a court order. The client noted that the husband has mentioned a summer holiday to Portugal.
+<!-- REASONING_GAP: INTERNATIONAL TRAVEL: whether to consent to the Portugal holiday now or wait until proceedings are issued -->
 
 5. Costs
 The solicitor provided a costs estimate. Court fee: £232. MIAM: approximately £100–£150. Solicitor fees to resolution at FHDRA: approximately £2,000–£3,000 plus VAT. Legal aid eligibility noted as unlikely given the absence of any domestic abuse history.
@@ -624,6 +625,104 @@ ${firmName}`,
     },
   ];
 
+  const actionItems = [
+    {
+      id: "demo-ai-001",
+      caseId: DEMO_CASE_ID,
+      transcriptId: DEMO_TRANSCRIPT_ID,
+      description: "Book MIAM (Mediation Information and Assessment Meeting) as a matter of priority",
+      originalDescription: "Book MIAM (Mediation Information and Assessment Meeting) as a matter of priority",
+      assignee: "Client",
+      dueDate: relDateTime(-43),
+      priority: "high",
+      status: "approved",
+      approvedBy: DEMO_USER_ID,
+      approvedAt: relDateTime(-44, "14:30"),
+      completed: true,
+      completedAt: relDateTime(-40),
+      completedBy: null,
+      sourceUtteranceIndex: 9,
+      isManual: false,
+      createdAt: relDateTime(-44, "11:15"),
+    },
+    {
+      id: "demo-ai-002",
+      caseId: DEMO_CASE_ID,
+      transcriptId: DEMO_TRANSCRIPT_ID,
+      description: "Commence a contemporaneous diary of contact arrangements with Emily and Oliver",
+      originalDescription: "Commence a contemporaneous diary of contact arrangements with Emily and Oliver",
+      assignee: "Client",
+      dueDate: relDateTime(-44),
+      priority: "medium",
+      status: "approved",
+      approvedBy: DEMO_USER_ID,
+      approvedAt: relDateTime(-44, "14:30"),
+      completed: true,
+      completedAt: relDateTime(-43),
+      completedBy: null,
+      sourceUtteranceIndex: 23,
+      isManual: false,
+      createdAt: relDateTime(-44, "11:15"),
+    },
+    {
+      id: "demo-ai-003",
+      caseId: DEMO_CASE_ID,
+      transcriptId: DEMO_TRANSCRIPT_ID,
+      description: "Provide client with list of approved MIAM mediators",
+      originalDescription: "Provide client with list of approved MIAM mediators",
+      assignee: solicitorName,
+      dueDate: relDateTime(-44),
+      priority: "high",
+      status: "approved",
+      approvedBy: DEMO_USER_ID,
+      approvedAt: relDateTime(-44, "14:30"),
+      completed: true,
+      completedAt: relDateTime(-44, "16:00"),
+      completedBy: DEMO_USER_ID,
+      sourceUtteranceIndex: 11,
+      isManual: false,
+      createdAt: relDateTime(-44, "11:15"),
+    },
+    {
+      id: "demo-ai-004",
+      caseId: DEMO_CASE_ID,
+      transcriptId: DEMO_TRANSCRIPT_ID,
+      description: "Draft C100 application for Child Arrangements Order",
+      originalDescription: "Draft C100 application for Child Arrangements Order",
+      assignee: solicitorName,
+      dueDate: relDateTime(-37),
+      priority: "high",
+      status: "approved",
+      approvedBy: DEMO_USER_ID,
+      approvedAt: relDateTime(-44, "14:30"),
+      completed: true,
+      completedAt: relDateTime(-38, "11:00"),
+      completedBy: DEMO_USER_ID,
+      sourceUtteranceIndex: 11,
+      isManual: false,
+      createdAt: relDateTime(-44, "11:15"),
+    },
+    {
+      id: "demo-ai-005",
+      caseId: DEMO_CASE_ID,
+      transcriptId: "demo-transcript-002",
+      description: "Confirm written position on the Portugal holiday consent with the other side's solicitors",
+      originalDescription: "Confirm written position on the Portugal holiday consent with the other side's solicitors",
+      assignee: solicitorName,
+      dueDate: relDateTime(5),
+      priority: "medium",
+      status: "draft",
+      approvedBy: null,
+      approvedAt: null,
+      completed: false,
+      completedAt: null,
+      completedBy: null,
+      sourceUtteranceIndex: 14,
+      isManual: false,
+      createdAt: relDateTime(-28, "12:30"),
+    },
+  ];
+
   const timeEntries = [
     {
       id: "demo-te-001",
@@ -754,7 +853,7 @@ ${firmName}`,
     },
   ];
 
-  return { caseBase, sessions, transcript1, transcript2, transcript3, attendanceNote, ccl, auditLogs, undertakings, timeEntries, sraReadiness, complianceData, consentLogs };
+  return { caseBase, sessions, transcript1, transcript2, transcript3, attendanceNote, ccl, auditLogs, undertakings, actionItems, timeEntries, sraReadiness, complianceData, consentLogs };
 }
 
 function getEmploymentContent(clientName: string, solicitorName: string, firmName: string, rate: number, sraNumber: string) {
@@ -1798,8 +1897,8 @@ export function createDemoQueryClient(params: DemoParams): { qc: QueryClient; re
   const content = getPracticeAreaContent(practiceArea, clientName, solicitorName, firmName, rate, sraNumber);
   const { caseBase: demoCaseBase, sessions: demoSessions, transcript1, transcript2, transcript3,
     attendanceNote: demoAttendanceNote, ccl: demoClientCareLetter, auditLogs: demoAuditLogs,
-    undertakings: demoUndertakings, timeEntries: demoTimeEntries, sraReadiness: demoSraReadiness,
-    complianceData: demoComplianceData, consentLogs: demoConsentLogs } = content;
+    undertakings: demoUndertakings, actionItems: demoActionItems, timeEntries: demoTimeEntries, sraReadiness: demoSraReadiness,
+    complianceData: demoComplianceData, consentLogs: demoConsentLogs } = content as typeof content & { actionItems?: unknown[] };
 
   const demoUser = {
     id: DEMO_USER_ID,
@@ -2161,7 +2260,7 @@ export function createDemoQueryClient(params: DemoParams): { qc: QueryClient; re
   setData([`/api/cases/${DEMO_CASE_ID}/time-entries`], demoTimeEntries);
   setData(["/api/cases", DEMO_CASE_ID, "time-entries"], demoTimeEntries);
   setData([`/api/cases/${DEMO_CASE_ID}/undertakings`], demoUndertakings);
-  setData([`/api/cases/${DEMO_CASE_ID}/action-items`], []);
+  setData([`/api/cases/${DEMO_CASE_ID}/action-items`], demoActionItems ?? []);
   setData([`/api/cases/${DEMO_CASE_ID}/processing-status`], null);
   setData([`/api/cases/${DEMO_CASE_ID}/live-import`], null);
   setData([`/api/cases/${DEMO_CASE_ID}/sra-readiness`], demoSraReadiness);
