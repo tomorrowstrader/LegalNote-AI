@@ -94,7 +94,6 @@ const TOUR_STEPS: TourStep[] = [
     description: "Where advice was given but the reasoning behind it wasn't captured on the recording, LegalNote flags it - instead of inventing a reason, or silently leaving it out. An invented reason is worse than no reason: this is what keeps the note defensible.",
     placement: "bottom",
     actionRequired: false,
-    autoAdvanceMs: 4500,
     navigationHint: "This appears above the attendance note once it's open.",
   },
   {
@@ -103,7 +102,7 @@ const TOUR_STEPS: TourStep[] = [
     title: "Tap Script to read the full diarized record",
     description: "Every word, every speaker, timestamped and attributed. Risk flags, undertakings, and obligations spotted in the recording are captured and tracked automatically. Nothing falls through.",
     placement: "bottom",
-    actionRequired: false,
+    actionRequired: true,
     navigationHint: "Look for the Transcript tab next to Attendance Note.",
   },
   {

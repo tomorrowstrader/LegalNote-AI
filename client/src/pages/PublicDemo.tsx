@@ -80,6 +80,7 @@ interface DemoInteractionGuardProps {
   onNavObligations: () => void;
   onNavConsent: () => void;
   onNavAttendanceTab: () => void;
+  onNavTranscriptTab: () => void;
 }
 
 function DemoInteractionGuard({
@@ -94,6 +95,7 @@ function DemoInteractionGuard({
   onNavObligations,
   onNavConsent,
   onNavAttendanceTab,
+  onNavTranscriptTab,
 }: DemoInteractionGuardProps) {
   const { toast } = useToast();
 
@@ -122,6 +124,7 @@ function DemoInteractionGuard({
               const badge = document.querySelector('[data-testid="badge-diarized"]');
               if (badge) badge.scrollIntoView({ behavior: "smooth", block: "start", inline: "nearest" });
             }, 200);
+            onNavTranscriptTab();
           }
           return;
         }
@@ -144,6 +147,10 @@ function DemoInteractionGuard({
         }
 
         if (testId === "nav-sessions") {
+          return;
+        }
+
+        if (testId === "button-toggle-case-sidebar") {
           return;
         }
 
@@ -225,7 +232,7 @@ function DemoInteractionGuard({
     };
     document.addEventListener("click", handleClick, { capture: true });
     return () => document.removeEventListener("click", handleClick, { capture: true });
-  }, [toast, currentTourTarget, tourActive, onJoinMeeting, onNavSessions, onNavDocuments, onActionShare, onNavUndertakings, onNavAudit, onNavObligations, onNavConsent, onNavAttendanceTab]);
+  }, [toast, currentTourTarget, tourActive, onJoinMeeting, onNavSessions, onNavDocuments, onActionShare, onNavUndertakings, onNavAudit, onNavObligations, onNavConsent, onNavAttendanceTab, onNavTranscriptTab]);
 
   return null;
 }
@@ -398,6 +405,31 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
     }
   }, [currentTourTarget]);
 
+  /** Open the collapsed icon-only sidebar so the Obligations/Consent/Audit labels are readable, not just icons. */
+  const expandSidebarIfCollapsed = useCallback(() => {
+    const toggleBtn = document.querySelector('[data-testid="button-toggle-case-sidebar"]') as HTMLElement | null;
+    if (toggleBtn?.getAttribute("title") === "Expand menu") {
+      toggleBtn.click();
+    }
+  }, []);
+
+  const transcriptAdvanceFiredRef = useRef(false);
+  /** Transcript tab: real tap required (no "Got it" shortcut), then expand the sidebar for the nav steps ahead. */
+  const handleNavTranscriptTab = useCallback(() => {
+    if (transcriptAdvanceFiredRef.current) return;
+    transcriptAdvanceFiredRef.current = true;
+    expandSidebarIfCollapsed();
+    setTimeout(() => {
+      advanceTo(9);
+    }, 300);
+  }, [advanceTo, expandSidebarIfCollapsed]);
+
+  useEffect(() => {
+    if (currentTourTarget !== "tab-transcript") {
+      transcriptAdvanceFiredRef.current = false;
+    }
+  }, [currentTourTarget]);
+
   const [shareModalOpen, setShareModalOpen] = useState(false);
 
   /** Not part of the guided tour, but Secure Share stays a real, usable feature. */
@@ -447,6 +479,7 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
         onNavObligations={handleNavObligations}
         onNavConsent={handleNavConsent}
         onNavAttendanceTab={handleNavAttendanceTab}
+        onNavTranscriptTab={handleNavTranscriptTab}
       />
       <div className="min-h-screen bg-background pb-16 overflow-x-hidden">
         <TopNavigation onRestartTour={handleRestartTour} />

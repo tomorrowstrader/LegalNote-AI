@@ -182,9 +182,14 @@ const SEVERITY_COLORS: Record<string, string> = {
   critical: "bg-red-500/10 text-red-500 border-red-500/20",
 };
 
+function humanizeSnakeCase(value: unknown): string {
+  if (typeof value !== "string") return String(value);
+  return value.includes("_") ? value.replace(/_/g, " ") : value;
+}
+
 function formatMetadata(eventType: string, metadata: Record<string, any>): string {
   if (!metadata || Object.keys(metadata).length === 0) return "";
-  
+
   switch (eventType) {
     case "case_viewed":
       return metadata.source ? `Viewed from ${metadata.source}` : "Case accessed";
@@ -298,23 +303,23 @@ function formatMetadata(eventType: string, metadata: Record<string, any>): strin
     }
 
     case "document_viewed":
-      return metadata.documentType 
-        ? `Viewed ${metadata.documentType}`
+      return metadata.documentType
+        ? `Viewed ${humanizeSnakeCase(metadata.documentType)}`
         : "Document accessed";
-    
+
     case "document_created":
-      return metadata.documentType 
-        ? `Created ${metadata.documentType}`
+      return metadata.documentType
+        ? `Created ${humanizeSnakeCase(metadata.documentType)}`
         : "New document produced";
-    
+
     case "document_updated":
-      return metadata.documentType 
-        ? `Updated ${metadata.documentType}${metadata.version ? ` (v${metadata.version})` : ""}`
+      return metadata.documentType
+        ? `Updated ${humanizeSnakeCase(metadata.documentType)}${metadata.version ? ` (v${metadata.version})` : ""}`
         : "Document modified";
-    
+
     case "document_deleted":
-      return metadata.documentType 
-        ? `Deleted ${metadata.documentType}`
+      return metadata.documentType
+        ? `Deleted ${humanizeSnakeCase(metadata.documentType)}`
         : "Document removed";
     
     case "document_downloaded":
@@ -424,7 +429,8 @@ function formatMetadata(eventType: string, metadata: Record<string, any>): strin
         .filter(([key]) => !technicalFields.includes(key))
         .map(([key, value]) => {
           const label = key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').toLowerCase();
-          return `${label}: ${typeof value === 'object' ? JSON.stringify(value) : value}`;
+          const formattedValue = typeof value === 'object' ? JSON.stringify(value) : humanizeSnakeCase(value);
+          return `${label}: ${formattedValue}`;
         });
       return entries.length > 0 ? entries.join(", ") : "";
   }
