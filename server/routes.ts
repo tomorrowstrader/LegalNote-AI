@@ -151,7 +151,7 @@ import { askMatterQuestion, compareMatterNote } from "./services/matterAskServic
 import { synthesizeVoiceReply, VOICE_TTS_MAX_CHARS } from "./services/voiceTtsService";
 import { privilegedComplete } from "./services/llm/privilegedComplete";
 import { AssemblyAIService } from "./services/assemblyAIService";
-import { sendCaseEmail, sendRecordingConfirmationEmail, sendConsentResponseNotification, sendAcknowledgementRequestEmail, sendInvitationEmail, sendDpaConfirmationEmail, sendDpaAcceptanceInviteEmail, sendLegalAgreementAcceptedEmail, sendEvaluationSetupEmail, sendEvaluationSetupSubmittedAdminEmail, sendGovernedEvaluationLoginInviteEmail, sendEvaluationFirmScheduleEmail, sendShareVerificationCodeEmail, sendSupportTicketAdminNotification, sendSupportTicketReceivedEmail, sendSupportTicketStatusEmail, sendDemoMatterShareEmail, sendDemoColleagueLinkEmail, sendBoutiqueInvoiceRequestEmail } from "./email";
+import { sendCaseEmail, sendRecordingConfirmationEmail, sendConsentResponseNotification, sendAcknowledgementRequestEmail, sendInvitationEmail, sendDpaConfirmationEmail, sendDpaAcceptanceInviteEmail, sendLegalAgreementAcceptedEmail, sendEvaluationSetupEmail, sendEvaluationSetupSubmittedAdminEmail, sendGovernedEvaluationLoginInviteEmail, sendEvaluationFirmScheduleEmail, sendSupportTicketAdminNotification, sendSupportTicketReceivedEmail, sendSupportTicketStatusEmail, sendDemoMatterShareEmail, sendDemoColleagueLinkEmail, sendBoutiqueInvoiceRequestEmail } from "./email";
 import {
   ensureFirmStripeCustomer,
   getBoutiqueMonthlyPrice,
@@ -1671,25 +1671,24 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         return res.status(429).json({ message: "Maximum SMS send attempts exceeded for this link" });
       }
 
-      // Prefer the number registered when the link was created (avoids format mismatches).
-      // Otherwise require the recipient to supply a UK mobile number.
-      let formattedPhone: string;
-      if (shareLink.smsPhoneNumber) {
-        formattedPhone = formatUKPhoneNumber(shareLink.smsPhoneNumber);
-        // Soft confirm if they typed a number: must match after normalisation
-        if (phoneNumber && typeof phoneNumber === 'string' && phoneNumber.trim()) {
-          const entered = formatUKPhoneNumber(phoneNumber);
-          if (isValidUKPhoneNumber(entered) && entered !== formattedPhone) {
-            return res.status(403).json({
-              message: "Phone number does not match the expected recipient",
-            });
-          }
+      // The code only ever goes to the number the firm registered when the link was
+      // created. A number supplied by whoever opens the link is never trusted — that
+      // would let anyone holding the link (e.g. via a compromised mailbox) route the
+      // code to their own phone.
+      if (!shareLink.smsPhoneNumber) {
+        return res.status(409).json({
+          message: "This link has no registered mobile number. Please ask the sender to issue a new secure link.",
+        });
+      }
+      const formattedPhone = formatUKPhoneNumber(shareLink.smsPhoneNumber);
+      // Soft confirm if they typed a number: must match after normalisation
+      if (phoneNumber && typeof phoneNumber === 'string' && phoneNumber.trim()) {
+        const entered = formatUKPhoneNumber(phoneNumber);
+        if (isValidUKPhoneNumber(entered) && entered !== formattedPhone) {
+          return res.status(403).json({
+            message: "Phone number does not match the expected recipient",
+          });
         }
-      } else {
-        if (!phoneNumber || typeof phoneNumber !== 'string') {
-          return res.status(400).json({ message: "Phone number is required" });
-        }
-        formattedPhone = formatUKPhoneNumber(phoneNumber);
       }
 
       if (!isValidUKPhoneNumber(formattedPhone)) {
@@ -1709,31 +1708,19 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       const firmProfile = await storage.getFirmProfile();
       const firmName = firmProfile?.firmName || "LegalNote";
 
-      // Send SMS (primary) and email backup to the share recipient
+      // SMS only. The code is deliberately never emailed: the link itself arrives by
+      // email, so emailing the code too would let anyone reading the recipient's
+      // inbox pass both steps.
       const smsResult = await sendVerificationCode(formattedPhone, verificationCode, firmName);
-      const emailResult = await sendShareVerificationCodeEmail({
-        to: shareLink.recipientEmail,
-        verificationCode,
-        expiresMinutes: 15,
-      });
 
-      if (!smsResult.success && !emailResult.success) {
-        return res.status(500).json({
-          message:
-            smsResult.error ||
-            emailResult.error ||
-            "Failed to send verification code by SMS or email",
+      if (!smsResult.success) {
+        return res.status(502).json({
+          message: "We couldn't send a text message to the registered mobile number. Please try again shortly or contact the sender.",
         });
       }
 
       // Store code in database
       await storage.updateShareLinkSmsCode(linkId, verificationCode, expiresAt);
-
-      const deliveryChannel = smsResult.success
-        ? emailResult.success
-          ? "sms_and_email"
-          : "sms"
-        : "email";
 
       // Log SMS sent event
       await storage.createAuditLog({
@@ -1747,24 +1734,18 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           phoneNumber: formattedPhone.replace(/\d(?=\d{4})/g, '*'), // Mask phone number in logs
           expiresAt: expiresAt.toISOString(),
           twilioMessageSid: smsResult.messageSid || null,
-          emailBackupSent: emailResult.success,
-          deliveryChannel,
-          smsDelivered: smsResult.success,
+          deliveryChannel: "sms",
+          smsDelivered: true,
         },
         severity: "info",
       });
 
-      res.json({ 
-        success: true, 
-        message: deliveryChannel === "email"
-          ? "Verification code sent to your email"
-          : deliveryChannel === "sms_and_email"
-            ? "Verification code sent to your mobile and email"
-            : "Verification code sent successfully",
+      res.json({
+        success: true,
+        message: "Verification code sent successfully",
         expiresIn: 15, // minutes
         phoneLastFour: phoneLastFour(formattedPhone),
-        emailBackupSent: emailResult.success,
-        deliveryChannel,
+        deliveryChannel: "sms",
       });
     } catch (error: any) {
       console.error('Error sending SMS:', error);

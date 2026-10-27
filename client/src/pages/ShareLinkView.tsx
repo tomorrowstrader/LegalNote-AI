@@ -88,11 +88,9 @@ function SharedDocumentContent({
 export default function ShareLinkView() {
   const [, params] = useRoute("/share/:linkId");
   const linkId = params?.linkId;
-  const [phoneNumber, setPhoneNumber] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
   const [smsStep, setSmsStep] = useState<"phone" | "code">("phone");
   const [sentToLastFour, setSentToLastFour] = useState<string | undefined>();
-  const [deliveryChannel, setDeliveryChannel] = useState<"sms" | "email" | "sms_and_email" | undefined>();
   const [password, setPassword] = useState("");
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [activeDocTab, setActiveDocTab] = useState<string>("attendance");
@@ -106,28 +104,19 @@ export default function ShareLinkView() {
   });
 
   const sendSmsMutation = useMutation({
-    mutationFn: async (phone?: string) => {
+    mutationFn: async () => {
       const response = await apiRequest<{
         success: boolean;
         phoneLastFour?: string;
-        emailBackupSent?: boolean;
-        deliveryChannel?: "sms" | "email" | "sms_and_email";
         message?: string;
-      }>('POST', `/api/share/${linkId}/send-sms`, phone ? { phoneNumber: phone } : {});
+      }>('POST', `/api/share/${linkId}/send-sms`, {});
       return response;
     },
     onSuccess: (result) => {
       setSentToLastFour(result.phoneLastFour || data?.phoneLastFour);
-      setDeliveryChannel(result.deliveryChannel);
-      const description =
-        result.deliveryChannel === "sms_and_email"
-          ? "Check your mobile and your email for the verification code."
-          : result.deliveryChannel === "email"
-            ? "We sent the verification code to your email."
-            : result.message || "Please check your phone for the verification code";
       toast({
         title: "Code Sent",
-        description,
+        description: result.message || "Please check your phone for the verification code",
         duration: 8000,
       });
       setSmsStep("code");
@@ -185,22 +174,9 @@ export default function ShareLinkView() {
     },
   });
 
+  // The code only goes to the mobile number the sender registered on the link.
   const handleSendSms = () => {
-    // Registered number on file: send without requiring re-entry (avoids format mismatches)
-    if (data?.hasRegisteredPhone) {
-      sendSmsMutation.mutate(undefined);
-      return;
-    }
-    if (!phoneNumber.trim()) {
-      toast({
-        title: "Phone Number Required",
-        description: "Please enter your mobile number",
-        variant: "destructive",
-        duration: 5000,
-      });
-      return;
-    }
-    sendSmsMutation.mutate(phoneNumber);
+    sendSmsMutation.mutate();
   };
 
   const handleVerifyCode = () => {
@@ -218,11 +194,7 @@ export default function ShareLinkView() {
 
   const handleResendCode = () => {
     setVerificationCode("");
-    if (data?.hasRegisteredPhone) {
-      sendSmsMutation.mutate(undefined);
-    } else {
-      sendSmsMutation.mutate(phoneNumber);
-    }
+    sendSmsMutation.mutate();
   };
 
   const verifyPasswordMutation = useMutation({
@@ -485,31 +457,22 @@ export default function ShareLinkView() {
                       {data.phoneLastFour ? (
                         <> ending in <strong>····{data.phoneLastFour}</strong></>
                       ) : null}
-                      , and a backup copy to your email.
+                      . We never send this code by email.
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    <Label htmlFor="phone-number">Your Mobile Number</Label>
-                    <Input
-                      id="phone-number"
-                      type="tel"
-                      placeholder="+447xxx... or 07xxx..."
-                      value={phoneNumber}
-                      onChange={(e) => setPhoneNumber(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleSendSms()}
-                      data-testid="input-phone-number"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Enter your UK mobile number to receive a verification code
-                    </p>
-                  </div>
+                  <Alert className="border-amber-500 bg-amber-50 dark:bg-amber-950" data-testid="alert-no-registered-phone">
+                    <AlertCircle className="h-4 w-4 text-amber-600" />
+                    <AlertDescription className="text-sm text-amber-800 dark:text-amber-200">
+                      This link has no registered mobile number, so it can't be verified. Please ask the sender to issue a new secure link.
+                    </AlertDescription>
+                  </Alert>
                 )}
 
                 <Button 
                   onClick={handleSendSms}
                   className="w-full"
-                  disabled={sendSmsMutation.isPending}
+                  disabled={sendSmsMutation.isPending || !data.hasRegisteredPhone}
                   data-testid="button-send-code"
                 >
                   {sendSmsMutation.isPending ? (
@@ -530,11 +493,7 @@ export default function ShareLinkView() {
                 <Alert className="border-green-500 bg-green-50 dark:bg-green-950">
                   <CheckCircle2 className="h-4 w-4 text-green-600" />
                   <AlertDescription className="text-sm text-green-800 dark:text-green-200">
-                    {deliveryChannel === "email"
-                      ? "Code sent to your email on file."
-                      : deliveryChannel === "sms_and_email"
-                        ? `Code sent to ····${sentToLastFour || data.phoneLastFour || "****"} and your email.`
-                        : `Code sent to number ending in ····${sentToLastFour || data.phoneLastFour || "****"}`}
+                    {`Code sent to number ending in ····${sentToLastFour || data.phoneLastFour || "****"}`}
                   </AlertDescription>
                 </Alert>
 
@@ -555,9 +514,6 @@ export default function ShareLinkView() {
                   />
                   <p className="text-xs text-muted-foreground">
                     Code expires in 15 minutes
-                    {deliveryChannel === "sms_and_email" || deliveryChannel === "email"
-                      ? " · check your email if SMS does not arrive"
-                      : null}
                   </p>
                 </div>
 

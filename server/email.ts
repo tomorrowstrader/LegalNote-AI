@@ -346,44 +346,6 @@ export async function sendCaseEmail(params: SendCaseEmailParams): Promise<{ succ
   }
 }
 
-/** Email backup for secure-share SMS verification (no case/client PII). */
-export async function sendShareVerificationCodeEmail(params: {
-  to: string;
-  verificationCode: string;
-  expiresMinutes?: number;
-}): Promise<{ success: boolean; messageId?: string; error?: string }> {
-  const minutes = params.expiresMinutes ?? 15;
-  const code = params.verificationCode.replace(/\D/g, '').slice(0, 6);
-  const emailHtml = `
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>${legalNoteEmailHeadTags()}<title>Secure access code</title></head>
-    <body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:#faf9f7;color:#1a1a1a;">
-      <div style="max-width:600px;margin:0 auto;background:#ffffff;overflow:hidden;">
-        ${legalNoteBrandHeaderHtml()}
-        <div style="padding:32px;">
-        <h1 style="margin:0 0 12px;font-size:22px;font-weight:600;">Your secure access code</h1>
-        <p style="margin:0 0 24px;font-size:15px;line-height:1.5;color:#555;">
-          Use this code to verify access to your shared documents. It expires in ${minutes} minutes.
-        </p>
-        <p style="margin:0 0 8px;font-size:32px;font-weight:700;letter-spacing:0.2em;font-family:ui-monospace,Menlo,monospace;">${code}</p>
-        <p style="margin:24px 0 0;font-size:12px;line-height:1.5;color:#888;">
-          If you did not request this code, you can ignore this email. Do not share this code with anyone.
-        </p>
-        </div>
-      </div>
-    </body>
-    </html>
-  `;
-
-  return sendEmail({
-    from: 'LegalNote™ <support@legalnote.ai>',
-    to: params.to,
-    subject: 'Your secure access code',
-    html: emailHtml,
-  });
-}
-
 interface SendRecordingConfirmationParams {
   to: string;
   solicitorName: string;
