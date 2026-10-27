@@ -194,7 +194,7 @@ interface SpotlightRect {
 }
 
 export interface DemoTourHandle {
-  advanceTourToStep: (index: number) => void;
+  advanceTourToStep: (index: number, completed?: boolean) => void;
   markActionCompleted: () => void;
 }
 
@@ -229,6 +229,19 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
   const positionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const spotlightTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const cursorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Whether the step we're about to land on should open already "done" (its
+  // real action already happened - e.g. the sidebar tap that got us here).
+  // The step-change effect below reads this once and clears it, rather than
+  // unconditionally resetting to false, so advanceTourToStep(index, true)
+  // isn't immediately clobbered by that effect.
+  const pendingCompletedRef = useRef(false);
+  // Kept in sync so advanceTourToStep can tell "already on this step" (e.g.
+  // its own scheduled auto-advance got here first) from "moving to a new
+  // one" without a stale closure - it isn't in that callback's own deps.
+  const stepIndexRef = useRef(stepIndex);
+  useEffect(() => {
+    stepIndexRef.current = stepIndex;
+  }, [stepIndex]);
 
   const currentStep = TOUR_STEPS[stepIndex];
 
@@ -391,11 +404,21 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
   }, [currentStep]);
 
   useImperativeHandle(ref, () => ({
-    advanceTourToStep: (index: number) => {
+    advanceTourToStep: (index: number, completed?: boolean) => {
       if (!active) return;
       const step = TOUR_STEPS[index];
       if (!step) return;
       onStepTargetChange?.(step.target);
+
+      if (index === stepIndexRef.current) {
+        // Already on this step - e.g. its own scheduleNavAutoAdvance
+        // fallback got here first, and now the real tap arrives. setStepIndex
+        // below would be a no-op, so the step-change effect that normally
+        // applies pendingCompletedRef never runs - apply it directly instead.
+        setStepActionCompleted(!!completed);
+        return;
+      }
+      pendingCompletedRef.current = !!completed;
 
       if (step.delayMs && step.delayMs > 0) {
         setVisible(false);
@@ -449,7 +472,8 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
   }, [active, currentStep, onStepTargetChange]);
 
   useEffect(() => {
-    setStepActionCompleted(false);
+    setStepActionCompleted(pendingCompletedRef.current);
+    pendingCompletedRef.current = false;
   }, [stepIndex]);
 
   useEffect(() => {
@@ -503,6 +527,19 @@ export const DemoTour = forwardRef<DemoTourHandle, DemoTourProps>(function DemoT
       if (spotlightTimerRef.current) clearInterval(spotlightTimerRef.current);
     };
   }, []);
+
+  // While hidden (e.g. the processing screen is covering everything), drop
+  // the stale tooltip/spotlight for whatever step was last on screen. Without
+  // this, the moment `hidden` turns false again the old card flashes back up
+  // - pointing at an element that's gone now the page underneath has moved
+  // on - before the real resume logic has a chance to pick the next step.
+  useEffect(() => {
+    if (hidden) {
+      setVisible(false);
+      setSpotlightRect(null);
+      setYellowWashRect(null);
+    }
+  }, [hidden]);
 
   const autoAdvanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {

@@ -151,6 +151,19 @@ function DemoInteractionGuard({
         return;
       }
 
+      // Walk the FULL ancestor chain checking every known testid first - a
+      // tap usually lands on an inner span/icon, not the tagged element
+      // itself, so this has to reach all the way up before giving up.
+      // Deliberately a separate pass from the generic pass-through/block
+      // logic below: that logic used to run per-ancestor too, and its own
+      // "is this inside the current tour target" check (via closest, which
+      // matches on an inner span just as well) would fire on the very first
+      // iteration and return - before the loop ever walked up far enough to
+      // reach the real nav-sessions/nav-obligations/etc. match. That left
+      // real taps on the highlighted target silently doing nothing: the
+      // underlying button still navigated (its own click handler doesn't go
+      // through here), but the tour never heard about it and sat stuck on
+      // "Tap the highlighted area" with nothing left to click.
       let el: HTMLElement | null = target;
 
       while (el) {
@@ -229,30 +242,32 @@ function DemoInteractionGuard({
           return;
         }
 
-        if (tourActive && currentTourTarget) {
-          const isOnTourCard = !!el.closest("[data-testid='tour-tooltip']");
-          if (isOnTourCard) return;
-
-          const isOnFinalImpact = !!el.closest("[data-testid='demo-final-impact']");
-          if (isOnFinalImpact) return;
-
-          const isOnTarget = !!el.closest(`[data-testid="${currentTourTarget}"]`);
-          if (isOnTarget) return;
-
-          const isInteractive = el.tagName === "BUTTON" || el.tagName === "A" || el.tagName === "INPUT" || el.tagName === "SELECT" || el.tagName === "TEXTAREA";
-          if (isInteractive) {
-            e.preventDefault();
-            e.stopImmediatePropagation();
-            toast({
-              title: SHOWROOM_TOAST_TITLE,
-              description: "Follow the highlighted step to continue your walkthrough.",
-              duration: 2500,
-            });
-            return;
-          }
-        }
-
         el = el.parentElement;
+      }
+
+      // Nothing specific matched anywhere in the chain - apply the generic
+      // "stay on the guided path" gating against the original click target.
+      if (tourActive && currentTourTarget) {
+        const isOnTourCard = !!target.closest("[data-testid='tour-tooltip']");
+        if (isOnTourCard) return;
+
+        const isOnFinalImpact = !!target.closest("[data-testid='demo-final-impact']");
+        if (isOnFinalImpact) return;
+
+        const isOnTarget = !!target.closest(`[data-testid="${currentTourTarget}"]`);
+        if (isOnTarget) return;
+
+        const isInteractive = !!target.closest("button, a, input, select, textarea");
+        if (isInteractive) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          toast({
+            title: SHOWROOM_TOAST_TITLE,
+            description: "Follow the highlighted step to continue your walkthrough.",
+            duration: 2500,
+          });
+          return;
+        }
       }
     };
     document.addEventListener("click", handleClick, { capture: true });
@@ -362,8 +377,8 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
     setTourActive(target !== null);
   }, [fillDemoReasoningGap, expandSidebarIfCollapsed]);
 
-  const advanceTo = useCallback((stepIndex: number) => {
-    tourRef.current?.advanceTourToStep(stepIndex);
+  const advanceTo = useCallback((stepIndex: number, completed?: boolean) => {
+    tourRef.current?.advanceTourToStep(stepIndex, completed);
   }, []);
 
   const navAutoAdvanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -504,24 +519,29 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
     setShareModalOpen(true);
   }, []);
 
-  /** Click the icon -> navigate, show this step, then move to the next one by itself. */
+  /**
+   * Click the icon -> navigate, the real tap already satisfies this step's
+   * action so show "Got it" immediately (don't make the user wait on a
+   * blind timer with nothing to click) - then move on by itself after a
+   * beat if they don't click it first.
+   */
   const handleNavUndertakings = useCallback(() => {
-    advanceTo(11);
+    advanceTo(11, true);
     scheduleNavAutoAdvance(12, 4000);
   }, [advanceTo, scheduleNavAutoAdvance]);
 
   const handleNavObligations = useCallback(() => {
-    advanceTo(11);
+    advanceTo(11, true);
     scheduleNavAutoAdvance(12, 4000);
   }, [advanceTo, scheduleNavAutoAdvance]);
 
   const handleNavConsent = useCallback(() => {
-    advanceTo(12);
+    advanceTo(12, true);
     scheduleNavAutoAdvance(13, 4000);
   }, [advanceTo, scheduleNavAutoAdvance]);
 
   const handleNavAudit = useCallback(() => {
-    advanceTo(13);
+    advanceTo(13, true);
     scheduleNavAutoAdvance(14, 2500);
   }, [advanceTo, scheduleNavAutoAdvance]);
 
