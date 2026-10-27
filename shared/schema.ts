@@ -3,6 +3,7 @@ import { pgTable, pgEnum, text, varchar, timestamp, boolean, integer, jsonb, uni
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { verificationWarningSchema, type VerificationWarning } from "./verificationWarnings";
+import { PAYMENT_SAFETY_NOTICE_MAX_LENGTH, SECURE_MESSAGE_MAX_LENGTH } from "./paymentSafety";
 import {
   MATTER_KINDS,
 } from "./matterKinds";
@@ -592,6 +593,9 @@ export const firmProfile = pgTable("firm_profile", {
   complianceBadgeEnabled: boolean("compliance_badge_enabled").notNull().default(false),
   complianceBadgeSlug: text("compliance_badge_slug"),
 
+  /** Firm-written payment-fraud warning inserted word for word into every client care letter (null = LegalNote default wording). */
+  paymentSafetyNotice: text("payment_safety_notice"),
+
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
   updatedBy: varchar("updated_by").references(() => users.id),
   complianceCodeHash: text("compliance_code_hash"),
@@ -647,9 +651,11 @@ export const shareLinks = pgTable("share_links", {
   smsCodeExpiresAt: timestamp("sms_code_expires_at"), // When the SMS code expires
   smsVerified: boolean("sms_verified").notNull().default(false), // Whether SMS verification was completed
   smsVerifiedAt: timestamp("sms_verified_at"), // When SMS verification was completed
-  smsCodeSentCount: integer("sms_code_sent_count").notNull().default(0), // Rate limit: max 3 SMS sends per link
-  smsVerificationAttempts: integer("sms_verification_attempts").notNull().default(0), // Rate limit: max 5 verification attempts per link
+  smsCodeSentCount: integer("sms_code_sent_count").notNull().default(0), // Rate limit: max 5 SMS sends per link
+  smsVerificationAttempts: integer("sms_verification_attempts").notNull().default(0), // Rate limit: max 5 attempts per code (reset on each new code)
   sharedDocuments: text("shared_documents").array().notNull().default(sql`ARRAY['client_letter']::text[]`), // Document types to share: attendance_note, client_letter, client_care_letter, summary, transcript
+  /** Secure Message: fee-earner-written sensitive text (e.g. payment details). Only ever shown after SMS verification; never put in the notification email. */
+  secureMessage: text("secure_message"),
 });
 
 // Recall.ai video conferencing connection (per-user OAuth)
@@ -1221,6 +1227,7 @@ export const insertFirmProfileSchema = createInsertSchema(firmProfile).omit({
   digestFrequency: z.enum(["weekly", "monthly"]).optional(),
   complianceBadgeEnabled: z.boolean().optional(),
   complianceBadgeSlug: z.string().max(100).regex(/^[a-z0-9-]+$/).optional(),
+  paymentSafetyNotice: z.string().max(PAYMENT_SAFETY_NOTICE_MAX_LENGTH).optional().nullable(),
   updatedBy: z.string().min(1).optional(), // Replit Auth IDs are not UUIDs
 });
 
@@ -1268,7 +1275,8 @@ export const insertShareLinkSchema = createInsertSchema(shareLinks).omit({
   smsPhoneNumber: z.string().max(50).transform(sanitizeString).optional(),
   smsVerificationCode: z.string().max(10).optional(),
   smsCodeExpiresAt: z.date().optional(),
-  sharedDocuments: z.array(z.enum(["attendance_note", "summary", "transcript", "client_letter", "client_care_letter"])).min(1, "Must select at least one document to share").default(["client_letter"]),
+  sharedDocuments: z.array(z.enum(["attendance_note", "summary", "transcript", "client_letter", "client_care_letter"])).default(["client_letter"]),
+  secureMessage: z.string().max(SECURE_MESSAGE_MAX_LENGTH).optional(),
 });
 
 export const insertRecallConnectionSchema = createInsertSchema(recallConnections).omit({

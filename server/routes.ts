@@ -111,6 +111,8 @@ import { CAPTURE_CONFLICT_DEFERRAL_NOTE } from "@shared/matterKinds";
 import { isFeatureVisible, type FeatureKey } from "@shared/featureVisibility";
 import { resolveScheduleProvider } from "@shared/scheduleMeeting";
 import { documentMatchesSharedType, getUnadoptedSharedDocumentTypes } from "@shared/shareDocumentTypes";
+import { PAYMENT_SAFETY_HEADING, SECURE_MESSAGE_MAX_LENGTH } from "@shared/paymentSafety";
+import type { ShareLink } from "@shared/schema";
 import { z } from "zod";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { chunkedUploadService } from "./services/chunkedUploadService";
@@ -1471,6 +1473,10 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
     }
   });
   
+  const shareSmsSessionKey = (linkId: string) => `share_sms_verified_${linkId}`;
+  const isShareSmsVerifiedInSession = (req: any, linkId: string): boolean =>
+    !!req.session?.[shareSmsSessionKey(linkId)];
+
   // Get share link data (public access for clients)
   app.get('/api/share/:linkId', generalApiLimiter, async (req, res, next) => {
     try {
@@ -1488,8 +1494,8 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         return res.status(410).json({ message: "Share link has expired" });
       }
       
-      // Check if SMS verification is required and not yet verified
-      if (shareLink.smsProtection && !shareLink.smsVerified) {
+      // Check if SMS verification is required and not yet verified in this browser session
+      if (shareLink.smsProtection && !isShareSmsVerifiedInSession(req, linkId)) {
         // Never return the full phone number — only a masked hint for UX
         return res.json({
           requiresSmsVerification: true,
@@ -1558,6 +1564,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           accessCount: shareLink.accessCount + 1,
           documentsShared: sharedDocs,
           documentCount: documents.length,
+          secureMessageViewed: !!shareLink.secureMessage,
         },
         severity: "info",
       });
@@ -1631,6 +1638,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           accessLevel: shareLink.accessLevel,
           sharedDocuments: sharedDocs,
         },
+        secureMessage: shareLink.secureMessage || null,
         firmProfile: firmProfile || undefined,
       });
     } catch (error: any) {
@@ -1666,8 +1674,9 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         return res.status(400).json({ message: "SMS verification is not required for this link" });
       }
 
-      // Rate limiting: Check SMS send count (max 3 sends per link)
-      if (shareLink.smsCodeSentCount >= 3) {
+      // Rate limiting: Check SMS send count (max 5 sends per link). Verification is
+      // per browser session, so a client opening the link on a second device needs a new code.
+      if (shareLink.smsCodeSentCount >= 5) {
         return res.status(429).json({ message: "Maximum SMS send attempts exceeded for this link" });
       }
 
@@ -1781,7 +1790,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         return res.status(400).json({ message: "SMS verification is not required for this link" });
       }
 
-      // Rate limiting: Check verification attempts (max 5 attempts per link)
+      // Rate limiting: Check verification attempts (max 5 per code; reset when a new code is sent)
       if (shareLink.smsVerificationAttempts >= 5) {
         return res.status(429).json({ message: "Maximum verification attempts exceeded for this link" });
       }
@@ -1817,6 +1826,13 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         }
       }
 
+      // Verification belongs to this browser session, not the link: anyone else who
+      // obtains the URL (e.g. from a compromised mailbox) must pass SMS themselves.
+      if (!req.session) {
+        return res.status(500).json({ message: "Session not available" });
+      }
+      (req.session as any)[shareSmsSessionKey(linkId)] = true;
+
       // Log successful verification
       await storage.createAuditLog({
         eventType: "sms_code_verified",
@@ -1828,6 +1844,11 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           shareLinkId: linkId,
         },
         severity: "info",
+      });
+
+      // Ensure the session cookie is written before responding (anonymous share visitors)
+      await new Promise<void>((resolve, reject) => {
+        req.session.save((err) => (err ? reject(err) : resolve()));
       });
 
       res.json({ 
@@ -1957,7 +1978,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       if (new Date() > new Date(shareLink.expiresAt)) {
         return res.status(410).json({ message: "Share link has expired" });
       }
-      if (shareLink.smsProtection && !shareLink.smsVerified) {
+      if (shareLink.smsProtection && !isShareSmsVerifiedInSession(req, linkId)) {
         return res.status(403).json({ message: "SMS verification required before submitting feedback" });
       }
       if (shareLink.password) {
@@ -4616,7 +4637,11 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         smsProtection: z.boolean().default(false),
         smsPhoneNumber: z.string().optional(),
         customMessage: z.string().optional(),
-        sharedDocuments: z.array(z.enum(["attendance_note", "summary", "transcript", "client_letter", "client_care_letter"])).min(1, "Must select at least one document to share").default(["attendance_note"]),
+        sharedDocuments: z.array(z.enum(["attendance_note", "summary", "transcript", "client_letter", "client_care_letter"])).default(["attendance_note"]),
+        secureMessage: z.string().max(SECURE_MESSAGE_MAX_LENGTH).optional(),
+      }).refine((body) => body.sharedDocuments.length > 0 || !!body.secureMessage?.trim(), {
+        message: "Select at least one document or write a secure message",
+        path: ["sharedDocuments"],
       });
       
       const validationResult = shareLinkRequestSchema.safeParse(req.body);
@@ -4628,6 +4653,15 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       }
       
       const { recipientEmail, recipientName, isExternal, organization, expiration, accessLevel, password, clientConsent, smsProtection, smsPhoneNumber, customMessage, sharedDocuments } = validationResult.data;
+      const secureMessage = validationResult.data.secureMessage?.trim() || undefined;
+
+      // Secure Messages carry the most fraud-sensitive content (e.g. payment details), so
+      // they are only ever released behind SMS to the number the firm registered.
+      if (secureMessage && !smsProtection) {
+        return res.status(400).json({
+          message: "SMS verification is required when sending a secure message",
+        });
+      }
       
       // Validate SMS phone number if SMS protection is enabled
       let formattedPhoneNumber: string | undefined;
@@ -4744,6 +4778,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         smsProtection: smsProtection || false,
         smsPhoneNumber: formattedPhoneNumber,
         sharedDocuments,
+        secureMessage,
       });
       
       // Sharing means the fee-earner has finished and actioned the matter —
@@ -4760,7 +4795,10 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         : expiration === '30days' ? '30 days'
         : 'the configured period';
       const systemMessage = [
-        `You have been granted ${accessLevel} access to secure documents.`,
+        secureMessage
+          ? 'A secure message is waiting for you. For your protection its contents are not included in this email.'
+          : '',
+        sharedDocuments.length > 0 ? `You have been granted ${accessLevel} access to secure documents.` : '',
         `This link will expire in ${expirationLabel}.`,
         password ? 'A password is required to access the documents.' : '',
         smsProtection ? 'SMS verification is required to access the documents.' : '',
@@ -4806,6 +4844,10 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           clientConsent,
           messageId: result.messageId,
           shareLinkId: shareLink.id,
+          // Evidence of exactly what was sent, without copying the content into the audit trail
+          secureMessageSha256: secureMessage
+            ? crypto.createHash("sha256").update(secureMessage, "utf8").digest("hex")
+            : undefined,
         },
         req,
       });
@@ -7031,6 +7073,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         sharedDocuments: link.sharedDocuments,
         passwordProtected: Boolean(link.password),
         smsProtected: link.smsProtection,
+        hasSecureMessage: Boolean(link.secureMessage),
       })));
     } catch (error: any) {
       next(error);
@@ -7734,6 +7777,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         practiceArea: practiceAreaLabel,
         costsEstimate: costsEstimate || caseData.costsEstimate || undefined,
         matterReference: caseData.matterReference || undefined,
+        paymentSafetyNotice: (await storage.getFirmProfile())?.paymentSafetyNotice,
       });
 
       const document = await storage.createDocument({
@@ -9984,13 +10028,17 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       const caseRecord = await storage.getCase(caseId, userId);
       if (!caseRecord) return res.status(404).json({ message: "Matter not found" });
 
-      const [docs, consentLogs, auditEntries, sessions] = await Promise.all([
+      const [docs, consentLogs, auditEntries, sessions, shareLinksForCase] = await Promise.all([
         storage.getDocumentsByCase(caseId, userId),
         storage.getConsentLogsByCase(caseId, userId),
         storage.getAuditLogsByCase(caseId, 50),
         storage.getSessionsByCase(caseId, userId),
+        storage.getShareLinksByCase(caseId, userId),
       ]);
       const firmProfile = await storage.getFirmProfile();
+      const careLetter = docs.find((d: { isActive: boolean; type: string }) => d.isActive && d.type === "client_care_letter") as
+        | { content: string; createdAt: Date; acknowledgedAt: Date | null; acknowledgedByEmail: string | null }
+        | undefined;
 
       await logPersonnelMatterAccess({
         userId,
@@ -10027,6 +10075,20 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
           eventType: a.eventType, timestamp: a.timestamp, description: a.description,
           userId: a.userId, ipAddress: a.ipAddress,
         })),
+        paymentSafety: {
+          careLetterWarningIncluded: !!careLetter && careLetter.content.includes(PAYMENT_SAFETY_HEADING),
+          careLetterCreatedAt: careLetter?.createdAt ?? null,
+          careLetterAcknowledgedAt: careLetter?.acknowledgedAt ?? null,
+          careLetterAcknowledgedByEmail: careLetter?.acknowledgedByEmail ?? null,
+          secureMessages: shareLinksForCase
+            .filter((l: ShareLink) => !!l.secureMessage)
+            .map((l: ShareLink) => ({
+              sentAt: l.createdAt,
+              recipientName: l.recipientName,
+              lastOpenedAt: l.accessCount > 0 ? l.lastAccessedAt ?? null : null,
+              openCount: l.accessCount,
+            })),
+        },
         generatedAt: new Date().toISOString(),
         disclaimer: "This document pack is produced by LegalNote for professional indemnity defence purposes. It contains tamper-evident records of solicitor-client interactions.",
       });

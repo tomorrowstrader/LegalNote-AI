@@ -25,6 +25,7 @@ import {
 } from '@shared/verificationWarnings';
 import { normalizeAttendanceSectionLabels } from '@shared/attendanceNoteFormat';
 import { enrichContentWithGapEvidence, suppressStatedReasoningGaps } from '@shared/reasoningGapEvidence';
+import { insertPaymentSafetySection, resolvePaymentSafetyNotice } from '@shared/paymentSafety';
 
 /**
  * Post-process document content to ensure known section headings are bold.
@@ -2103,13 +2104,17 @@ Generate the briefing document:`;
     practiceArea: string;
     costsEstimate?: string;
     matterReference?: string;
+    /** Firm's payment-fraud wording (null/blank = default). Inserted verbatim, never generated. */
+    paymentSafetyNotice?: string | null;
   }): Promise<DocumentGenerationResult> {
     const { getClientCareLetterPrompt } = require('./practiceAreaConfig');
     const systemPrompt = getClientCareLetterPrompt(params);
 
     const userPrompt = `Generate the client care letter now based on the details provided. Output the complete letter in professional format ready for review.`;
 
-    return this.generateDocument(systemPrompt, userPrompt);
+    const result = await this.generateDocument(systemPrompt, userPrompt);
+    const notice = resolvePaymentSafetyNotice(params.paymentSafetyNotice, params.firmName);
+    return { ...result, content: insertPaymentSafetySection(result.content, notice) };
   }
 
   async extractUndertakings(

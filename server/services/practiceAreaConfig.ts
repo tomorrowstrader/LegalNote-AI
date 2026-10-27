@@ -628,5 +628,7 @@ ${params.matterReference ? `Matter Reference: ${params.matterReference}` : ''}
 
 Date: ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
 
+Do NOT write any section about payment fraud, cybercrime or bank details, and never include bank account details. The firm's own payment-fraud warning is added to the letter separately, word for word.
+
 Format the letter professionally with clear headings. Use formal but accessible language. The letter should be ready for review, personalised if needed, and sent to the client.`;
 }

@@ -5940,6 +5940,7 @@ export class DbStorage implements IStorage {
         smsCodeExpiresAt: expiresAt,
         smsVerified: false, // Reset verification status when sending new code
         smsVerifiedAt: null,
+        smsVerificationAttempts: 0, // Each new code gets its own 5 attempts
         smsCodeSentCount: sql`${shareLinks.smsCodeSentCount} + 1`, // Increment send counter for rate limiting
       })
       .where(eq(shareLinks.id, id))

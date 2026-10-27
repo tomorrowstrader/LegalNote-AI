@@ -22,6 +22,7 @@ import { ensureMeetingCastColumn } from "./meetingCastMigration";
 import { ensureInstructionStatusColumns } from "./instructionStatusMigration";
 import { ensureMatterKindColumn } from "./matterKindMigration";
 import { ensureEvaluationStartsAtColumn } from "./evaluationStartsAtMigration";
+import { ensurePaymentSafetyColumns } from "./paymentSafetyMigration";
 import { ensureFirmBillingColumns } from "./firmBillingMigration";
 import { ensureScheduledEmailsTable } from "./scheduledEmailsMigration";
 import { ensureSupportTicketsTable } from "./supportTicketsMigration";
@@ -287,6 +288,8 @@ app.use((req, res, next) => {
   await ensureMatterKindColumn();
 
   await ensureEvaluationStartsAtColumn();
+
+  await ensurePaymentSafetyColumns();
 
   await ensureFirmBillingColumns();
 

@@ -1091,6 +1091,27 @@ export default function CaseDetail() {
       if (pack.consentLog.length === 0) addText('No consent log entries.', 9, false, [120, 110, 100]);
       y += 2; addLine();
 
+      if (pack.paymentSafety) {
+        const ps = pack.paymentSafety;
+        const fmt = (d: string | null) => (d ? new Date(d).toLocaleDateString('en-GB') : null);
+        addText('Payment Fraud Warnings', 12, true);
+        if (ps.careLetterWarningIncluded) {
+          addText(`Payment fraud warning included in client care letter created ${fmt(ps.careLetterCreatedAt) ?? 'date unknown'}.`, 9);
+          addText(
+            ps.careLetterAcknowledgedAt
+              ? `Client acknowledged the letter on ${fmt(ps.careLetterAcknowledgedAt)}${ps.careLetterAcknowledgedByEmail ? ` (${ps.careLetterAcknowledgedByEmail})` : ''}.`
+              : 'Client has not acknowledged the letter.',
+            9,
+          );
+        } else {
+          addText('No payment fraud warning found in a client care letter on this matter.', 9, false, [120, 110, 100]);
+        }
+        for (const m of ps.secureMessages ?? []) {
+          addText(`Secure message to ${m.recipientName} sent ${fmt(m.sentAt) ?? 'date unknown'} — ${m.lastOpenedAt ? `opened after SMS verification (${m.openCount} view${m.openCount === 1 ? '' : 's'}, last ${fmt(m.lastOpenedAt)})` : 'not yet opened'}.`, 9);
+        }
+        y += 2; addLine();
+      }
+
       addText('Documents', 12, true);
       for (const d of pack.documents) {
         addText(`${d.type?.replace(/_/g, ' ') ?? 'Document'} — created ${d.createdAt ? new Date(d.createdAt).toLocaleDateString('en-GB') : 'unknown'}`, 9);

@@ -19,6 +19,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertFirmProfileSchema } from "@shared/schema";
 import type { FirmProfile, InsertFirmProfile, UserPreferences } from "@shared/schema";
+import { PAYMENT_SAFETY_HEADING, PAYMENT_SAFETY_NOTICE_MAX_LENGTH, defaultPaymentSafetyNotice } from "@shared/paymentSafety";
 import { SafeguardsStatus } from "@/components/SafeguardsStatus";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
@@ -126,6 +127,7 @@ function FirmProfileForm() {
       includeLocation: true,
       showFullSolicitorName: true,
       includeClientConfirmation: false,
+      paymentSafetyNotice: "",
     },
   });
 
@@ -146,6 +148,7 @@ function FirmProfileForm() {
         includeLocation: firmProfile.includeLocation ?? true,
         showFullSolicitorName: firmProfile.showFullSolicitorName ?? true,
         includeClientConfirmation: firmProfile.includeClientConfirmation ?? false,
+        paymentSafetyNotice: firmProfile.paymentSafetyNotice || "",
       });
       if (firmProfile.logoUrl) {
         setLogoPreview(firmProfile.logoUrl);
@@ -545,6 +548,32 @@ function FirmProfileForm() {
                         data-testid="switch-client-confirmation"
                       />
                     </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="paymentSafetyNotice"
+                render={({ field }) => (
+                  <FormItem className="rounded-lg border p-4 space-y-2">
+                    <div className="space-y-0.5">
+                      <FormLabel className="text-base">Payment Fraud Warning</FormLabel>
+                      <p className="text-sm text-muted-foreground">
+                        Added word for word to every client care letter under "{PAYMENT_SAFETY_HEADING}". The client's acknowledgement of the letter records that they were warned. Leave blank to use the standard wording shown.
+                      </p>
+                    </div>
+                    <FormControl>
+                      <Textarea
+                        {...field}
+                        value={field.value ?? ""}
+                        rows={5}
+                        maxLength={PAYMENT_SAFETY_NOTICE_MAX_LENGTH}
+                        placeholder={defaultPaymentSafetyNotice(form.watch("firmName") || "We")}
+                        data-testid="textarea-payment-safety-notice"
+                      />
+                    </FormControl>
+                    <FormMessage />
                   </FormItem>
                 )}
               />

@@ -53,6 +53,8 @@ interface ShareLinkData {
     accessLevel: string;
     sharedDocuments: string[];
   };
+  /** Fee-earner-written sensitive message; only returned after verification. */
+  secureMessage?: string | null;
   firmProfile?: FirmProfile;
 }
 
@@ -636,6 +638,8 @@ export default function ShareLinkView() {
   };
 
   const canDownload = shareLink?.accessLevel === "download";
+  const hasAnyDocument = !!attendanceNote || !!summary || showCareLetter || !!transcript;
+  const sender = clientFacingSender({ firmName: data?.firmProfile?.firmName });
 
   const activeDocument =
     activeDocTab === "attendance"
@@ -718,7 +722,33 @@ export default function ShareLinkView() {
           </CardContent>
         </Card>
 
+        {data.secureMessage && (
+          <Card className="mb-6" data-testid="card-secure-message">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Lock className="h-5 w-5" />
+                Secure Message
+              </CardTitle>
+              <CardDescription>
+                From {sender.phrase}. Shown only after verification by text message.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="whitespace-pre-wrap break-words text-base" data-testid="text-secure-message">
+                {data.secureMessage}
+              </p>
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="text-sm">
+                  If you are unsure about any payment instruction, call us on a telephone number you already know is ours before sending money. Never rely on contact details given in an email.
+                </AlertDescription>
+              </Alert>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Documents — natural page scroll (single scrollbar) */}
+        {hasAnyDocument && (
         <Card className="overflow-hidden">
           <CardHeader className="relative z-20 shrink-0 border-b bg-card">
             <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -746,8 +776,8 @@ export default function ShareLinkView() {
               linkId={linkId!}
               activeDocumentId={activeDocument?.id}
               activeDocumentType={activeDocumentType}
-              senderPhrase={clientFacingSender({ firmName: data?.firmProfile?.firmName }).phrase}
-              senderName={clientFacingSender({ firmName: data?.firmProfile?.firmName }).capitalised}
+              senderPhrase={sender.phrase}
+              senderName={sender.capitalised}
             />
             <Tabs
               value={["attendance", "summary", "care-letter", "transcript"].includes(activeDocTab) ? activeDocTab : defaultTab}
@@ -829,6 +859,7 @@ export default function ShareLinkView() {
             </Tabs>
           </CardContent>
         </Card>
+        )}
       </div>
       <FirmPublicBrandFooter firmProfile={data?.firmProfile} />
 

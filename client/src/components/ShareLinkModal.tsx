@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { SECURE_MESSAGE_MAX_LENGTH } from "@shared/paymentSafety";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { queryClient } from "@/lib/queryClient";
@@ -100,6 +101,7 @@ export default function ShareLinkModal({
   const [smsProtection, setSmsProtection] = useState(false);
   const [smsPhoneNumber, setSmsPhoneNumber] = useState("");
   const [customMessage, setCustomMessage] = useState("");
+  const [secureMessage, setSecureMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [pendingSharePayload, setPendingSharePayload] = useState<Record<string, unknown> | null>(null);
@@ -114,6 +116,12 @@ export default function ShareLinkModal({
   const shareBlockedByHold = litigationHold;
   const shareBlockedByAdoption = unadoptedSelectedTypes.length > 0;
   const shareBlocked = shareBlockedByHold || shareBlockedByAdoption;
+  const hasSecureMessage = secureMessage.trim().length > 0;
+
+  // A secure message is only ever released behind SMS (the server enforces this too)
+  useEffect(() => {
+    if (hasSecureMessage) setSmsProtection(true);
+  }, [hasSecureMessage]);
 
   // Prefill first name and default docs whenever the modal opens
   useEffect(() => {
@@ -230,10 +238,10 @@ export default function ShareLinkModal({
       return;
     }
 
-    if (sharedDocuments.length === 0) {
+    if (sharedDocuments.length === 0 && !hasSecureMessage) {
       toast({
-        title: "No Documents Selected",
-        description: "Please select at least one document to share",
+        title: "Nothing to Share",
+        description: "Select at least one document or write a secure message",
         variant: "destructive",
         duration: 8000,
       });
@@ -296,6 +304,7 @@ export default function ShareLinkModal({
       smsPhoneNumber: smsProtection ? smsPhoneNumber : undefined,
       customMessage: customMessage.trim() || undefined,
       sharedDocuments,
+      secureMessage: secureMessage.trim() || undefined,
     });
 
     // Start 3-second countdown
@@ -330,6 +339,7 @@ export default function ShareLinkModal({
     setSmsProtection(false);
     setSmsPhoneNumber("");
     setCustomMessage("");
+    setSecureMessage("");
     setIsSending(false);
     setCountdown(null);
     setPendingSharePayload(null);
@@ -468,6 +478,25 @@ export default function ShareLinkModal({
             />
             <p className="text-xs text-muted-foreground">
               This message appears in the email. Do not include names, matter references, or other personal or case-specific data - those stay inside the secure link.
+            </p>
+          </div>
+
+          <div className="space-y-2" data-testid="secure-message-section">
+            <Label htmlFor="secure-message" className="flex items-center gap-2">
+              <Shield className="w-4 h-4" />
+              Secure Message (Optional)
+            </Label>
+            <Textarea
+              id="secure-message"
+              placeholder="For sensitive information such as our bank details, completion amounts or payment instructions..."
+              value={secureMessage}
+              onChange={(e) => setSecureMessage(e.target.value)}
+              maxLength={SECURE_MESSAGE_MAX_LENGTH}
+              rows={4}
+              data-testid="input-secure-message"
+            />
+            <p className="text-xs text-muted-foreground">
+              Never included in the email. The recipient sees it only after entering a code texted to the mobile number below. Use this, not email, for anything about payments.
             </p>
           </div>
 
@@ -690,12 +719,15 @@ export default function ShareLinkModal({
               <Checkbox
                 id="sms-protection"
                 checked={smsProtection}
+                disabled={hasSecureMessage}
                 onCheckedChange={(checked) => setSmsProtection(checked as boolean)}
                 data-testid="checkbox-sms-protection"
               />
               <Label htmlFor="sms-protection" className="font-normal flex items-center gap-2">
                 <Smartphone className="w-4 h-4" />
-                Require SMS verification (extra security)
+                {hasSecureMessage
+                  ? "SMS verification (required for secure messages)"
+                  : "Require SMS verification (extra security)"}
               </Label>
             </div>
 
@@ -714,13 +746,13 @@ export default function ShareLinkModal({
                     data-testid="input-sms-phone"
                   />
                   <p className="text-xs text-muted-foreground">
-                    UK mobile number in international (+447xxx...) or national (07xxx...) format
+                    UK mobile number in international (+447xxx...) or national (07xxx...) format. Use the number the client gave you in person or by phone, never one taken from an email.
                   </p>
                 </div>
                 <Alert className="border-blue-500 bg-blue-50 dark:bg-blue-950">
                   <Smartphone className="h-4 w-4 text-blue-600" />
                   <AlertDescription className="text-sm text-blue-800 dark:text-blue-200">
-                    Recipient will receive a 6-digit verification code via SMS before accessing the documents.
+                    Recipient will receive a 6-digit verification code by SMS (never by email) before accessing the documents.
                   </AlertDescription>
                 </Alert>
               </div>
