@@ -93,6 +93,7 @@ import {
 import crypto, { randomUUID } from "crypto";
 import { db } from "./db";
 import { eq, and, or, gte, lte, lt, desc, isNull, isNotNull, not, sql, count, inArray } from "drizzle-orm";
+import { isNotSupersededDemoMatter, isSupersededDemoMatter } from "./services/demoMatters";
 import { generateDocumentHash } from "./utils/documentHash";
 import { looksLikeRtf, stripRtfToPlainText } from "@shared/stripRtf";
 import { parseInstructionStatus } from "@shared/instructionStatus";
@@ -1182,7 +1183,7 @@ export class MemStorage implements IStorage {
 
   async getCases(userId: string, includeArchived: boolean = false): Promise<Case[]> {
     return Array.from(this.cases.values())
-      .filter(c => c.createdBy === userId && (includeArchived || !c.archived))
+      .filter(c => c.createdBy === userId && (includeArchived || !c.archived) && !isSupersededDemoMatter(c))
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
@@ -3589,7 +3590,7 @@ export class DbStorage implements IStorage {
   async getCases(userId: string, includeArchived: boolean = false): Promise<Case[]> {
     const userFilter = or(eq(cases.createdBy, userId), eq(cases.assignedToUserId, userId));
     const conditions = includeArchived 
-      ? [userFilter]
+      ? [userFilter, isNotSupersededDemoMatter]
       : [userFilter, eq(cases.archived, false)];
       
     return await db

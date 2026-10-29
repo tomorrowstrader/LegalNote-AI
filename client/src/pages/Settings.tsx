@@ -2115,7 +2115,7 @@ function DemoDataControls() {
       queryClient.invalidateQueries({ queryKey: ['/api/cases'] });
       toast({
         title: "Demo Data Loaded",
-        description: `Created ${data.casesCreated || 4} sample cases with transcripts, documents, and obligations.`,
+        description: data.message || "Demo matters loaded.",
       });
     },
     onError: (error: any) => {
@@ -2137,7 +2137,7 @@ function DemoDataControls() {
       queryClient.invalidateQueries({ queryKey: ['/api/cases'] });
       toast({
         title: "Demo Data Reset",
-        description: `Cleared old data and created ${data.casesCreated || 4} fresh sample cases.`,
+        description: data.message || "Demo matters reseeded.",
       });
     },
     onError: (error: any) => {
@@ -2154,12 +2154,12 @@ function DemoDataControls() {
       const response = await apiRequest('DELETE', '/api/demo/clear');
       return response;
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       setDemoDataLoaded(false);
       queryClient.invalidateQueries({ queryKey: ['/api/cases'] });
       toast({
         title: "Demo Data Cleared",
-        description: "All sample cases have been removed from your account.",
+        description: data.message || "Demo matters archived.",
       });
     },
     onError: (error: any) => {
@@ -2188,7 +2188,7 @@ function DemoDataControls() {
         <Alert>
           <Database className="h-4 w-4" />
           <AlertDescription>
-            Demo data creates 5 realistic UK legal case scenarios: Property Purchase, Employment Dispute, Commercial Contract, and Family Law. Each includes full transcripts, attendance notes, matter records, obligations, and audit trail entries.
+            Demo data creates 10 sample UK matters (matter references starting HART_) with transcripts, attendance notes and audit trail entries. Load, Reset and Clear only archive previous demo matters — your own matters are never touched.
           </AlertDescription>
         </Alert>
 
@@ -2227,7 +2227,7 @@ function DemoDataControls() {
               <span className="font-medium">Reset Demo Data</span>
             </div>
             <p className="text-sm text-muted-foreground">
-              Clear existing demo data and load fresh samples
+              Archive current demo matters and load fresh samples
             </p>
             <Button
               variant="outline"
@@ -2256,7 +2256,7 @@ function DemoDataControls() {
               <span className="font-medium">Clear Demo Data</span>
             </div>
             <p className="text-sm text-muted-foreground">
-              Remove all sample cases from your account
+              Archive all demo matters (your own matters stay active)
             </p>
             <Button
               variant="outline"
@@ -2283,11 +2283,11 @@ function DemoDataControls() {
         <div className="p-4 bg-muted rounded-lg">
           <h4 className="font-medium mb-2">Sample Cases Include:</h4>
           <ul className="text-sm text-muted-foreground space-y-1">
-            <li>Sarah Thompson - Property Purchase (Conveyancing)</li>
-            <li>Marcus Webb - Unfair Dismissal Claim (Employment)</li>
-            <li>Eleanor Chen - LLP Partnership Agreement (Commercial)</li>
-            <li>David Patterson - Divorce Settlement (Family Law)</li>
-            <li>James Smith - Financial Settlement (Family Law with cost warnings)</li>
+            <li>Marcus Webb - Child Arrangements (Family)</li>
+            <li>Ryan Callahan - GBH s.18 (Criminal Defence)</li>
+            <li>Fatima Al-Rashidi - Further Leave to Remain (Immigration)</li>
+            <li>Northgate Freight - Commercial Dispute (Litigation)</li>
+            <li>…and six more across other practice areas</li>
           </ul>
         </div>
       </CardContent>

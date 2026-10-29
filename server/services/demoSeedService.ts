@@ -2,6 +2,7 @@ import { db } from "../db";
 import { cases, meetingSessions, audioRecordings, consentLogs, transcripts, documents, auditTrail, actionItems, preMeetingBriefings, timeEntries, undertakings, quickNotes, securityIncidents, calendarEvents, shareLinks, meetingImports, scheduledMeetings, preConsentEmails, clioMatterLinks, recordingSessions, amlMonitoringNotes, amlDecisionRecords, externalDocumentRefs, conflictChecks, supervisionSignoffs, clientVersionTracking, documentComments } from "../../shared/schema";
 import { and, eq, sql } from "drizzle-orm";
 import { approveCaseDocumentsForSharing } from "./approveShareDocuments";
+import { isDemoMatter } from "./demoMatters";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -24,16 +25,17 @@ function daysFromNow(n: number): Date {
 }
 
 /**
- * Demo reset archives active cases and seeds fresh ones.
+ * Demo reset archives the user's active DEMO cases and seeds fresh ones.
+ * Real (non-demo) matters are never touched.
  * Does not DELETE audit_trail or consent_logs - sealed history accumulates.
  */
-async function archiveUserActiveCases(userId: string): Promise<number> {
+async function archiveUserDemoCases(userId: string): Promise<string[]> {
   const result = await db
     .update(cases)
     .set({ archived: true })
-    .where(and(eq(cases.createdBy, userId), eq(cases.archived, false)))
+    .where(and(eq(cases.createdBy, userId), eq(cases.archived, false), isDemoMatter))
     .returning({ id: cases.id });
-  return result.length;
+  return result.map((r) => r.id);
 }
 
 // ─── Matter 1: Family - Private Children (COLP Showcase) ────────────────────
@@ -2506,9 +2508,10 @@ Termination notice defective. Break clause not validly triggered. Full claim val
 
 // ─── Main seed function ──────────────────────────────────────────────────────
 
-export async function seedDemoData(userId: string): Promise<{ success: boolean; message: string; casesCreated: number }> {
+export async function seedDemoData(userId: string): Promise<{ success: boolean; message: string; casesCreated: number; archivedCaseIds: string[] }> {
   try {
-    const archivedCount = await archiveUserActiveCases(userId);
+    const archivedCaseIds = await archiveUserDemoCases(userId);
+    const archivedCount = archivedCaseIds.length;
     await seedMatter1Webb(userId);
     await seedMatter2Kestrel(userId);
     await seedMatter3Osei(userId);
@@ -2526,7 +2529,7 @@ export async function seedDemoData(userId: string): Promise<{ success: boolean; 
         and(
           eq(cases.createdBy, userId),
           eq(cases.archived, false),
-          sql`${cases.matterReference} LIKE 'HART_%'`,
+          isDemoMatter,
         ),
       );
     for (const { id } of demoCases) {
@@ -2534,35 +2537,36 @@ export async function seedDemoData(userId: string): Promise<{ success: boolean; 
     }
     const archiveNote =
       archivedCount > 0
-        ? ` Archived ${archivedCount} prior active matter(s); sealed audit/consent history retained.`
+        ? ` Archived ${archivedCount} previous demo matter(s); your own matters were not touched.`
         : "";
     return {
       success: true,
       message: `Demo data seeded successfully - 10 matters.${archiveNote}`,
       casesCreated: 10,
+      archivedCaseIds,
     };
   } catch (error: any) {
     console.error("[SEED] Error seeding demo data:", error);
-    return { success: false, message: error.message, casesCreated: 0 };
+    return { success: false, message: error.message, casesCreated: 0, archivedCaseIds: [] };
   }
 }
 
-export async function resetDemoData(userId: string): Promise<{ success: boolean; message: string }> {
-  const result = await seedDemoData(userId);
-  return { success: result.success, message: result.message };
+export async function resetDemoData(userId: string): Promise<{ success: boolean; message: string; casesCreated: number; archivedCaseIds: string[] }> {
+  return seedDemoData(userId);
 }
 
-export async function clearDemoData(userId: string): Promise<{ success: boolean; message: string }> {
+export async function clearDemoData(userId: string): Promise<{ success: boolean; message: string; archivedCaseIds: string[] }> {
   try {
-    const archivedCount = await archiveUserActiveCases(userId);
+    const archivedCaseIds = await archiveUserDemoCases(userId);
     return {
       success: true,
       message:
-        archivedCount > 0
-          ? `Archived ${archivedCount} active matter(s). Sealed audit/consent history was not deleted.`
-          : "No active demo matters to archive. Sealed history was not deleted.",
+        archivedCaseIds.length > 0
+          ? `Archived ${archivedCaseIds.length} demo matter(s). Your own matters were not touched.`
+          : "No active demo matters to archive.",
+      archivedCaseIds,
     };
   } catch (error: any) {
-    return { success: false, message: error.message };
+    return { success: false, message: error.message, archivedCaseIds: [] };
   }
 }

@@ -15099,72 +15099,60 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
   });
 
   // DEMO DATA ENDPOINTS
-  
+  // Admin-only: these archive the caller's demo matters. Each run is audited with
+  // the exact case IDs it archived, so any run can be reversed.
+
+  const runDemoDataAction = (
+    action: "seed" | "reset" | "clear",
+    run: (userId: string) => Promise<{ success: boolean; message: string; archivedCaseIds: string[] }>,
+  ) => async (req: any, res: any) => {
+    try {
+      const userId = req.user.claims.sub;
+      if (userId !== getAdminUserId()) {
+        return res.status(403).json({ success: false, message: "Demo data controls are restricted to administrators" });
+      }
+
+      const result = await run(userId);
+
+      if (result.archivedCaseIds.length > 0) {
+        await logAuditEvent(userId, "demo_data_archived", {
+          metadata: { action, archivedCaseIds: result.archivedCaseIds, archivedCount: result.archivedCaseIds.length },
+          req,
+        });
+      }
+
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(400).json(result);
+      }
+    } catch (error: any) {
+      console.error(`[DEMO] Error running demo data ${action}:`, error);
+      res.status(500).json({
+        success: false,
+        message: `Failed to ${action} demo data`,
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  };
+
   // Seed demo data for demonstrations
-  app.post("/api/demo/seed", isAuthenticated, async (req: any, res, next) => {
-    try {
-      const userId = req.user.claims.sub;
-      const { seedDemoData } = await import("./services/demoSeedService");
-      const result = await seedDemoData(userId);
-      
-      if (result.success) {
-        res.json(result);
-      } else {
-        res.status(400).json(result);
-      }
-    } catch (error: any) {
-      console.error('[DEMO] Error seeding demo data:', error);
-      res.status(500).json({ 
-        success: false,
-        message: "Failed to seed demo data",
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined
-      });
-    }
-  });
+  app.post("/api/demo/seed", isAuthenticated, runDemoDataAction("seed", async (userId) => {
+    const { seedDemoData } = await import("./services/demoSeedService");
+    return seedDemoData(userId);
+  }));
 
-  // Reset demo data (clear and re-seed)
-  app.post("/api/demo/reset", isAuthenticated, async (req: any, res, next) => {
-    try {
-      const userId = req.user.claims.sub;
-      const { resetDemoData } = await import("./services/demoSeedService");
-      const result = await resetDemoData(userId);
-      
-      if (result.success) {
-        res.json(result);
-      } else {
-        res.status(400).json(result);
-      }
-    } catch (error: any) {
-      console.error('[DEMO] Error resetting demo data:', error);
-      res.status(500).json({ 
-        success: false,
-        message: "Failed to reset demo data",
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined
-      });
-    }
-  });
+  // Reset demo data (archive previous demo matters and re-seed)
+  app.post("/api/demo/reset", isAuthenticated, runDemoDataAction("reset", async (userId) => {
+    const { resetDemoData } = await import("./services/demoSeedService");
+    return resetDemoData(userId);
+  }));
 
-  // Clear demo data
-  app.delete("/api/demo/clear", isAuthenticated, async (req: any, res, next) => {
-    try {
-      const userId = req.user.claims.sub;
-      const { clearDemoData } = await import("./services/demoSeedService");
-      const result = await clearDemoData(userId);
-      
-      if (result.success) {
-        res.json(result);
-      } else {
-        res.status(400).json(result);
-      }
-    } catch (error: any) {
-      console.error('[DEMO] Error clearing demo data:', error);
-      res.status(500).json({ 
-        success: false,
-        message: "Failed to clear demo data",
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined
-      });
-    }
-  });
+  // Clear demo data (archive demo matters only)
+  app.delete("/api/demo/clear", isAuthenticated, runDemoDataAction("clear", async (userId) => {
+    const { clearDemoData } = await import("./services/demoSeedService");
+    return clearDemoData(userId);
+  }));
 
   // Public demo interaction endpoints (unauthenticated)
   // These allow demo visitors to trigger real emails/SMS without being logged in.

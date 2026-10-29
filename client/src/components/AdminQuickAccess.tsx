@@ -28,7 +28,7 @@ export default function AdminQuickAccess() {
       if (data.success) {
         toast({
           title: "Demo Reset Complete",
-          description: `Patterson demo case reseeded successfully. ${data.casesCreated ?? ""} cases created.`,
+          description: data.message || "Demo matters reseeded.",
         });
         queryClient.invalidateQueries({ queryKey: ["/api/cases"] });
         queryClient.invalidateQueries({ queryKey: ["/api/audit/logs"] });
@@ -142,7 +142,7 @@ export default function AdminQuickAccess() {
         ) : (
           <div className="px-2 py-2 space-y-2">
             <p className="text-xs text-muted-foreground">
-              This will clear and reseed the Patterson demo case. Continue?
+              This archives the current demo matters and loads a fresh set. Your own matters are not affected. Continue?
             </p>
             <div className="flex items-center gap-2">
               <Button
