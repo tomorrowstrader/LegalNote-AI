@@ -7777,7 +7777,8 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         practiceArea: practiceAreaLabel,
         costsEstimate: costsEstimate || caseData.costsEstimate || undefined,
         matterReference: caseData.matterReference || undefined,
-        paymentSafetyNotice: (await storage.getFirmProfile())?.paymentSafetyNotice,
+        // Containment: the shared firm_profile row is not this firm's, so use the LegalNote default.
+        paymentSafetyNotice: null,
       });
 
       const document = await storage.createDocument({
@@ -8829,12 +8830,19 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
     next();
   };
 
-  /** Any authenticated user may edit firm letterhead and logo (shared firm profile). */
+  /**
+   * Containment: platform admin only while firm_profile is still a single row shared
+   * by every firm. Any other user's save would overwrite every firm's letterhead.
+   */
   const canManageFirmProfile = async (req: any, res: Response, next: NextFunction) => {
     try {
       const userId = req.user?.claims?.sub;
       if (!userId) {
         return res.status(401).json({ message: "Not authenticated" });
+      }
+      const ADMIN_USER_ID = process.env.ADMIN_USER_ID || "48381245";
+      if (userId !== ADMIN_USER_ID) {
+        return res.status(403).json({ message: "Firm details are temporarily locked while they are moved to a per-firm record" });
       }
       next();
     } catch (err) {

@@ -31,7 +31,8 @@ export async function ensureClientCareLetter(caseRecord: Case, userId: string): 
     practiceArea: paLabel,
     costsEstimate: caseRecord.costsEstimate || undefined,
     matterReference: caseRecord.matterReference || undefined,
-    paymentSafetyNotice: fp.paymentSafetyNotice,
+    // Containment: the shared firm_profile row is not this firm's, so use the LegalNote default.
+    paymentSafetyNotice: null,
   });
   const doc = await storage.createDocument({
     caseId: caseRecord.id,
