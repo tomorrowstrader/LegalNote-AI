@@ -61,9 +61,7 @@ async function loadByToken(token: string): Promise<ScheduledMeeting | null> {
 
 async function publicFirm(userId: string) {
   const firmUser = await storage.getUser(userId);
-  const firm = firmUser?.firmId
-    ? await storage.getFirmProfile(firmUser.firmId)
-    : await storage.getFirmProfile();
+  const firm = await storage.getFirmProfile(firmUser?.firmId);
   return {
     organiserName: firm?.firmName?.trim() || null,
     firmProfile: firm
@@ -221,9 +219,7 @@ export async function claimGuestEmail(params: {
   void (async () => {
     try {
       const organiserUser = await storage.getUser(meeting.userId);
-      const organiserFirm = organiserUser?.firmId
-        ? await storage.getFirmProfile(organiserUser.firmId)
-        : await storage.getFirmProfile();
+      const organiserFirm = await storage.getFirmProfile(organiserUser?.firmId);
       await sendMeetingInviteConfirmationEmail({
         to: email,
         recipientName: name || undefined,

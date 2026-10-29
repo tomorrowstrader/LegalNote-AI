@@ -1,6 +1,7 @@
 import { PRACTICE_AREA_LABELS, type Case, type PracticeArea } from "@shared/schema";
 import { logAuditEvent } from "../auditMiddleware";
 import { storage } from "../storage";
+import { getFirmProfileForCase } from "../firmBranding";
 import { DocumentService } from "./documentService";
 
 /** Matter-opening letter. Skipped when a letter is already on the file. */
@@ -8,7 +9,7 @@ export async function ensureClientCareLetter(caseRecord: Case, userId: string): 
   if (caseRecord.clientCareLetterId) return;
   if (caseRecord.matterKind && caseRecord.matterKind !== "client") return;
 
-  const fp = await storage.getFirmProfile();
+  const fp = await getFirmProfileForCase(caseRecord);
   if (!fp?.firmName) return;
 
   const documentService = new DocumentService();
@@ -31,8 +32,7 @@ export async function ensureClientCareLetter(caseRecord: Case, userId: string): 
     practiceArea: paLabel,
     costsEstimate: caseRecord.costsEstimate || undefined,
     matterReference: caseRecord.matterReference || undefined,
-    // Containment: the shared firm_profile row is not this firm's, so use the LegalNote default.
-    paymentSafetyNotice: null,
+    paymentSafetyNotice: fp.paymentSafetyNotice,
   });
   const doc = await storage.createDocument({
     caseId: caseRecord.id,

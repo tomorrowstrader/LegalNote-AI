@@ -9,6 +9,7 @@ import {
   toIsoDate,
 } from "./relationshipDateExtraction";
 import type { IStorage } from "../storage";
+import { getFirmProfileForCase } from "../firmBranding";
 import { logAuditEvent } from "../auditMiddleware";
 import {
   type User,
@@ -376,7 +377,7 @@ export async function deriveDocumentsFromTranscript(
         ? formatDiarizedTranscript(transcriptUtterances)
         : transcriptText;
 
-    const firmProfile = await storage.getFirmProfile();
+    const firmProfile = await getFirmProfileForCase(caseData, storage);
     const showFullSolicitorName = firmProfile?.showFullSolicitorName ?? true;
 
     const metadata = await buildMetadata(storage, {

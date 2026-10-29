@@ -101,6 +101,7 @@ function resolveTemplatePath(filename: string): string {
   return possiblePaths[0];
 }
 import { storage } from "./storage";
+import { getFirmProfileForCase, getFirmProfileForUser } from "./firmBranding";
 import { db } from "./db";
 import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema, insertAmlMonitoringNoteSchema, insertAmlDecisionRecordSchema, insertTimeEntrySchema, insertUndertakingSchema, insertConflictCheckSchema, PRACTICE_AREAS, type ScheduledMeeting, PRIMARY_ROLES, PRIMARY_ROLE_LABELS, REGULATORY_DESIGNATIONS, REGULATORY_DESIGNATION_LABELS, type RegulatoryDesignation, demoLeads, dpaRequestSchema, dpaConfirmBodySchema, evaluationOnboardingSubmitSchema, isClientMatterKind, normalizeMatterKind, partyLabelForMatterKind, requiresSealedConsentForProcessing, type InsertCase, adoptFeedbackBodySchema, shareFeedbackBodySchema, supportTicketPreviewBodySchema, supportTicketCreateBodySchema, supportTicketAdminUpdateSchema } from "@shared/schema";
 import { scrubInsightComment } from "@shared/productInsights";
@@ -1544,8 +1545,8 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         ? await storage.getTranscriptByCase(shareLink.caseId, shareLink.createdBy)
         : null;
       
-      // Get firm profile for PDF export branding
-      const firmProfile = await storage.getFirmProfile();
+      // Branding for the firm that owns this matter (never another firm's)
+      const firmProfile = await getFirmProfileForCase(caseData);
       
       // Increment access count
       await storage.incrementShareLinkAccess(linkId);
@@ -1713,8 +1714,8 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       const expiresAt = new Date();
       expiresAt.setMinutes(expiresAt.getMinutes() + 15);
 
-      // Get firm profile for branded SMS
-      const firmProfile = await storage.getFirmProfile();
+      // Branding for the firm that owns this matter (never another firm's)
+      const firmProfile = await getFirmProfileForCase(await storage.getCaseById(shareLink.caseId));
       const firmName = firmProfile?.firmName || "LegalNote";
 
       // SMS only. The code is deliberately never emailed: the link itself arrives by
@@ -4559,8 +4560,8 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         sharedDocuments: [...sharedDocuments],
       });
       
-      // Get firm profile for email branding
-      const firmProfile = await storage.getFirmProfile();
+      // Branding for the firm that owns this matter (never another firm's)
+      const firmProfile = await getFirmProfileForCase(caseData);
       
       // Send email with share link (no case/client PII — GDPR / data residency)
       const result = await sendCaseEmail({
@@ -4785,8 +4786,8 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       // clear the Dashboard "Review" queue as well as marking completed.
       await storage.updateCase(req.params.id, { status: "completed", reviewed: true }, userId);
       
-      // Get firm profile for email branding
-      const firmProfile = await storage.getFirmProfile();
+      // Branding for the firm that owns this matter (never another firm's)
+      const firmProfile = await getFirmProfileForCase(caseData);
       
       // Send email with share link (no case/client/matter PII — GDPR / data residency)
       const expirationLabel =
@@ -5310,7 +5311,7 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
           }
           
           if (user?.email) {
-            const firmProfile = await storage.getFirmProfile(userId);
+            const firmProfile = await getFirmProfileForCase(caseData);
             const durationSeconds = duration ? parseFloat(duration) : 0;
             const minutes = Math.floor(durationSeconds / 60);
             const seconds = Math.floor(durationSeconds % 60);
@@ -7294,8 +7295,8 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         acknowledgedIp: null,
       } as any, userId);
 
-      // Get firm profile for branding
-      const firmProfile = await storage.getFirmProfile();
+      // Branding for the firm that owns this matter (never another firm's)
+      const firmProfile = await getFirmProfileForCase(caseData);
 
       // Send the email
       const emailResult = await sendAcknowledgementRequestEmail({
@@ -7343,13 +7344,8 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       if (!document) return res.status(404).json({ message: "This link is invalid or has expired." });
 
       const caseData = await storage.getCaseById(document.caseId);
-      let firmProfile = await storage.getFirmProfile();
-      if (caseData?.userId) {
-        const owner = await storage.getUser(caseData.userId);
-        if (owner?.firmId) {
-          firmProfile = (await storage.getFirmProfile(owner.firmId)) ?? firmProfile;
-        }
-      }
+      // Branding for the firm that owns this matter; none if it has no firm
+      const firmProfile = await getFirmProfileForCase(caseData);
 
       res.json({
         documentId: document.id,
@@ -7777,8 +7773,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         practiceArea: practiceAreaLabel,
         costsEstimate: costsEstimate || caseData.costsEstimate || undefined,
         matterReference: caseData.matterReference || undefined,
-        // Containment: the shared firm_profile row is not this firm's, so use the LegalNote default.
-        paymentSafetyNotice: null,
+        paymentSafetyNotice: (await getFirmProfileForCase(caseData))?.paymentSafetyNotice,
       });
 
       const document = await storage.createDocument({
@@ -7935,7 +7930,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         sharedDocuments: [...sharedDocuments],
       });
 
-      const firmProfile = await storage.getFirmProfile();
+      const firmProfile = await getFirmProfileForCase(caseData);
       const emailResult = await sendCaseEmail({
         to: recipientEmail,
         shareLinkId: shareLink.id,
@@ -8831,8 +8826,9 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
   };
 
   /**
-   * Containment: platform admin only while firm_profile is still a single row shared
-   * by every firm. Any other user's save would overwrite every firm's letterhead.
+   * Firm admin or managing partner of their own firm (or the platform admin) may edit
+   * that firm's letterhead, logo and payment-fraud notice. Sets req.firmProfileFirmId,
+   * the only firm the write may touch - it is never taken from the request body.
    */
   const canManageFirmProfile = async (req: any, res: Response, next: NextFunction) => {
     try {
@@ -8840,10 +8836,22 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       if (!userId) {
         return res.status(401).json({ message: "Not authenticated" });
       }
-      const ADMIN_USER_ID = process.env.ADMIN_USER_ID || "48381245";
-      if (userId !== ADMIN_USER_ID) {
-        return res.status(403).json({ message: "Firm details are temporarily locked while they are moved to a per-firm record" });
+      // Same resolution as GET /api/firm: own firm, else claim a provisioned evaluation firm,
+      // else a personal firm shell (whose creator is its firm admin).
+      const firm = await storage.ensureUserHasFirm(userId);
+      const user = await storage.getUser(userId);
+      if (!user || user.firmId !== firm.id) {
+        return res.status(400).json({ message: "No firm associated with your account" });
       }
+      const ADMIN_USER_ID = process.env.ADMIN_USER_ID || "48381245";
+      const allowed =
+        userId === ADMIN_USER_ID ||
+        (user.regulatoryDesignations ?? []).includes("is_firm_admin") ||
+        user.primaryRole === "managing_partner";
+      if (!allowed) {
+        return res.status(403).json({ message: "Only your firm administrator or managing partner can update firm details" });
+      }
+      req.firmProfileFirmId = firm.id;
       next();
     } catch (err) {
       next(err);
@@ -9837,10 +9845,10 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
     }
   });
 
-  // Firm profile routes (accessible to all authenticated users - public branding info)
+  // Firm profile routes - each user sees only their own firm's profile
   app.get("/api/firm-profile", isAuthenticated, async (req: any, res, next) => {
     try {
-      const profile = await storage.getFirmProfile();
+      const profile = await getFirmProfileForUser(req.user.claims.sub);
       res.json(profile || null);
     } catch (error) {
       next(error);
@@ -9856,11 +9864,11 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         updatedBy: userId,
       });
       
-      const updatedProfile = await storage.upsertFirmProfile(validatedData);
+      const updatedProfile = await storage.upsertFirmProfile(req.firmProfileFirmId, validatedData);
       
       await logAuditEvent(userId, "firm_profile_updated", {
         req,
-        metadata: { action: "update", firmProfileId: updatedProfile.id },
+        metadata: { action: "update", firmProfileId: updatedProfile.id, firmId: req.firmProfileFirmId },
       });
       
       res.json(updatedProfile);
@@ -9881,7 +9889,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       if (typeof logoUrl !== 'string') {
         return res.status(400).json({ message: 'logoUrl must be a string (empty string to remove logo)' });
       }
-      const updated = await storage.patchFirmProfileLogoUrl(logoUrl, userId);
+      const updated = await storage.patchFirmProfileLogoUrl(req.firmProfileFirmId, logoUrl, userId);
       res.json(updated);
     } catch (error: any) {
       next(error);
@@ -10012,8 +10020,8 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         return res.status(404).json({ message: "Not found" });
       }
       const { slug } = req.params;
-      const profile = await storage.getFirmProfile();
-      if (!profile || profile.complianceBadgeSlug !== slug || !profile.complianceBadgeEnabled) {
+      const profile = await storage.getFirmProfileByBadgeSlug(slug);
+      if (!profile) {
         return res.status(404).json({ message: "Badge not found" });
       }
       const score = await storage.getComplianceScore();
@@ -10043,7 +10051,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         storage.getSessionsByCase(caseId, userId),
         storage.getShareLinksByCase(caseId, userId),
       ]);
-      const firmProfile = await storage.getFirmProfile();
+      const firmProfile = await getFirmProfileForCase(caseRecord);
       const careLetter = docs.find((d: { isActive: boolean; type: string }) => d.isActive && d.type === "client_care_letter") as
         | { content: string; createdAt: Date; acknowledgedAt: Date | null; acknowledgedByEmail: string | null }
         | undefined;
@@ -13499,9 +13507,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
           try {
             const { sendMeetingInviteConfirmationEmail } = await import("./email");
             const schedulingUser = await storage.getUser(userId);
-            const firmProfile = schedulingUser?.firmId
-              ? await storage.getFirmProfile(schedulingUser.firmId)
-              : await storage.getFirmProfile();
+            const firmProfile = await storage.getFirmProfile(schedulingUser?.firmId);
             const firmName = firmProfile?.firmName?.trim() || null;
             const firmLogoUrl = firmProfile?.logoUrl?.trim() || null;
             const results = await Promise.allSettled(
@@ -14266,9 +14272,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
           try {
             const { sendMeetingInviteConfirmationEmail } = await import("./email");
             const schedulingUser = await storage.getUser(userId);
-            const firmProfile = schedulingUser?.firmId
-              ? await storage.getFirmProfile(schedulingUser.firmId)
-              : await storage.getFirmProfile();
+            const firmProfile = await storage.getFirmProfile(schedulingUser?.firmId);
             const firmName = firmProfile?.firmName?.trim() || null;
             const firmLogoUrl = firmProfile?.logoUrl?.trim() || null;
             const recipients =

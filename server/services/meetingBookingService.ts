@@ -171,9 +171,7 @@ export async function createMeetingBookingProposal(
 
   if (clientEmail) {
     const organiserUser = await storage.getUser(input.userId);
-    const organiserFirm = organiserUser?.firmId
-      ? await storage.getFirmProfile(organiserUser.firmId)
-      : await storage.getFirmProfile();
+    const organiserFirm = await storage.getFirmProfile(organiserUser?.firmId);
     const organiserName = organiserFirm?.firmName?.trim() || null;
     const firmName = organiserFirm?.firmName?.trim() || null;
     const firmLogoUrl = organiserFirm?.logoUrl?.trim() || null;
@@ -442,9 +440,7 @@ export async function updateMeetingBookingProposalSlots(
   let notifyEmailStatus: "sent" | "failed" | "skipped" = "skipped";
   if (input.notifyClient && proposal.clientEmail) {
     const organiserUser = await storage.getUser(input.userId);
-    const organiserFirm = organiserUser?.firmId
-      ? await storage.getFirmProfile(organiserUser.firmId)
-      : await storage.getFirmProfile();
+    const organiserFirm = await storage.getFirmProfile(organiserUser?.firmId);
     const organiserName = organiserFirm?.firmName?.trim() || null;
     const firmName = organiserFirm?.firmName?.trim() || null;
     const firmLogoUrl = organiserFirm?.logoUrl?.trim() || null;
@@ -583,9 +579,7 @@ export async function getPublicBookingProposal(token: string) {
 
   const { proposal, slots } = loaded;
   const firmUser = await storage.getUser(proposal.userId);
-  const firm = firmUser?.firmId
-    ? await storage.getFirmProfile(firmUser.firmId)
-    : await storage.getFirmProfile();
+  const firm = await storage.getFirmProfile(firmUser?.firmId);
 
   const slotsUpdated =
     !!proposal.emailSentAt && proposal.updatedAt.getTime() > proposal.emailSentAt.getTime();
@@ -821,9 +815,7 @@ export async function bookMeetingSlot(params: {
     void (async () => {
       try {
         const organiserUser = await storage.getUser(proposal.userId);
-        const organiserFirm = organiserUser?.firmId
-          ? await storage.getFirmProfile(organiserUser.firmId)
-          : await storage.getFirmProfile();
+        const organiserFirm = await storage.getFirmProfile(organiserUser?.firmId);
         await sendMeetingInviteConfirmationEmail({
           to: clientEmail,
           recipientName: clientName || undefined,

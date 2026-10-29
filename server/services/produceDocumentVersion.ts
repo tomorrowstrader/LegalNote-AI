@@ -10,6 +10,7 @@ import {
 } from "./relationshipDateExtraction";
 import { logAuditEvent } from "../auditMiddleware";
 import type { IStorage } from "../storage";
+import { getFirmProfileForCase } from "../firmBranding";
 import type { Document, Case, AudioRecording, MeetingSession, User } from "@shared/schema";
 import { noteRoleTitle } from "@shared/professionalIdentity";
 
@@ -96,7 +97,7 @@ async function buildMetadata(
   audio: AudioRecording | undefined,
   meetingSession: MeetingSession | null | undefined,
 ): Promise<CaseMetadata> {
-  const firmProfile = await storage.getFirmProfile();
+  const firmProfile = await getFirmProfileForCase(caseData, storage);
   const showFullSolicitorName = firmProfile?.showFullSolicitorName ?? true;
 
   const feeEarnerUserId =
@@ -287,7 +288,7 @@ export async function produceDocumentVersion(params: {
 
     await setProgress(10, "Preparing to compile a further version...");
 
-    const firmProfile = await storage.getFirmProfile();
+    const firmProfile = await getFirmProfileForCase(caseData, storage);
     const firmPreferences = {
       includeLocation: firmProfile?.includeLocation ?? true,
       showFullSolicitorName: firmProfile?.showFullSolicitorName ?? true,

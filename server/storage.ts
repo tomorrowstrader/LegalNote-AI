@@ -617,11 +617,13 @@ export interface IStorage {
   getUserStatistics(): Promise<UserStatistics[]>;
   
   // Firm Profile methods
-  getFirmProfile(firmId?: string): Promise<FirmProfile | undefined>;
+  // Scoped by firms.id. There is no unscoped read: a missing firm means no branding.
+  getFirmProfile(firmId: string | null | undefined): Promise<FirmProfile | undefined>;
+  getFirmProfileByBadgeSlug(slug: string): Promise<FirmProfile | undefined>;
   setFirmComplianceCode(firmId: string, codeHash: string, userId: string): Promise<void>;
   verifyFirmComplianceCode(firmId: string, code: string): Promise<boolean>;
-  upsertFirmProfile(profileData: InsertFirmProfile): Promise<FirmProfile>;
-  patchFirmProfileLogoUrl(logoUrl: string, updatedBy: string): Promise<FirmProfile>;
+  upsertFirmProfile(firmId: string, profileData: InsertFirmProfile): Promise<FirmProfile>;
+  patchFirmProfileLogoUrl(firmId: string, logoUrl: string, updatedBy: string): Promise<FirmProfile>;
   getFirmRiskDigest(): Promise<FirmRiskDigest>;
   getComplianceScore(): Promise<ComplianceScore>;
 
@@ -2210,40 +2212,51 @@ export class MemStorage implements IStorage {
     }).sort((a, b) => b.totalCases - a.totalCases);
   }
   
-  async getFirmProfile(firmId?: string): Promise<FirmProfile | undefined> {
+  // firmProfiles is keyed by firms.id
+  async getFirmProfile(firmId: string | null | undefined): Promise<FirmProfile | undefined> {
     if (!firmId) return undefined;
-    return (
-      this.firmProfiles.get(firmId) ??
-      Array.from(this.firmProfiles.values()).find((p) => p.id === firmId)
+    return this.firmProfiles.get(firmId);
+  }
+
+  async getFirmProfileByBadgeSlug(slug: string): Promise<FirmProfile | undefined> {
+    return Array.from(this.firmProfiles.values()).find(
+      (p) => p.complianceBadgeEnabled && p.complianceBadgeSlug === slug,
     );
   }
 
+  private writeFirmProfile(firmId: string, updates: Partial<FirmProfile>): FirmProfile {
+    const existing = this.firmProfiles.get(firmId);
+    const profile = {
+      ...(existing ?? { id: randomUUID(), firmId, firmName: '' }),
+      ...updates,
+      firmId,
+      updatedAt: new Date(),
+    } as FirmProfile;
+    this.firmProfiles.set(firmId, profile);
+    return profile;
+  }
+
   async setFirmComplianceCode(firmId: string, codeHash: string, userId: string): Promise<void> {
-    const profile = Array.from(this.firmProfiles.values()).find((p) => p.id === firmId);
-    if (profile) {
-      this.firmProfiles.set(firmId, {
-        ...profile,
-        complianceCodeHash: codeHash,
-        complianceCodeSetAt: new Date(),
-        complianceCodeSetBy: userId,
-      });
-    }
+    this.writeFirmProfile(firmId, {
+      complianceCodeHash: codeHash,
+      complianceCodeSetAt: new Date(),
+      complianceCodeSetBy: userId,
+    });
   }
 
   async verifyFirmComplianceCode(firmId: string, code: string): Promise<boolean> {
-    const profile = Array.from(this.firmProfiles.values()).find((p) => p.id === firmId);
+    const profile = this.firmProfiles.get(firmId);
     if (!profile?.complianceCodeHash) return false;
     const bcrypt = await import("bcrypt");
     return bcrypt.compare(code, profile.complianceCodeHash);
   }
 
-  async upsertFirmProfile(profileData: InsertFirmProfile): Promise<FirmProfile> {
-    throw new Error('Firm profile operations require database storage');
+  async upsertFirmProfile(firmId: string, profileData: InsertFirmProfile): Promise<FirmProfile> {
+    return this.writeFirmProfile(firmId, profileData as Partial<FirmProfile>);
   }
 
-  async patchFirmProfileLogoUrl(_logoUrl: string, _updatedBy: string): Promise<FirmProfile> {
-    // MemStorage: In-memory implementation - not used in production
-    throw new Error('Firm profile operations require database storage');
+  async patchFirmProfileLogoUrl(firmId: string, logoUrl: string, updatedBy: string): Promise<FirmProfile> {
+    return this.writeFirmProfile(firmId, { logoUrl, updatedBy });
   }
 
   async getFirmRiskDigest(): Promise<FirmRiskDigest> {
@@ -4872,65 +4885,64 @@ export class DbStorage implements IStorage {
     return userStats.sort((a, b) => b.totalCases - a.totalCases);
   }
   
-  async getFirmProfile(firmId?: string): Promise<FirmProfile | undefined> {
-    if (firmId) {
-      const result = await db.select().from(firmProfile).where(eq(firmProfile.id, firmId)).limit(1);
-      return result[0];
-    }
-    const result = await db.select().from(firmProfile).limit(1);
+  // Scoped by firms.id via firm_profile.firm_id. No firm, no profile - never "the first row".
+  async getFirmProfile(firmId: string | null | undefined): Promise<FirmProfile | undefined> {
+    if (!firmId) return undefined;
+    const result = await db.select().from(firmProfile).where(eq(firmProfile.firmId, firmId)).limit(1);
     return result[0];
   }
 
-  async setFirmComplianceCode(firmId: string, codeHash: string, userId: string): Promise<void> {
-    await db
-      .update(firmProfile)
-      .set({
-        complianceCodeHash: codeHash,
-        complianceCodeSetAt: new Date(),
-        complianceCodeSetBy: userId,
+  async getFirmProfileByBadgeSlug(slug: string): Promise<FirmProfile | undefined> {
+    const result = await db
+      .select()
+      .from(firmProfile)
+      .where(and(
+        eq(firmProfile.complianceBadgeSlug, slug),
+        eq(firmProfile.complianceBadgeEnabled, true),
+        isNotNull(firmProfile.firmId),
+      ))
+      .limit(1);
+    return result[0];
+  }
+
+  /** Update this firm's row, creating it (with an empty name) on the first write. */
+  private async writeFirmProfile(firmId: string, updates: Partial<InsertFirmProfile> & Partial<FirmProfile>): Promise<FirmProfile> {
+    const [inserted] = await db
+      .insert(firmProfile)
+      .values({ firmName: '', ...updates, firmId, updatedAt: new Date() })
+      .onConflictDoUpdate({
+        target: firmProfile.firmId,
+        set: { ...updates, updatedAt: new Date() },
       })
-      .where(eq(firmProfile.id, firmId));
+      .returning();
+    return inserted;
+  }
+
+  async setFirmComplianceCode(firmId: string, codeHash: string, userId: string): Promise<void> {
+    await this.writeFirmProfile(firmId, {
+      complianceCodeHash: codeHash,
+      complianceCodeSetAt: new Date(),
+      complianceCodeSetBy: userId,
+    });
   }
 
   async verifyFirmComplianceCode(firmId: string, code: string): Promise<boolean> {
     const result = await db
       .select({ complianceCodeHash: firmProfile.complianceCodeHash })
       .from(firmProfile)
-      .where(eq(firmProfile.id, firmId))
+      .where(eq(firmProfile.firmId, firmId))
       .limit(1);
     if (!result[0]?.complianceCodeHash) return false;
     const bcrypt = await import("bcrypt");
     return bcrypt.compare(code, result[0].complianceCodeHash);
   }
 
-  async upsertFirmProfile(profileData: InsertFirmProfile): Promise<FirmProfile> {
-    const existing = await this.getFirmProfile();
-    if (existing) {
-      const updated = await db.update(firmProfile).set({ ...profileData, updatedAt: new Date() }).where(eq(firmProfile.id, existing.id)).returning();
-      return updated[0];
-    } else {
-      const inserted = await db.insert(firmProfile).values({ ...profileData, updatedAt: new Date() }).returning();
-      return inserted[0];
-    }
+  async upsertFirmProfile(firmId: string, profileData: InsertFirmProfile): Promise<FirmProfile> {
+    return this.writeFirmProfile(firmId, profileData);
   }
 
-  async patchFirmProfileLogoUrl(logoUrl: string, updatedBy: string): Promise<FirmProfile> {
-    const existing = await this.getFirmProfile();
-    if (existing) {
-      const updated = await db
-        .update(firmProfile)
-        .set({ logoUrl, updatedBy, updatedAt: new Date() })
-        .where(eq(firmProfile.id, existing.id))
-        .returning();
-      return updated[0];
-    } else {
-      // No profile yet - create a minimal one with just the logo URL
-      const inserted = await db
-        .insert(firmProfile)
-        .values({ firmName: '', logoUrl, updatedBy, updatedAt: new Date() })
-        .returning();
-      return inserted[0];
-    }
+  async patchFirmProfileLogoUrl(firmId: string, logoUrl: string, updatedBy: string): Promise<FirmProfile> {
+    return this.writeFirmProfile(firmId, { logoUrl, updatedBy });
   }
 
   async getFirmRiskDigest(): Promise<FirmRiskDigest> {

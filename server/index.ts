@@ -23,6 +23,7 @@ import { ensureInstructionStatusColumns } from "./instructionStatusMigration";
 import { ensureMatterKindColumn } from "./matterKindMigration";
 import { ensureEvaluationStartsAtColumn } from "./evaluationStartsAtMigration";
 import { ensurePaymentSafetyColumns } from "./paymentSafetyMigration";
+import { ensureFirmProfileScopedToFirm } from "./firmProfileScopeMigration";
 import { ensureFirmBillingColumns } from "./firmBillingMigration";
 import { ensureScheduledEmailsTable } from "./scheduledEmailsMigration";
 import { ensureSupportTicketsTable } from "./supportTicketsMigration";
@@ -290,6 +291,9 @@ app.use((req, res, next) => {
   await ensureEvaluationStartsAtColumn();
 
   await ensurePaymentSafetyColumns();
+
+  // Each firm gets its own letterhead row; attaches the old shared row to its saver's firm
+  await ensureFirmProfileScopedToFirm();
 
   await ensureFirmBillingColumns();
 

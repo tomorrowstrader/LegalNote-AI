@@ -592,8 +592,12 @@ export async function seedReeveSampleMatter(opts: {
         .limit(1);
       if (firmRow?.name) resolvedFirmName = firmRow.name;
     }
-    if (resolvedFirmName === "Not specified") {
-      const [profileRow] = await db.select({ firmName: firmProfile.firmName }).from(firmProfile).limit(1);
+    if (resolvedFirmName === "Not specified" && firmId) {
+      const [profileRow] = await db
+        .select({ firmName: firmProfile.firmName })
+        .from(firmProfile)
+        .where(eq(firmProfile.firmId, firmId))
+        .limit(1);
       if (profileRow?.firmName) resolvedFirmName = profileRow.firmName;
     }
 

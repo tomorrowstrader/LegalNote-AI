@@ -1,4 +1,5 @@
 import { db } from "../db";
+import { getFirmProfileForCase } from "../firmBranding";
 import { eq, desc, sql } from "drizzle-orm";
 import {
   cases,
@@ -16,7 +17,6 @@ import {
   amlMonitoringNotes,
   amlDecisionRecords,
   conflictChecks,
-  firmProfile,
   users,
 } from "@shared/schema";
 import type {
@@ -83,7 +83,6 @@ export async function assembleSraReportData(caseId: string, userId: string): Pro
 
   const [
     caseRows,
-    firmProfileRows,
     consentRows,
     sessionsRows,
     audioRecordingsRows,
@@ -99,7 +98,6 @@ export async function assembleSraReportData(caseId: string, userId: string): Pro
     conflictChecksRows,
   ] = await Promise.all([
     db.select().from(cases).where(eq(cases.id, caseId)).limit(1),
-    db.select().from(firmProfile).limit(1),
     db.select().from(consentLogs).where(eq(consentLogs.caseId, caseId)).orderBy(consentLogs.consentTimestamp),
     db.select().from(meetingSessions).where(eq(meetingSessions.caseId, caseId)).orderBy(meetingSessions.startedAt),
     db.select().from(audioRecordings).where(eq(audioRecordings.caseId, caseId)).orderBy(audioRecordings.recordedAt),
@@ -115,8 +113,8 @@ export async function assembleSraReportData(caseId: string, userId: string): Pro
     db.select().from(conflictChecks).where(eq(conflictChecks.caseId, caseId)).orderBy(conflictChecks.datePerformed),
   ]);
 
-  const caseData = caseRows[0] || null;
-  const firmProfileData = firmProfileRows[0] || null;
+  const caseData = (caseRows[0] as Case | undefined) ?? null;
+  const firmProfileData = (await getFirmProfileForCase(caseData)) ?? null;
 
   let clientData: Client | null = null;
   if (caseData?.clientId) {
