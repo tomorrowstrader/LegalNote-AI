@@ -1,6 +1,6 @@
 # LegalNote Privacy Policy
 
-**Last Updated:** July 2026  
+**Last Updated:** November 2026  
 **Company:** LegalNote Technologies Ltd (registered in England and Wales, No. 16788981; ICO Reg. ZC176177)  
 **Registered Address:** 71–75 Shelton Street, Covent Garden, London WC2H 9JQ  
 **Status:** Requires legal counsel review before publication  
@@ -17,7 +17,7 @@ LegalNote is a compliance-first documentation tool designed for UK solicitors an
 
 | Role | Entity | Responsibility |
 |------|--------|----------------|
-| Controller (account and billing data) | LegalNote Technologies Ltd | Determines the purposes and means of processing for user account, authentication, billing, and website and enquiry data. |
+| Controller (account and billing data) | LegalNote Technologies Ltd | Determines the purposes and means of processing for user account, authentication, billing, website and enquiry data, and the names of people we invite to see LegalNote. |
 | Controller (client and matter data) | Your law firm | Determines the purposes and means of processing client and matter data. |
 | Processor (client and matter data) | LegalNote Technologies Ltd | Processes recordings, transcripts, documents, consent and audit data on behalf of your firm under our Data Processing Agreement. |
 | Sub-processors | See section 9 and the Sub-processor List | Third parties we engage to deliver the service. |
@@ -47,6 +47,15 @@ If you are a client of a law firm using LegalNote, please contact your solicitor
 - IP address, browser and device information, and security logs.
 - Cookies and similar technologies (see our Cookie Policy).
 
+### 3.4 Solicitors and firms we invite to see LegalNote — LegalNote as controller
+
+We keep a short list of solicitors and firm principals we would like to invite to see LegalNote, in their professional role.
+
+- **What we hold:** name, firm, how we know you, whether your firm is a corporate or individual subscriber for marketing purposes, any consent or request from you, where the invitation has reached, the next step and date, short notes, and whether you have asked us not to contact you. If your firm goes on to buy, seat numbers and price per seat.
+- **Where it comes from:** you, or our founder's own professional contacts and LinkedIn connections. In future it may also come from public registers such as the SRA's data and Companies House.
+- **What we never record here:** client or matter details, health or family details, passwords or codes.
+- **Who can see it:** only administrators of our internal system, which is hosted with Railway and Neon, with sign-in through Google.
+
 ## 4. How we use personal data, and the legal basis
 
 For the account, billing and website data for which LegalNote is the controller, our legal bases under the UK GDPR are as follows:
@@ -57,7 +66,8 @@ For the account, billing and website data for which LegalNote is the controller,
 | Authenticate users (Google or Microsoft OAuth and session) | Contract performance, Art. 6(1)(b) |
 | Billing and subscription administration | Contract performance, Art. 6(1)(b) |
 | Service communications (account, security, product notices) | Legitimate interests, Art. 6(1)(f) |
-| Marketing, where applicable | Consent, Art. 6(1)(a) |
+| Inviting solicitors and firms to see LegalNote, following up and tracking the outcome | Legitimate interests, Art. 6(1)(f): telling law firms about a product made for their work, in small volumes and by hand, with an easy way to opt out |
+| Marketing that the Privacy and Electronic Communications Regulations (PECR) only allow with consent, for example email to a sole practitioner or traditional partnership | Consent, Art. 6(1)(a) |
 
 For client and matter data, LegalNote acts as processor. We process that data only on the documented instructions of your firm under Article 28 of the UK GDPR. Your firm, as controller, determines the lawful basis under Article 6 (and, where special category or criminal offence data is involved, the condition under Articles 9 and 10 and the Data Protection Act 2018). We do not determine the purposes of processing matter data, and we do not rely on a legal basis of our own for it.
 
@@ -113,6 +123,11 @@ We do not claim that all personal data never leaves the UK or EU. Privileged aud
 | Share links | Deleted 7 days after expiry | Retention cleanup job |
 | Consent and audit records | Up to 6 years, for regulatory and defence purposes | Firms should confirm operational retention with LegalNote |
 | Account and billing data | While the account is active, then as needed for legal and accounting obligations | |
+| Invitation list: on the list, never contacted | 6 months from being added | Then deleted |
+| Invitation list: contacted, no reply | 12 months from last contact | Then deleted |
+| Invitation list: replied or had a demonstration, did not buy | 24 months from last contact | Then deleted |
+| Invitation list: declined, but happy to hear from us later | 12 months from last contact | Then deleted |
+| Invitation list: opted out or objected | Name, firm and a do-not-contact flag only, for as long as we market to law firms | Kept so that we don't contact you again; reviewed every 2 years |
 
 Firms remain responsible for professional retention obligations that exceed platform defaults.
 
@@ -125,14 +140,14 @@ Firms remain responsible for professional retention obligations that exceed plat
 | Erasure | Request deletion in applicable circumstances |
 | Restriction | Limit processing in applicable circumstances |
 | Portability | Receive data in a portable format where applicable |
-| Object | Object to processing based on legitimate interests |
+| Object | Object to processing based on legitimate interests. You can object to direct marketing at any time, and we will stop |
 | Withdraw consent | Where processing is based on consent |
 
-Account or website data: privacy@legalnote.ai. Client or matter data: contact your solicitor, who is the controller; LegalNote will assist them under the DPA. You may also complain to the ICO at [ico.org.uk/make-a-complaint](https://ico.org.uk/make-a-complaint).
+Account, website or invitation data, or to opt out of hearing from us: privacy@legalnote.ai. We act on opt-outs the same day where we can, and within 2 working days at most. Client or matter data: contact your solicitor, who is the controller; LegalNote will assist them under the DPA. You may also complain to the ICO at [ico.org.uk/make-a-complaint](https://ico.org.uk/make-a-complaint).
 
 ## 8. Cookies
 
-We use strictly necessary cookies for authentication and session management, and a limited functional cookie for UI preferences. We do not use analytics or advertising cookies. See our Cookie Policy for details.
+We use strictly necessary cookies for authentication and session management, and a limited functional cookie for UI preferences. We do not use analytics or advertising cookies. Our website also loads fonts from Google. See our Cookie Policy for details.
 
 ## 9. Sub-processors
 
