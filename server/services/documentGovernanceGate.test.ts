@@ -2,7 +2,20 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   logDocumentGovernanceViolations,
   scanDocumentGovernanceViolations,
+  findReleaseBlockers,
 } from './documentGovernanceGate';
+
+describe('findReleaseBlockers', () => {
+  it('stops leaked commentary, speaker labels and page markers', () => {
+    expect(findReleaseBlockers('The document appears to have ended cleanly.').map((v) => v.type)).toEqual(['continuation_commentary']);
+    expect(findReleaseBlockers('Speaker B confirmed the date.').map((v) => v.type)).toEqual(['speaker_label']);
+    expect(findReleaseBlockers('First section.\n\nPage 2\n\nSecond section.').map((v) => v.type)).toEqual(['page_marker']);
+  });
+
+  it('lets legitimate wording through', () => {
+    expect(findReleaseBlockers('The client reviewed the transcript of the hearing. See page 2 of the lease.')).toEqual([]);
+  });
+});
 
 describe('documentGovernanceGate', () => {
   it('detects Speaker [A-Z] labels in output', () => {

@@ -1,4 +1,5 @@
 import { clientNameForNote, parseMeetingCast } from "@shared/meetingCast";
+import { earliestMeetingTime, formatUkLongDate, toUkIsoDate } from "@shared/meetingTime";
 import { parseInstructionStatus, resolveInstructionsTaken } from "@shared/instructionStatus";
 import { DocumentService, type CaseMetadata } from "./documentService";
 import { formatDiarizedTranscript, type SpeakerUtterance } from "./assemblyAIService";
@@ -63,10 +64,6 @@ export interface DeriveFromTranscriptResult {
   };
   totalCost: number;
   error?: string;
-}
-
-function formatUkLongDate(date: Date): string {
-  return date.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 }
 
 function format24HourTime(date: Date): string {
@@ -179,9 +176,7 @@ async function buildMetadata(
   const feeEarnerName = feeEarnerUser ? buildFeeEarnerPlainName(feeEarnerUser) : undefined;
   const feeEarnerTitle = feeEarnerUser ? resolveFeeEarnerTitle(feeEarnerUser) ?? undefined : undefined;
 
-  const meetingTimestamp =
-    params.meetingTimestamp ??
-    (params.meetingSession?.startedAt ? new Date(params.meetingSession.startedAt) : undefined);
+  const meetingTimestamp = earliestMeetingTime(params.meetingTimestamp, params.meetingSession?.startedAt);
 
   const durationSeconds =
     params.durationSeconds ?? params.meetingSession?.durationSeconds ?? null;
@@ -208,7 +203,7 @@ async function buildMetadata(
     recordingDate: meetingTimestamp
       ? formatUkLongDate(meetingTimestamp)
       : formatUkLongDate(new Date()),
-    recordingDateIso: toIsoDate(meetingTimestamp ?? new Date()),
+    recordingDateIso: toUkIsoDate(meetingTimestamp ?? new Date()),
     datePrepared: formatUkLongDate(new Date()),
     meetingStartTime: meetingTimestamp ? format24HourTime(meetingTimestamp) : undefined,
     durationDisplay,
@@ -348,7 +343,7 @@ export async function deriveDocumentsFromTranscript(
             caseId,
             userId,
             sessionId: effectiveSessionId,
-            durationSeconds: session?.durationSeconds ?? null,
+            durationSeconds: params.durationSeconds ?? session?.durationSeconds ?? null,
           });
         } catch (draftErr) {
           console.warn("[TranscriptDerivation] Failed to auto-draft time entry:", draftErr);

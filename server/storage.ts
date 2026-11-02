@@ -341,6 +341,8 @@ function getNumberVariants(query: string): string[] {
 // Server-side audio recording creation type (includes server-calculated expiresAt)
 export type ServerAudioRecordingInsert = InsertAudioRecording & {
   expiresAt: Date;
+  /** When recording began, if known. Without it the row records when it was saved. */
+  recordedAt?: Date;
 };
 
 export interface AdminStatistics {
@@ -1256,7 +1258,7 @@ export class MemStorage implements IStorage {
       id,
       caseId: insertAudioRecording.caseId,
       meetingSessionId: insertAudioRecording.meetingSessionId ?? null,
-      recordedAt: new Date(),
+      recordedAt: insertAudioRecording.recordedAt ?? new Date(),
       expiresAt: insertAudioRecording.expiresAt,
       filePath: insertAudioRecording.filePath ?? null,
       mimeType: insertAudioRecording.mimeType ?? null,
@@ -3694,6 +3696,7 @@ export class DbStorage implements IStorage {
       .values({
         caseId: insertAudioRecording.caseId,
         meetingSessionId: insertAudioRecording.meetingSessionId ?? null,
+        ...(insertAudioRecording.recordedAt ? { recordedAt: insertAudioRecording.recordedAt } : {}),
         filePath: insertAudioRecording.filePath ?? null,
         mimeType: insertAudioRecording.mimeType ?? null,
         duration: insertAudioRecording.duration ?? null,

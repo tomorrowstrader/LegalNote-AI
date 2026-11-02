@@ -1,4 +1,5 @@
 import { clientNameForNote, parseMeetingCast } from "@shared/meetingCast";
+import { earliestMeetingTime, formatUkLongDate, toUkIsoDate } from "@shared/meetingTime";
 import { parseInstructionStatus, resolveInstructionsTaken } from "@shared/instructionStatus";
 import { DocumentService, type CaseMetadata } from "./documentService";
 import { formatDiarizedTranscript, type SpeakerUtterance } from "./assemblyAIService";
@@ -29,10 +30,6 @@ export class ProduceDocumentVersionError extends Error {
     super(message);
     this.name = "ProduceDocumentVersionError";
   }
-}
-
-function formatUkLongDate(date: Date): string {
-  return date.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 }
 
 function format24HourTime(date: Date): string {
@@ -103,11 +100,7 @@ async function buildMetadata(
     meetingSession?.createdBy ?? caseData.assignedToUserId ?? caseData.createdBy;
   const feeEarnerUser = await storage.getUser(feeEarnerUserId);
 
-  const meetingTimestamp = audio?.recordedAt
-    ? new Date(audio.recordedAt)
-    : meetingSession?.startedAt
-      ? new Date(meetingSession.startedAt)
-      : undefined;
+  const meetingTimestamp = earliestMeetingTime(audio?.recordedAt, meetingSession?.startedAt);
 
   let durationMinutes: number | undefined;
   let units: number | undefined;
@@ -132,7 +125,7 @@ async function buildMetadata(
     recordingDate: meetingTimestamp
       ? formatUkLongDate(meetingTimestamp)
       : formatUkLongDate(new Date()),
-    recordingDateIso: toIsoDate(meetingTimestamp ?? new Date()),
+    recordingDateIso: toUkIsoDate(meetingTimestamp ?? new Date()),
     datePrepared: formatUkLongDate(new Date()),
     meetingStartTime: meetingTimestamp ? format24HourTime(meetingTimestamp) : undefined,
     durationDisplay,

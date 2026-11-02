@@ -731,6 +731,7 @@ export class ChunkedUploadService {
         mimeType: sessionMeta.mimeType,
         duration: durationSeconds,
         expiresAt: expiryDate,
+        recordedAt: sessionMeta.startedAt,
       });
 
       if (consentSegmentPath) {

@@ -33,8 +33,14 @@ export async function ensureDraftTimeEntryForSession(params: {
     return null;
   }
 
-  const seconds = durationSeconds ?? session.durationSeconds ?? 0;
-  const durationMinutes = Math.max(1, Math.ceil(seconds / 60));
+  const recording = await storage.getAudioRecordingBySession(sessionId);
+  const seconds = [durationSeconds, session.durationSeconds, recording?.duration].find((s) => s != null && s > 0);
+  if (seconds == null) {
+    // A made-up time would end up on a bill, so leave this for the fee earner to enter.
+    console.warn(`[TimeEntryDraft] No duration known for session ${sessionId}; no draft created.`);
+    return null;
+  }
+  const durationMinutes = Math.ceil(seconds / 60);
 
   const user = await storage.getUser(userId);
   const hourlyRate = user?.hourlyRate ?? "0.00";

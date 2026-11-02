@@ -56,7 +56,7 @@ export default function EvaluationPeriodBanner() {
   }
 
   const daysRemaining = firm.evaluationDaysRemaining ?? 0;
-  const urgent = daysRemaining <= 7;
+  const urgent = daysRemaining <= 3;
 
   return (
     <div
