@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { consentDeclinedBlocksBot } from "@shared/liveBotLifecycle";
 import { 
   Calendar, 
   Clock, 
@@ -54,6 +55,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Label } from "@/components/ui/label";
 import { isFeatureVisible } from "@/lib/features";
 import { useFeatureVisibility } from "@/hooks/useFeatureVisibility";
+import { useAuth } from "@/hooks/useAuth";
+import { consentRecipientOptions, isReceivedCalendarMeeting } from "@shared/meetingAttendees";
 import { InMeetingConsentPanel } from "@/components/InMeetingConsentPanel";
 import { getSafeHttpsMeetingUrl } from "@/lib/meetingUrl";
 import { toTitleCase } from "@/lib/utils";
@@ -525,6 +528,12 @@ function EditMeetingDialog({
   const [title, setTitle] = useState(meeting.title);
   const [newDate, setNewDate] = useState("");
   const [newTime, setNewTime] = useState("");
+  const [recipient, setRecipient] = useState(meeting.clientEmail ?? "");
+  const { user } = useAuth();
+  const savedRecipient = meeting.clientEmail ?? "";
+  // A sent link stays tied to the person it went to, so the choice locks once sent.
+  const canChooseRecipient = meeting.consentStatus === "pending";
+  const recipientOptions = consentRecipientOptions(meeting.attendees, user?.email);
 
   useEffect(() => {
     if (!open) return;
@@ -532,6 +541,7 @@ function EditMeetingDialog({
     setTitle(meeting.title);
     setNewDate(format(start, "yyyy-MM-dd"));
     setNewTime(format(start, "HH:mm"));
+    setRecipient(meeting.clientEmail ?? "");
   }, [open, meeting]);
 
   const saveMutation = useMutation({
@@ -552,9 +562,21 @@ function EditMeetingDialog({
       const originalStart = new Date(meeting.startTime);
       const timeChanged = newStartTime.getTime() !== originalStart.getTime();
       const titleChanged = trimmedTitle !== meeting.title;
+      const recipientChanged = recipient !== savedRecipient;
 
-      if (!timeChanged && !titleChanged) {
+      if (!timeChanged && !titleChanged && !recipientChanged) {
         throw new Error("No changes to save");
+      }
+
+      // Saved first: a time change creates a replacement meeting that copies the recipient.
+      if (recipientChanged) {
+        await apiRequest("PATCH", `/api/scheduled-meetings/${meeting.id}`, {
+          clientEmail: recipient || null,
+          // Sent explicitly so a previous recipient's stored name isn't kept.
+          clientName: recipient
+            ? recipientOptions.find((a) => a.email === recipient)?.name || recipient
+            : null,
+        });
       }
 
       if (timeChanged) {
@@ -572,9 +594,11 @@ function EditMeetingDialog({
         });
       }
 
-      return apiRequest("PATCH", `/api/scheduled-meetings/${meeting.id}`, {
-        title: trimmedTitle,
-      });
+      if (titleChanged) {
+        return apiRequest("PATCH", `/api/scheduled-meetings/${meeting.id}`, {
+          title: trimmedTitle,
+        });
+      }
     },
     onSuccess: () => {
       toast({ title: "Meeting updated" });
@@ -627,6 +651,37 @@ function EditMeetingDialog({
               data-testid="input-edit-meeting-time"
             />
           </div>
+          {canChooseRecipient && (
+            <div>
+              <Label htmlFor="edit-meeting-consent-recipient">Consent email recipient</Label>
+              {recipientOptions.length > 0 ? (
+                <>
+                  <select
+                    id="edit-meeting-consent-recipient"
+                    value={recipient}
+                    onChange={(e) => setRecipient(e.target.value)}
+                    className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+                    data-testid="select-edit-meeting-consent-recipient"
+                  >
+                    <option value="">No one</option>
+                    {recipientOptions.map((attendee) => (
+                      <option key={attendee.email} value={attendee.email}>
+                        {attendee.name ? `${attendee.name} (${attendee.email})` : attendee.email}
+                        {attendee.organizer ? " - organiser" : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Saving doesn't send anything. Send Consent then appears on the meeting.
+                  </p>
+                </>
+              ) : (
+                <p className="mt-1 text-sm text-muted-foreground" data-testid="text-no-consent-recipients">
+                  No attendees found on this invitation. Sync your calendar and try again.
+                </p>
+              )}
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button
@@ -830,7 +885,8 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Users className="w-4 h-4" />
                 <span>
-                  Client: {meeting.clientName || meeting.clientEmail}
+                  {isReceivedCalendarMeeting(meeting.attendees) ? "Consent recipient" : "Client"}:{" "}
+                  {meeting.clientName || meeting.clientEmail}
                   {meeting.clientName && meeting.clientName !== meeting.clientEmail && (
                     <span className="text-xs"> ({meeting.clientEmail})</span>
                   )}
@@ -973,7 +1029,7 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
                     </Button>
                   )}
                   
-                  {meeting.autoRecordEnabled && meeting.meetingUrl && !meeting.recallBotId && (
+                  {meeting.autoRecordEnabled && meeting.meetingUrl && !meeting.recallBotId && !consentDeclinedBlocksBot(meeting.consentStatus) && (
                     <Button 
                       size="sm"
                       onClick={() => deployBotMutation.mutate()}
@@ -1056,7 +1112,7 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
                           Send Consent
                         </DropdownMenuItem>
                       )}
-                      {meeting.autoRecordEnabled && meeting.meetingUrl && !meeting.recallBotId && (
+                      {meeting.autoRecordEnabled && meeting.meetingUrl && !meeting.recallBotId && !consentDeclinedBlocksBot(meeting.consentStatus) && (
                         <DropdownMenuItem
                           onClick={() => deployBotMutation.mutate()}
                           disabled={deployBotMutation.isPending}

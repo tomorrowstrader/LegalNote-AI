@@ -105,6 +105,7 @@ import { db } from "./db";
 import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema, insertAmlMonitoringNoteSchema, insertAmlDecisionRecordSchema, insertTimeEntrySchema, insertUndertakingSchema, insertConflictCheckSchema, PRACTICE_AREAS, type ScheduledMeeting, PRIMARY_ROLES, PRIMARY_ROLE_LABELS, REGULATORY_DESIGNATIONS, REGULATORY_DESIGNATION_LABELS, type RegulatoryDesignation, demoLeads, dpaRequestSchema, dpaConfirmBodySchema, evaluationOnboardingSubmitSchema, isClientMatterKind, normalizeMatterKind, partyLabelForMatterKind, requiresSealedConsentForProcessing, type InsertCase, adoptFeedbackBodySchema, shareFeedbackBodySchema, supportTicketPreviewBodySchema, supportTicketCreateBodySchema, supportTicketAdminUpdateSchema } from "@shared/schema";
 import { scrubInsightComment } from "@shared/productInsights";
 import { CONSENT_DISCLAIMER_TEXT, CONSENT_DISCLAIMER_VERSION } from "@shared/consent";
+import { CONSENT_DECLINED_BOT_MESSAGE, consentDeclinedBlocksBot } from "@shared/liveBotLifecycle";
 import { defaultRecordingTypeForMatterKind, validateRecordingType } from "@shared/recordingTypes";
 import { toAssignableRecordings } from "./services/assignableRecordingView";
 import { CAPTURE_CONFLICT_DEFERRAL_NOTE } from "@shared/matterKinds";
@@ -13010,7 +13011,19 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       const linkedMeeting = meetings.find(m => m.preConsentEmailId === consentEmail.id);
       if (linkedMeeting) {
         const meetingConsentStatus = status === 'granted' ? 'approved' : status === 'declined' ? 'declined' : 'declined';
-        await storage.updateScheduledMeeting(linkedMeeting.id, { consentStatus: meetingConsentStatus });
+        await storage.updateScheduledMeeting(linkedMeeting.id, {
+          consentStatus: meetingConsentStatus,
+          // Rescheduling copies this flag and resets consent, so a decline must also clear it.
+          ...(status === 'declined' ? { autoRecordEnabled: false } : {}),
+        });
+        if (meetingConsentStatus === 'declined') {
+          try {
+            const { meetingSchedulerService } = await import("./services/meetingSchedulerService");
+            await meetingSchedulerService.removeBotAfterEmailDecline(linkedMeeting);
+          } catch (botError) {
+            console.error('[CONSENT] Failed to remove bot after email decline:', botError);
+          }
+        }
       }
 
       // Update any linked meeting import's consentConfirmed when client grants consent via digital link
@@ -14380,11 +14393,15 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       if (!meeting || meeting.userId !== userId) {
         return res.status(404).json({ message: "Meeting not found" });
       }
-      
+
+      if (consentDeclinedBlocksBot(meeting.consentStatus)) {
+        return res.status(409).json({ message: CONSENT_DECLINED_BOT_MESSAGE });
+      }
+
       if (!meeting.meetingUrl) {
         return res.status(400).json({ message: "No meeting URL detected for this meeting" });
       }
-      
+
       const { meetingSchedulerService } = await import("./services/meetingSchedulerService");
       const success = await meetingSchedulerService.deployBotForMeeting(meeting);
       

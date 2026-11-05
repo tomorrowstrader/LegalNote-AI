@@ -28,6 +28,14 @@ export function isWithinBotDeployWindow(startTime: Date, now: Date = new Date())
   return nowMs >= startMs - leadMs && nowMs <= startMs + graceMs;
 }
 
+export const CONSENT_DECLINED_BOT_MESSAGE =
+  "Recording was declined by email, so LegalNote will not join this meeting. Send a new consent request if they change their mind.";
+
+/** A decline by email stops the scheduled bot, whether cron or a person deploys it. */
+export function consentDeclinedBlocksBot(consentStatus: string | null | undefined): boolean {
+  return consentStatus === "declined";
+}
+
 /** Recall sub_codes that mean the meeting never produced a usable recording. */
 export const ABANDONED_MEETING_SUB_CODES = [
   "timeout_exceeded_waiting_room",

@@ -726,7 +726,7 @@ export async function sendPreConsentEmail(params: SendPreConsentEmailParams): Pr
                     </tr>
                   </table>
                   <p style="margin:28px 20px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:11px;line-height:1.5;color:#999999;text-align:center;">
-                    If you do not wish the meeting to be recorded, open the link and choose Decline — or ignore this email and nothing will be recorded.
+                    If you do not wish the meeting to be recorded, open the link and choose Decline. If you do not respond, you may be asked in the meeting whether you agree to it being recorded.
                     <br><br>Sent via LegalNote — Meeting to Matter.
                   </p>
                 </td>

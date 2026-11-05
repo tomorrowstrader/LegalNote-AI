@@ -6369,6 +6369,7 @@ export class DbStorage implements IStorage {
           eq(scheduledMeetings.userId, userId),
           eq(scheduledMeetings.autoRecordEnabled, true),
           eq(scheduledMeetings.status, 'scheduled'),
+          not(eq(scheduledMeetings.consentStatus, 'declined')),
           gte(scheduledMeetings.startTime, windowStart),
           lte(scheduledMeetings.startTime, windowEnd),
           or(

@@ -8,10 +8,12 @@ import { senderLabelForUser } from '../clientFacingSender';
 import { ensureFreshOutlookToken } from '../oauth';
 import { randomBytes } from 'crypto';
 import {
+  consentDeclinedBlocksBot,
   isAbandonedMeetingSubCode,
   isWithinBotDeployWindow,
   messageForAbandonedSubCode,
 } from '@shared/liveBotLifecycle';
+import { isReceivedCalendarMeeting, withCalendarOrganizer } from '@shared/meetingAttendees';
 
 const APP_BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || 'https://legalnote.ai';
 
@@ -167,6 +169,8 @@ interface OutlookCalendarEvent {
   onlineMeeting?: { joinUrl?: string };
   onlineMeetingUrl?: string;
   isAllDay?: boolean;
+  isOrganizer?: boolean;
+  organizer?: { emailAddress?: { address?: string; name?: string } };
   attendees?: Array<{
     emailAddress?: { address?: string; name?: string };
     status?: { response?: string };
@@ -297,7 +301,11 @@ export class MeetingSchedulerService {
       if (!startTime) continue;
 
       const { url: meetingUrl, platform: meetingPlatform } = extractMeetingUrl(event);
-      const attendees = parseAttendees(event);
+      const attendees = withCalendarOrganizer(parseAttendees(event), {
+        email: event.organizer?.email,
+        name: event.organizer?.displayName,
+        self: event.organizer?.self,
+      });
 
       const validPlatforms = ['zoom', 'teams', 'meet', 'webex'] as const;
       const validatedPlatform = validPlatforms.includes(meetingPlatform as typeof validPlatforms[number])
@@ -348,7 +356,7 @@ export class MeetingSchedulerService {
         $top: 100,
         $orderby: 'start/dateTime',
         $select:
-          'id,subject,body,start,end,location,isAllDay,attendees,onlineMeeting,onlineMeetingUrl',
+          'id,subject,body,start,end,location,isAllDay,attendees,organizer,isOrganizer,onlineMeeting,onlineMeetingUrl',
       })
       .get();
 
@@ -365,7 +373,11 @@ export class MeetingSchedulerService {
       if (Number.isNaN(startTime.getTime())) continue;
 
       const { url: meetingUrl, platform: meetingPlatform } = extractOutlookMeetingUrl(event);
-      const attendees = parseOutlookAttendees(event);
+      const attendees = withCalendarOrganizer(parseOutlookAttendees(event), {
+        email: event.organizer?.emailAddress?.address,
+        name: event.organizer?.emailAddress?.name,
+        self: event.isOrganizer,
+      });
 
       const validPlatforms = ['zoom', 'teams', 'meet', 'webex'] as const;
       const validatedPlatform = validPlatforms.includes(meetingPlatform as typeof validPlatforms[number])
@@ -525,7 +537,55 @@ export class MeetingSchedulerService {
     }
   }
 
+  /**
+   * The bot can already be in the call when a decline arrives, because it deploys
+   * before the start time and the consent link stays open until then.
+   */
+  async removeBotAfterEmailDecline(meeting: ScheduledMeeting): Promise<void> {
+    if (!meeting.recallBotId || meeting.botStatus === 'done') return;
+
+    let botLeft = false;
+    let leaveError: string | undefined;
+    try {
+      await recallService.leaveCall(meeting.recallBotId);
+      botLeft = true;
+    } catch (err) {
+      leaveError = err instanceof Error ? err.message : String(err);
+      console.error(`[MEETING_SCHEDULER] leaveCall failed on email decline for bot ${meeting.recallBotId}:`, leaveError);
+    }
+
+    if (meeting.meetingImportId) {
+      await storage.updateMeetingImport(meeting.meetingImportId, {
+        status: 'failed',
+        botStatus: botLeft ? 'left_consent_declined' : 'consent_declined',
+        errorMessage: 'Recording declined by email - bot removed from call',
+        consentConfirmed: false,
+      });
+    }
+
+    await storage.createAuditLog({
+      eventType: 'consent_declined',
+      userId: meeting.userId,
+      caseId: meeting.caseId || undefined,
+      ipAddress: 'server-process',
+      metadata: {
+        meetingId: meeting.id,
+        importId: meeting.meetingImportId,
+        botId: meeting.recallBotId,
+        source: 'pre_consent_email',
+        botLeft,
+        ...(leaveError ? { leaveError } : {}),
+      },
+      severity: 'warning',
+    });
+  }
+
   async deployBotForMeeting(meeting: ScheduledMeeting): Promise<boolean> {
+    if (consentDeclinedBlocksBot(meeting.consentStatus)) {
+      console.log(`[MEETING_SCHEDULER] Skipping bot deploy for meeting ${meeting.id} - recording declined by email`);
+      return false;
+    }
+
     if (!meeting.meetingUrl) {
       console.error(`[MEETING_SCHEDULER] No meeting URL for meeting ${meeting.id}`);
       await storage.updateScheduledMeeting(meeting.id, { botStatus: 'failed' });
@@ -824,6 +884,9 @@ export class MeetingSchedulerService {
     minutesBefore: 30 | 10,
   ): Promise<void> {
     if (!meeting.clientEmail || !meeting.meetingUrl) return;
+    // The recipient of a received invitation is there for consent; they did not
+    // book through LegalNote and should not get its join reminders.
+    if (isReceivedCalendarMeeting(meeting.attendees)) return;
 
     const user = await storage.getUser(meeting.userId);
     let firmName: string | null = null;

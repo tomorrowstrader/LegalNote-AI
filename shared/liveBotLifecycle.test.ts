@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   BOT_DEPLOY_GRACE_AFTER_START_MINUTES,
   BOT_DEPLOY_LEAD_MINUTES,
+  consentDeclinedBlocksBot,
   isWithinBotDeployWindow,
   WAITING_ROOM_TIMEOUT_SEC,
 } from "./liveBotLifecycle";
@@ -32,5 +33,14 @@ describe("liveBotLifecycle deploy window", () => {
   it("keeps waiting room timeout wider than deploy window", () => {
     const windowMinutes = BOT_DEPLOY_LEAD_MINUTES + BOT_DEPLOY_GRACE_AFTER_START_MINUTES;
     expect(WAITING_ROOM_TIMEOUT_SEC).toBeGreaterThanOrEqual(windowMinutes * 60);
+  });
+});
+
+describe("consentDeclinedBlocksBot", () => {
+  it("blocks the bot only when consent was declined", () => {
+    expect(consentDeclinedBlocksBot("declined")).toBe(true);
+    for (const status of ["pending", "sent", "approved", "expired", null, undefined]) {
+      expect(consentDeclinedBlocksBot(status)).toBe(false);
+    }
   });
 });
