@@ -901,7 +901,8 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
   const [showConsentDialog, setShowConsentDialog] = useState(false);
   const canSendConsent =
     !meeting.autoRecordEnabled &&
-    (meeting.consentStatus === 'pending' || meeting.consentStatus === 'sent') &&
+    // Approved too: more people can still be asked, and everyone must agree.
+    ['pending', 'sent', 'approved'].includes(meeting.consentStatus ?? 'pending') &&
     (consentRecipientOptions(meeting.attendees).length > 0 || !!meeting.clientEmail);
 
   const deployBotMutation = useMutation({
