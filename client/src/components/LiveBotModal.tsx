@@ -161,7 +161,7 @@ interface BotPollResponse {
 
 const STATUS_LABELS: Record<string, string> = {
   joining_call: "Joining the call...",
-  in_waiting_room: "In the waiting room - admit LegalNote to begin",
+  in_waiting_room: "In the waiting room - the host needs to admit LegalNote",
   in_call_not_recording: "In the call (starting recording...)",
   in_call_recording: "Recording in progress",
   call_ended: "Call ended - collecting recording",
@@ -1332,7 +1332,7 @@ export function LiveBotModal({
                 <div className="space-y-2 max-w-sm mx-auto">
                   {isWaiting && (
                     <p className="text-xs text-muted-foreground text-center">
-                      If your meeting has a waiting room, admit &quot;LegalNote&quot; to start recording.
+                      If you&apos;re not the host, ask them to admit &quot;LegalNote&quot;. Otherwise, admit it to start recording.
                     </p>
                   )}
                   {currentStatus === "in_call_not_recording" && (

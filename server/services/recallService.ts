@@ -4,6 +4,7 @@ import {
   NOONE_JOINED_TIMEOUT_SEC,
   WAITING_ROOM_TIMEOUT_SEC,
 } from '@shared/liveBotLifecycle';
+import { detectMeetingPlatform } from '@shared/meetingLinks';
 
 // Recall.ai uses regional endpoints - default to us-west-2, can be overridden via env var
 // Options: us-west-2, us-east-1, eu-central-1, ap-northeast-1
@@ -356,22 +357,7 @@ export class RecallService {
   }
   
   detectMeetingPlatform(url: string): 'zoom' | 'teams' | 'meet' | 'webex' | null {
-    const lowerUrl = url.toLowerCase();
-    
-    if (lowerUrl.includes('zoom.us') || lowerUrl.includes('zoom.com')) {
-      return 'zoom';
-    }
-    if (lowerUrl.includes('teams.microsoft.com') || lowerUrl.includes('teams.live.com')) {
-      return 'teams';
-    }
-    if (lowerUrl.includes('meet.google.com')) {
-      return 'meet';
-    }
-    if (lowerUrl.includes('webex.com')) {
-      return 'webex';
-    }
-    
-    return null;
+    return detectMeetingPlatform(url);
   }
   
   calculateRecallCost(durationSeconds: number): number {

@@ -118,6 +118,45 @@ export async function reconcileTerminalMeetingImport(
 }
 
 /**
+ * Evidence for whether a signed-in bot is worth building: how often, why, and which
+ * hosts' firms block LegalNote. Only the host's email domain is kept, not the address.
+ */
+async function recordBotJoinFailure(
+  importRecord: MeetingImport,
+  botId: string,
+  subCode: string | undefined,
+): Promise<void> {
+  try {
+    const [user, meeting] = await Promise.all([
+      storage.getUser(importRecord.userId),
+      storage.getScheduledMeetingByBotId(botId),
+    ]);
+    const attendees = Array.isArray(meeting?.attendees)
+      ? (meeting.attendees as Array<{ email?: string; organizer?: boolean }>)
+      : [];
+    const hostDomain = attendees.find((a) => a.organizer)?.email?.split('@')[1]?.toLowerCase();
+
+    await storage.createAuditLog({
+      eventType: 'bot_join_failed',
+      userId: importRecord.userId,
+      caseId: importRecord.caseId || undefined,
+      ipAddress: 'server-process',
+      metadata: {
+        importId: importRecord.id,
+        botId,
+        reason: subCode || 'unknown',
+        platform: importRecord.meetingPlatform,
+        firmId: user?.firmId ?? null,
+        ...(hostDomain ? { hostDomain } : {}),
+      },
+      severity: 'warning',
+    });
+  } catch (err) {
+    console.error(`[RecallProcessing] Could not record join failure for import ${importRecord.id}:`, err);
+  }
+}
+
+/**
  * If the bot left without ever recording (waiting-room / no-one-joined timeout, etc.),
  * mark the import failed with a clear reason and skip Meeting-to-Matter.
  * Returns true when processing should stop.
@@ -134,7 +173,7 @@ export async function markAbandonedIfNeverRecorded(
   if (
     importRecord.status === 'failed' &&
     typeof importRecord.errorMessage === 'string' &&
-    /waiting room|nobody else joined|never started|not admitted|cancelled/i.test(
+    /waiting room|nobody else joined|never started|not admitted|cancelled|no recording was captured/i.test(
       importRecord.errorMessage,
     )
   ) {
@@ -184,6 +223,7 @@ export async function markAbandonedIfNeverRecorded(
     botStatus: statusCode || importRecord.botStatus || 'call_ended',
     errorMessage,
   });
+  await recordBotJoinFailure(importRecord, botId, subCode);
   return { abandoned: true, errorMessage, subCode };
 }
 

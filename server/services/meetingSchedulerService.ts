@@ -14,6 +14,12 @@ import {
   messageForAbandonedSubCode,
 } from '@shared/liveBotLifecycle';
 import { isReceivedCalendarMeeting, withCalendarOrganizer } from '@shared/meetingAttendees';
+import {
+  detectMeetingPlatform,
+  extractMeetingLink,
+  unwrapSafeLink,
+  type MeetingPlatform,
+} from '@shared/meetingLinks';
 
 const APP_BASE_URL = process.env.APP_URL?.replace(/\/$/, '') || 'https://legalnote.ai';
 
@@ -96,53 +102,18 @@ async function getValidAccessToken(userId: string): Promise<{ token: string; int
   return { token: integration.accessToken, integration };
 }
 
-function extractMeetingUrl(event: calendar_v3.Schema$Event): { url?: string; platform?: 'zoom' | 'teams' | 'meet' | 'webex' } {
-  if (event.conferenceData?.entryPoints) {
-    for (const entry of event.conferenceData.entryPoints) {
-      if (entry.entryPointType === 'video' && entry.uri) {
-        const uri = entry.uri.toLowerCase();
-        if (uri.includes('zoom.us')) {
-          return { url: entry.uri, platform: 'zoom' };
-        } else if (uri.includes('teams.microsoft.com') || uri.includes('teams.live.com')) {
-          return { url: entry.uri, platform: 'teams' };
-        } else if (uri.includes('meet.google.com')) {
-          return { url: entry.uri, platform: 'meet' };
-        } else if (uri.includes('webex.com')) {
-          return { url: entry.uri, platform: 'webex' };
-        }
-      }
-    }
+function extractMeetingUrl(event: calendar_v3.Schema$Event): { url?: string; platform?: MeetingPlatform } {
+  for (const entry of event.conferenceData?.entryPoints ?? []) {
+    if (entry.entryPointType !== 'video' || !entry.uri) continue;
+    const platform = detectMeetingPlatform(entry.uri);
+    if (platform) return { url: entry.uri, platform };
   }
 
   if (event.hangoutLink) {
     return { url: event.hangoutLink, platform: 'meet' };
   }
 
-  const description = event.description || '';
-  const location = event.location || '';
-  const textToSearch = `${description} ${location}`;
-
-  const zoomMatch = textToSearch.match(/https:\/\/[\w.-]*zoom\.us\/j\/[\w?=&-]+/i);
-  if (zoomMatch) {
-    return { url: zoomMatch[0], platform: 'zoom' };
-  }
-
-  const teamsMatch = textToSearch.match(/https:\/\/teams\.microsoft\.com\/l\/meetup-join\/[^\s"<>]+/i);
-  if (teamsMatch) {
-    return { url: teamsMatch[0], platform: 'teams' };
-  }
-
-  const meetMatch = textToSearch.match(/https:\/\/meet\.google\.com\/[\w-]+/i);
-  if (meetMatch) {
-    return { url: meetMatch[0], platform: 'meet' };
-  }
-
-  const webexMatch = textToSearch.match(/https:\/\/[\w.-]*webex\.com\/[\w/.-]+/i);
-  if (webexMatch) {
-    return { url: webexMatch[0], platform: 'webex' };
-  }
-
-  return {};
+  return extractMeetingLink(`${event.description || ''} ${event.location || ''}`);
 }
 
 function parseAttendees(event: calendar_v3.Schema$Event): CalendarMeeting['attendees'] {
@@ -178,45 +149,14 @@ interface OutlookCalendarEvent {
   }>;
 }
 
-function extractOutlookMeetingUrl(event: OutlookCalendarEvent): { url?: string; platform?: 'zoom' | 'teams' | 'meet' | 'webex' } {
+function extractOutlookMeetingUrl(event: OutlookCalendarEvent): { url?: string; platform?: MeetingPlatform } {
   const onlineJoin = event.onlineMeeting?.joinUrl || event.onlineMeetingUrl;
   if (onlineJoin) {
-    const uri = onlineJoin.toLowerCase();
-    if (uri.includes('teams.microsoft.com') || uri.includes('teams.live.com')) {
-      return { url: onlineJoin, platform: 'teams' };
-    }
-    if (uri.includes('meet.google.com')) {
-      return { url: onlineJoin, platform: 'meet' };
-    }
-    if (uri.includes('zoom.us')) {
-      return { url: onlineJoin, platform: 'zoom' };
-    }
-    return { url: onlineJoin, platform: 'teams' };
+    const url = unwrapSafeLink(onlineJoin);
+    return { url, platform: detectMeetingPlatform(url) ?? 'teams' };
   }
 
-  const textToSearch = `${event.body?.content || ''} ${event.location?.displayName || ''}`;
-
-  const zoomMatch = textToSearch.match(/https:\/\/[\w.-]*zoom\.us\/j\/[\w?=&-]+/i);
-  if (zoomMatch) {
-    return { url: zoomMatch[0], platform: 'zoom' };
-  }
-
-  const teamsMatch = textToSearch.match(/https:\/\/teams\.microsoft\.com\/l\/meetup-join\/[^\s"<>]+/i);
-  if (teamsMatch) {
-    return { url: teamsMatch[0], platform: 'teams' };
-  }
-
-  const meetMatch = textToSearch.match(/https:\/\/meet\.google\.com\/[\w-]+/i);
-  if (meetMatch) {
-    return { url: meetMatch[0], platform: 'meet' };
-  }
-
-  const webexMatch = textToSearch.match(/https:\/\/[\w.-]*webex\.com\/[\w/.-]+/i);
-  if (webexMatch) {
-    return { url: webexMatch[0], platform: 'webex' };
-  }
-
-  return {};
+  return extractMeetingLink(`${event.body?.content || ''} ${event.location?.displayName || ''}`);
 }
 
 function parseOutlookAttendees(event: OutlookCalendarEvent): CalendarMeeting['attendees'] {
@@ -774,10 +714,9 @@ export class MeetingSchedulerService {
       const freshMeeting = { ...meeting, ...updates };
 
       if (botStatus === 'failed' && meeting.botStatus !== 'failed') {
-        const abandonReason = isAbandonedMeetingSubCode(subCode)
-          ? messageForAbandonedSubCode(subCode)
-          : neverRecorded
-            ? `Bot ended without recording (${statusCode}${subCode ? ` / ${subCode}` : ''})`
+        const abandonReason =
+          isAbandonedMeetingSubCode(subCode) || neverRecorded
+            ? messageForAbandonedSubCode(subCode)
             : `Bot reported status: ${statusCode}`;
 
         await this.notifyRecordingFailure(freshMeeting, abandonReason);

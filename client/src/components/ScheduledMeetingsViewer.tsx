@@ -533,6 +533,7 @@ function EditMeetingDialog({
   const [title, setTitle] = useState(meeting.title);
   const [newDate, setNewDate] = useState("");
   const [newTime, setNewTime] = useState("");
+  const [meetingLink, setMeetingLink] = useState(meeting.meetingUrl ?? "");
 
   useEffect(() => {
     if (!open) return;
@@ -540,6 +541,7 @@ function EditMeetingDialog({
     setTitle(meeting.title);
     setNewDate(format(start, "yyyy-MM-dd"));
     setNewTime(format(start, "HH:mm"));
+    setMeetingLink(meeting.meetingUrl ?? "");
   }, [open, meeting]);
 
   const saveMutation = useMutation({
@@ -558,11 +560,21 @@ function EditMeetingDialog({
       }
 
       const originalStart = new Date(meeting.startTime);
-      const timeChanged = newStartTime.getTime() !== originalStart.getTime();
+      // The form only holds whole minutes, so seconds must not count as a change of time.
+      const timeChanged = format(newStartTime, "yyyy-MM-dd'T'HH:mm") !== format(originalStart, "yyyy-MM-dd'T'HH:mm");
       const titleChanged = trimmedTitle !== meeting.title;
+      const trimmedLink = meetingLink.trim();
+      const linkChanged = !!trimmedLink && trimmedLink !== (meeting.meetingUrl ?? "");
 
-      if (!timeChanged && !titleChanged) {
+      if (!timeChanged && !titleChanged && !linkChanged) {
         throw new Error("No changes to save");
+      }
+
+      // Saved first: a time change creates a replacement meeting that copies the link.
+      if (linkChanged) {
+        await apiRequest("POST", `/api/scheduled-meetings/${meeting.id}/set-url`, {
+          meetingUrl: trimmedLink,
+        });
       }
 
       if (timeChanged) {
@@ -580,9 +592,11 @@ function EditMeetingDialog({
         });
       }
 
-      return apiRequest("PATCH", `/api/scheduled-meetings/${meeting.id}`, {
-        title: trimmedTitle,
-      });
+      if (titleChanged) {
+        return apiRequest("PATCH", `/api/scheduled-meetings/${meeting.id}`, {
+          title: trimmedTitle,
+        });
+      }
     },
     onSuccess: () => {
       toast({ title: "Meeting updated" });
@@ -633,6 +647,16 @@ function EditMeetingDialog({
               value={newTime}
               onChange={(e) => setNewTime(e.target.value)}
               data-testid="input-edit-meeting-time"
+            />
+          </div>
+          <div>
+            <Label htmlFor="edit-meeting-link">Meeting link</Label>
+            <Input
+              id="edit-meeting-link"
+              value={meetingLink}
+              onChange={(e) => setMeetingLink(e.target.value)}
+              placeholder="Paste the Teams, Zoom, Meet or Webex join link"
+              data-testid="input-edit-meeting-link"
             />
           </div>
         </div>
@@ -984,6 +1008,11 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
                   )}
                 </span>
               </div>
+            )}
+            {isActive && isReceivedCalendarMeeting(meeting.attendees) && (
+              <p className="text-xs text-muted-foreground" data-testid={`text-guest-join-note-${meeting.id}`}>
+                You're a guest on this meeting. The host may need to admit LegalNote, and their settings could block it.
+              </p>
             )}
             {isActive && meeting.guestClaimToken && !meeting.clientEmail && (
               <p className="text-sm text-muted-foreground" data-testid={`text-awaiting-guest-email-${meeting.id}`}>

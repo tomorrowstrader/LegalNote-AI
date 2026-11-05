@@ -5,6 +5,7 @@ import {
   isReceivedCalendarMeeting,
   meetingConsentStatus,
 } from "@shared/meetingAttendees";
+import { cleanMeetingLink } from "@shared/meetingLinks";
 import { createServer, type Server } from "http";
 import path, { dirname } from "path";
 import { fileURLToPath } from "url";
@@ -8889,6 +8890,32 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
   });
 
   // Admin statistics endpoints
+  // How often, and why, the bot couldn't get in. Decides whether a signed-in bot is worthwhile.
+  app.get("/api/admin/bot-join-failures", isAuthenticated, isAdmin, async (_req: any, res, next) => {
+    try {
+      const logs = await storage.getAuditLogs({ eventType: "bot_join_failed", limit: 1000 });
+      const counts = new Map<string, number>();
+      for (const log of logs) {
+        const meta = (log.metadata ?? {}) as Record<string, unknown>;
+        const key = JSON.stringify({
+          reason: meta.reason ?? "unknown",
+          platform: meta.platform ?? null,
+          hostDomain: meta.hostDomain ?? null,
+          firmId: meta.firmId ?? null,
+        });
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+      }
+      res.json({
+        total: logs.length,
+        groups: Array.from(counts, ([key, count]) => ({ ...JSON.parse(key), count })).sort(
+          (a, b) => b.count - a.count,
+        ),
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.get("/api/admin/statistics", isAuthenticated, isAdmin, async (req: any, res, next) => {
     try {
       const stats = await storage.getAdminStatistics();
@@ -14520,30 +14547,27 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
     try {
       const userId = req.user.claims.sub;
       const { id } = req.params;
-      const { meetingUrl } = req.body;
-      
-      if (!meetingUrl) {
-        return res.status(400).json({ message: "Meeting URL is required" });
+      const link = cleanMeetingLink(req.body?.meetingUrl);
+      if (!link) {
+        return res.status(400).json({ message: "Enter a full Zoom, Microsoft Teams, Google Meet or Webex join link" });
       }
-      
+
       const meeting = await storage.getScheduledMeeting(id);
       if (!meeting || meeting.userId !== userId) {
         return res.status(404).json({ message: "Meeting not found" });
       }
-      
-      // Detect platform from URL
-      let meetingPlatform: string | undefined;
-      const urlLower = meetingUrl.toLowerCase();
-      if (urlLower.includes('zoom.us')) meetingPlatform = 'zoom';
-      else if (urlLower.includes('teams.microsoft.com') || urlLower.includes('teams.live.com')) meetingPlatform = 'teams';
-      else if (urlLower.includes('meet.google.com')) meetingPlatform = 'meet';
-      else if (urlLower.includes('webex.com')) meetingPlatform = 'webex';
-      
-      const updated = await storage.updateScheduledMeeting(id, { 
-        meetingUrl,
-        meetingPlatform: meetingPlatform || null,
+
+      // Consent emails are matched to a meeting by its link, so they move with it.
+      const consentEmails = consentEmailsForMeeting(await storage.getPreConsentEmailsByUser(userId), meeting);
+      await Promise.all(
+        consentEmails.map((e) => storage.updatePreConsentEmail(e.id, { meetingUrl: link.url })),
+      );
+
+      const updated = await storage.updateScheduledMeeting(id, {
+        meetingUrl: link.url,
+        meetingPlatform: link.platform,
       });
-      
+
       res.json(updated);
     } catch (error) {
       next(error);
