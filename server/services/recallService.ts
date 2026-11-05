@@ -10,6 +10,9 @@ import {
 const RECALL_REGION = process.env.RECALL_REGION || 'us-west-2';
 const RECALL_API_BASE = `https://${RECALL_REGION}.recall.ai/api/v1`;
 
+/** Seven days, matching the audio retention LegalNote describes to clients. */
+const RECALL_MEDIA_RETENTION_HOURS = 168;
+
 // Read API key dynamically to handle secrets loaded after module init
 function getRecallApiKey(): string {
   return process.env.RECALL_API_KEY || '';
@@ -184,7 +187,9 @@ export class RecallService {
       throw new Error(errorMessage);
     }
     
-    return response.json() as Promise<T>;
+    // Some endpoints, such as media deletion, succeed with an empty body.
+    const body = await response.text();
+    return (body ? JSON.parse(body) : undefined) as T;
   }
   
   async createBot(meetingUrl: string, botName: string = 'LegalNote'): Promise<RecallBotResponse> {
@@ -197,6 +202,9 @@ export class RecallService {
         recording_config: {
           video_mixed_layout: 'audio_only',
           audio_mixed_mp3: {},
+          // Recall keeps media forever on newer accounts unless told otherwise. This is the
+          // safety net; normally deleteBotMedia removes it once LegalNote holds its own copy.
+          retention: { type: 'timed', hours: RECALL_MEDIA_RETENTION_HOURS },
         },
         automatic_leave: {
           waiting_room_timeout: WAITING_ROOM_TIMEOUT_SEC,
@@ -218,6 +226,13 @@ export class RecallService {
     });
   }
   
+  /** Permanently delete the media Recall stores for a bot. Irreversible. */
+  async deleteBotMedia(botId: string): Promise<void> {
+    await this.apiRequest<unknown>(`/bot/${botId}/delete_media/`, {
+      method: 'POST',
+    });
+  }
+
   async listBots(limit: number = 50): Promise<RecallBotListResponse> {
     return this.apiRequest<RecallBotListResponse>(`/bot/?limit=${limit}&ordering=-created_at`);
   }

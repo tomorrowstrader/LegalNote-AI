@@ -18,6 +18,46 @@ import {
 } from '@shared/liveBotLifecycle';
 import type { MeetingImport } from '@shared/schema';
 
+/**
+ * Delete Recall's copy once ours is proven identical. Never throws: a failure here must
+ * not stop the recording being processed, and Recall's own retention limit still applies.
+ */
+export async function removeRecallMediaAfterStorage(params: {
+  importId: string;
+  botId: string;
+  userId: string;
+  caseId?: string;
+  audioPath: string;
+  audioBuffer: Buffer;
+}): Promise<boolean> {
+  const { importId, botId, userId, caseId, audioPath, audioBuffer } = params;
+  let error: string | undefined;
+  try {
+    const stored = await new ObjectStorageService().getFile(audioPath);
+    if (!stored.equals(audioBuffer)) {
+      throw new Error('Stored audio does not match the downloaded recording');
+    }
+    await recallService.deleteBotMedia(botId);
+  } catch (err) {
+    error = err instanceof Error ? err.message : String(err);
+    console.error(`[RecallProcessing] Recall media not deleted for import ${importId}:`, error);
+  }
+
+  try {
+    await storage.createAuditLog({
+      eventType: error ? 'recall_media_delete_failed' : 'recall_media_deleted',
+      userId,
+      caseId,
+      ipAddress: 'server-process',
+      metadata: { importId, botId, source: 'recall_bot', ...(error ? { error } : {}) },
+      severity: error ? 'warning' : 'info',
+    });
+  } catch (auditErr) {
+    console.error(`[RecallProcessing] Could not log Recall media deletion for import ${importId}:`, auditErr);
+  }
+  return !error;
+}
+
 function isConsentDeclinedImport(imp: MeetingImport): boolean {
   return (
     imp.botStatus === 'left_consent_declined' ||
@@ -304,6 +344,8 @@ export async function processBotRecording(importRecord: MeetingImport): Promise<
       severity: 'info',
     });
 
+    await removeRecallMediaAfterStorage({ importId, botId, userId, audioPath, audioBuffer });
+
     console.log(`[RecallProcessing] Import ${importId} stored - awaiting matter assignment`);
     return;
   }
@@ -396,6 +438,7 @@ export async function processBotRecording(importRecord: MeetingImport): Promise<
 
     await storage.updateMeetingImport(importId, { audioStoragePath: audioPath });
     audioBufferForConsent = audioBuffer;
+    await removeRecallMediaAfterStorage({ importId, botId, userId, caseId, audioPath, audioBuffer });
   }
 
   // Reuse the existing audio_recordings row for this import's stored file if one

@@ -631,6 +631,8 @@ interface SendPreConsentEmailParams {
   consentUrl: string;
   /** Optional schedule context (date/time only — never matter title or client identifiers). */
   scheduledMeetingTime?: Date;
+  /** Where the recipient's reply should go. The From address stays LegalNote's. */
+  replyTo?: string;
 }
 
 function publicFacingDisplayName(name?: string | null): string | null {
@@ -652,7 +654,7 @@ export { publicFacingDisplayName };
  * Schedule date/time may be included; all matter detail stays behind the consent link.
  */
 export async function sendPreConsentEmail(params: SendPreConsentEmailParams): Promise<{ success: boolean; messageId?: string; error?: string }> {
-  const { to, recipientName, consentUrl, scheduledMeetingTime, senderLabel } = params;
+  const { to, recipientName, consentUrl, scheduledMeetingTime, senderLabel, replyTo } = params;
   const sender = senderLabel?.trim() || "The person who sent this";
 
   const displayName = publicFacingDisplayName(recipientName);
@@ -745,6 +747,7 @@ export async function sendPreConsentEmail(params: SendPreConsentEmailParams): Pr
       to,
       subject: 'Recording consent request',
       html: emailHtml,
+      ...(replyTo ? { replyTo } : {}),
     });
 
     if (!result.success) {

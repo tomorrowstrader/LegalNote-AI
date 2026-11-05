@@ -520,6 +520,7 @@ export class MeetingSchedulerService {
         consentUrl,
         scheduledMeetingTime: meeting.startTime,
         senderLabel: sender.capitalised,
+        replyTo: (await storage.getUser(meeting.userId))?.email || undefined,
       });
 
       await storage.updatePreConsentEmail(preConsentEmail.id, { emailStatus: 'sent' });

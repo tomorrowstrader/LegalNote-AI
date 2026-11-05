@@ -416,7 +416,9 @@ export function ConsentEvidence({ caseId, sessions, consentLogs, focusSessionId 
                 data-testid={`consent-legacy-row-${log.id}`}
               >
                 <div className="flex-1 min-w-0 space-y-1">
-                  <p className="text-sm font-medium">Consent record</p>
+                  <p className="text-sm font-medium">
+                    {log.consentGiven === true ? "Consent agree capture" : "Consent decline capture"}
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     {format(new Date(log.consentTimestamp), "dd MMM yyyy 'at' HH:mm")}
                     {" · "}
