@@ -1,4 +1,10 @@
 import type { Express, Response, NextFunction } from "express";
+import {
+  attendeeDisplayName,
+  consentEmailsForMeeting,
+  isReceivedCalendarMeeting,
+  meetingConsentStatus,
+} from "@shared/meetingAttendees";
 import { createServer, type Server } from "http";
 import path, { dirname } from "path";
 import { fileURLToPath } from "url";
@@ -13008,15 +13014,22 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       
       // Update any linked scheduled meeting's consent status
       const meetings = await storage.getScheduledMeetingsByUser(consentEmail.userId);
-      const linkedMeeting = meetings.find(m => m.preConsentEmailId === consentEmail.id);
+      const linkedMeeting =
+        meetings.find(m => m.preConsentEmailId === consentEmail.id) ??
+        meetings.find(m => consentEmailsForMeeting([consentEmail], m).length > 0);
       if (linkedMeeting) {
-        const meetingConsentStatus = status === 'granted' ? 'approved' : status === 'declined' ? 'declined' : 'declined';
+        const meetingEmails = consentEmailsForMeeting(
+          await storage.getPreConsentEmailsByUser(consentEmail.userId),
+          linkedMeeting,
+        );
+        // A meeting with no join link can't be matched, so only this response counts.
+        const nextConsentStatus = meetingConsentStatus(meetingEmails.length > 0 ? meetingEmails : [updatedEmail]);
         await storage.updateScheduledMeeting(linkedMeeting.id, {
-          consentStatus: meetingConsentStatus,
+          consentStatus: nextConsentStatus,
           // Rescheduling copies this flag and resets consent, so a decline must also clear it.
-          ...(status === 'declined' ? { autoRecordEnabled: false } : {}),
+          ...(nextConsentStatus === 'declined' ? { autoRecordEnabled: false } : {}),
         });
-        if (meetingConsentStatus === 'declined') {
+        if (nextConsentStatus === 'declined') {
           try {
             const { meetingSchedulerService } = await import("./services/meetingSchedulerService");
             await meetingSchedulerService.removeBotAfterEmailDecline(linkedMeeting);
@@ -14332,52 +14345,139 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
     }
   });
   
-  // Manually trigger consent email for a meeting
+  // Who has been asked for consent to this meeting, and how they responded
+  app.get("/api/scheduled-meetings/:id/consent-recipients", isAuthenticated, async (req, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const meeting = await storage.getScheduledMeeting(req.params.id);
+      if (!meeting || meeting.userId !== userId) {
+        return res.status(404).json({ message: "Meeting not found" });
+      }
+
+      const emails = consentEmailsForMeeting(await storage.getPreConsentEmailsByUser(userId), meeting);
+      res.json(
+        emails.map((e) => ({
+          email: e.recipientEmail,
+          emailStatus: e.emailStatus,
+          response: e.consentResponseStatus,
+        })),
+      );
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Send consent emails to the people chosen from this meeting's attendees
   app.post("/api/scheduled-meetings/:id/send-consent", isAuthenticated, async (req, res, next) => {
     try {
       const userId = req.user.claims.sub;
       const { id } = req.params;
-      
+
       const meeting = await storage.getScheduledMeeting(id);
       if (!meeting || meeting.userId !== userId) {
         return res.status(404).json({ message: "Meeting not found" });
       }
-      
-      if (!meeting.clientEmail) {
-        return res.status(400).json({ message: "No consent recipient set for this meeting" });
+
+      const requested: unknown = req.body?.recipients ?? (meeting.clientEmail ? [meeting.clientEmail] : []);
+      if (
+        !Array.isArray(requested) ||
+        requested.length === 0 ||
+        requested.length > 50 ||
+        !requested.every((r) => typeof r === "string")
+      ) {
+        return res.status(400).json({ message: "Choose at least one person to send the consent email to" });
       }
 
-      if (!isConsentRecipientAmongAttendees(meeting, meeting.clientEmail)) {
+      const seen = new Set<string>();
+      const recipients = (requested as string[])
+        .map((r) => r.trim())
+        .filter((r) => {
+          const key = r.toLowerCase();
+          if (!r || seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+
+      if (!recipients.every((r) => isConsentRecipientAmongAttendees(meeting, r))) {
         return res.status(400).json({
           message: "Consent recipient must be selected from this meeting's attendee list",
         });
       }
 
-      const recipientName = resolveConsentRecipientName(meeting, meeting.clientEmail);
-      if (!meeting.clientName || meeting.clientName.trim() !== recipientName) {
-        await storage.updateScheduledMeeting(meeting.id, { clientName: recipientName });
-        meeting.clientName = recipientName;
+      const previous = consentEmailsForMeeting(await storage.getPreConsentEmailsByUser(userId), meeting);
+      const alreadySent = new Set(
+        previous.filter((e) => e.emailStatus !== "failed").map((e) => e.recipientEmail.toLowerCase()),
+      );
+      const toSend = recipients.filter((r) => !alreadySent.has(r.toLowerCase()));
+      if (toSend.length === 0) {
+        return res.json({ success: true, sent: [], failed: [], message: "Already sent" });
       }
-      
+
       const { meetingSchedulerService } = await import("./services/meetingSchedulerService");
-      const success = await meetingSchedulerService.sendConsentEmailForMeeting(meeting);
-      
-      if (success) {
-        await storage.createAuditLog({
-          eventType: 'pre_consent_email_sent',
-          userId,
-          ipAddress: req.ip || req.socket?.remoteAddress,
-          metadata: { 
-            meetingId: meeting.id,
-            recipientEmail: meeting.clientEmail,
-          },
-          severity: 'info',
-        });
-        
-        res.json({ success: true, message: "Consent email sent" });
-      } else {
-        res.status(500).json({ success: false, message: "Failed to send consent email" });
+      const sent: string[] = [];
+      const failed: string[] = [];
+
+      for (const recipient of toSend) {
+        const isSavedRecipient = meeting.clientEmail?.toLowerCase() === recipient.toLowerCase();
+        const attendee = meetingAttendees(meeting).find(
+          (a) => a.email.toLowerCase() === recipient.toLowerCase(),
+        );
+        const clientName =
+          (isSavedRecipient ? attendeeDisplayName(meeting.clientName) : undefined) ??
+          attendeeDisplayName(attendee?.name) ??
+          null;
+
+        let success = false;
+        try {
+          success = await meetingSchedulerService.sendConsentEmailForMeeting({
+            ...meeting,
+            clientEmail: recipient,
+            clientName,
+          });
+        } catch (error) {
+          console.error(`[SCHEDULED_MEETINGS] Consent email failed for meeting ${meeting.id}:`, error);
+        }
+
+        if (success) {
+          sent.push(recipient);
+          await storage.createAuditLog({
+            eventType: 'pre_consent_email_sent',
+            userId,
+            ipAddress: req.ip || req.socket?.remoteAddress,
+            metadata: { meetingId: meeting.id, recipientEmail: recipient },
+            severity: 'info',
+          });
+        } else {
+          failed.push(recipient);
+        }
       }
+
+      if (sent.length === 0) {
+        return res.status(502).json({
+          success: false,
+          sent,
+          failed,
+          message: "The consent email could not be sent. Please try again.",
+        });
+      }
+
+      // The card shows one recipient. A client on a LegalNote meeting stays, because reminders
+      // go to them; otherwise it must be someone actually emailed.
+      const savedWasEmailed =
+        !!meeting.clientEmail &&
+        (alreadySent.has(meeting.clientEmail.toLowerCase()) ||
+          sent.some((r) => r.toLowerCase() === meeting.clientEmail!.toLowerCase()));
+      if (!meeting.clientEmail || (!savedWasEmailed && isReceivedCalendarMeeting(meeting.attendees))) {
+        const first = meetingAttendees(meeting).find(
+          (a) => a.email.toLowerCase() === sent[0].toLowerCase(),
+        );
+        await storage.updateScheduledMeeting(meeting.id, {
+          clientEmail: sent[0],
+          clientName: attendeeDisplayName(first?.name) ?? sent[0],
+        });
+      }
+
+      res.json({ success: true, sent, failed });
     } catch (error) {
       next(error);
     }

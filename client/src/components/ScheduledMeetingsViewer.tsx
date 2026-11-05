@@ -56,7 +56,12 @@ import { Label } from "@/components/ui/label";
 import { isFeatureVisible } from "@/lib/features";
 import { useFeatureVisibility } from "@/hooks/useFeatureVisibility";
 import { useAuth } from "@/hooks/useAuth";
-import { consentRecipientOptions, isReceivedCalendarMeeting } from "@shared/meetingAttendees";
+import {
+  attendeeDisplayName,
+  consentRecipientOptions,
+  isReceivedCalendarMeeting,
+} from "@shared/meetingAttendees";
+import { Checkbox } from "@/components/ui/checkbox";
 import { InMeetingConsentPanel } from "@/components/InMeetingConsentPanel";
 import { getSafeHttpsMeetingUrl } from "@/lib/meetingUrl";
 import { toTitleCase } from "@/lib/utils";
@@ -528,12 +533,6 @@ function EditMeetingDialog({
   const [title, setTitle] = useState(meeting.title);
   const [newDate, setNewDate] = useState("");
   const [newTime, setNewTime] = useState("");
-  const [recipient, setRecipient] = useState(meeting.clientEmail ?? "");
-  const { user } = useAuth();
-  const savedRecipient = meeting.clientEmail ?? "";
-  // A sent link stays tied to the person it went to, so the choice locks once sent.
-  const canChooseRecipient = meeting.consentStatus === "pending";
-  const recipientOptions = consentRecipientOptions(meeting.attendees, user?.email);
 
   useEffect(() => {
     if (!open) return;
@@ -541,7 +540,6 @@ function EditMeetingDialog({
     setTitle(meeting.title);
     setNewDate(format(start, "yyyy-MM-dd"));
     setNewTime(format(start, "HH:mm"));
-    setRecipient(meeting.clientEmail ?? "");
   }, [open, meeting]);
 
   const saveMutation = useMutation({
@@ -562,21 +560,9 @@ function EditMeetingDialog({
       const originalStart = new Date(meeting.startTime);
       const timeChanged = newStartTime.getTime() !== originalStart.getTime();
       const titleChanged = trimmedTitle !== meeting.title;
-      const recipientChanged = recipient !== savedRecipient;
 
-      if (!timeChanged && !titleChanged && !recipientChanged) {
+      if (!timeChanged && !titleChanged) {
         throw new Error("No changes to save");
-      }
-
-      // Saved first: a time change creates a replacement meeting that copies the recipient.
-      if (recipientChanged) {
-        await apiRequest("PATCH", `/api/scheduled-meetings/${meeting.id}`, {
-          clientEmail: recipient || null,
-          // Sent explicitly so a previous recipient's stored name isn't kept.
-          clientName: recipient
-            ? recipientOptions.find((a) => a.email === recipient)?.name || recipient
-            : null,
-        });
       }
 
       if (timeChanged) {
@@ -594,11 +580,9 @@ function EditMeetingDialog({
         });
       }
 
-      if (titleChanged) {
-        return apiRequest("PATCH", `/api/scheduled-meetings/${meeting.id}`, {
-          title: trimmedTitle,
-        });
-      }
+      return apiRequest("PATCH", `/api/scheduled-meetings/${meeting.id}`, {
+        title: trimmedTitle,
+      });
     },
     onSuccess: () => {
       toast({ title: "Meeting updated" });
@@ -651,37 +635,6 @@ function EditMeetingDialog({
               data-testid="input-edit-meeting-time"
             />
           </div>
-          {canChooseRecipient && (
-            <div>
-              <Label htmlFor="edit-meeting-consent-recipient">Consent email recipient</Label>
-              {recipientOptions.length > 0 ? (
-                <>
-                  <select
-                    id="edit-meeting-consent-recipient"
-                    value={recipient}
-                    onChange={(e) => setRecipient(e.target.value)}
-                    className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
-                    data-testid="select-edit-meeting-consent-recipient"
-                  >
-                    <option value="">No one</option>
-                    {recipientOptions.map((attendee) => (
-                      <option key={attendee.email} value={attendee.email}>
-                        {attendee.name ? `${attendee.name} (${attendee.email})` : attendee.email}
-                        {attendee.organizer ? " - organiser" : ""}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Saving doesn't send anything. Send Consent then appears on the meeting.
-                  </p>
-                </>
-              ) : (
-                <p className="mt-1 text-sm text-muted-foreground" data-testid="text-no-consent-recipients">
-                  No attendees found on this invitation. Sync your calendar and try again.
-                </p>
-              )}
-            </div>
-          )}
         </div>
         <DialogFooter>
           <Button
@@ -702,6 +655,152 @@ function EditMeetingDialog({
               <CalendarClock className="w-4 h-4 mr-1" />
             )}
             Save changes
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+type ConsentRecipientRecord = { email: string; emailStatus: string; response: string };
+
+function consentResponseLabel(record: ConsentRecipientRecord): string {
+  if (record.response === "granted") return "Agreed";
+  if (record.response === "declined") return "Declined";
+  if (record.response === "reschedule_requested") return "Asked to reschedule";
+  return "Sent, no reply yet";
+}
+
+function SendConsentDialog({
+  meeting,
+  open,
+  onOpenChange,
+}: {
+  meeting: ScheduledMeeting;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const { toast } = useToast();
+  const { user } = useAuth();
+  const [selected, setSelected] = useState<string[]>([]);
+  const options = consentRecipientOptions(meeting.attendees, user?.email);
+
+  const { data: records = [], isLoading } = useQuery<ConsentRecipientRecord[]>({
+    queryKey: [`/api/scheduled-meetings/${meeting.id}/consent-recipients`],
+    enabled: open,
+  });
+
+  const recordFor = (email: string) =>
+    records.find(
+      (r) => r.email.toLowerCase() === email.toLowerCase() && r.emailStatus !== "failed",
+    );
+
+  useEffect(() => {
+    if (open) setSelected([]);
+  }, [open]);
+
+  const sendMutation = useMutation({
+    mutationFn: () =>
+      apiRequest<{ sent: string[]; failed: string[] }>(
+        "POST",
+        `/api/scheduled-meetings/${meeting.id}/send-consent`,
+        { recipients: selected },
+      ),
+    onSuccess: ({ sent, failed }) => {
+      if (failed.length > 0) {
+        toast({
+          title: `Sent to ${sent.length}, failed for ${failed.length}`,
+          description: `Not sent to ${failed.join(", ")}. Please try again.`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: sent.length === 1 ? "Consent email sent" : `${sent.length} consent emails sent`,
+          description: "Check it has arrived, as it can land in spam.",
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/scheduled-meetings"] });
+      queryClient.invalidateQueries({
+        queryKey: [`/api/scheduled-meetings/${meeting.id}/consent-recipients`],
+      });
+      onOpenChange(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to send consent",
+        description: getApiErrorMessage(error, error.message),
+        variant: "destructive",
+      });
+    },
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent data-testid="dialog-send-consent">
+        <DialogHeader>
+          <DialogTitle>Send consent email</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 pt-2">
+          {options.length === 0 ? (
+            <p className="text-sm text-muted-foreground" data-testid="text-no-consent-recipients">
+              No attendees found on this invitation. Refresh your meetings and try again.
+            </p>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Everyone you ask must agree. If anyone declines, LegalNote won't record this meeting.
+              </p>
+              {options.map((attendee) => {
+                const record = recordFor(attendee.email);
+                const name = attendeeDisplayName(attendee.name);
+                return (
+                  <label
+                    key={attendee.email}
+                    className="flex items-start gap-3 text-sm"
+                    data-testid={`option-consent-recipient-${attendee.email}`}
+                  >
+                    <Checkbox
+                      className="mt-0.5"
+                      checked={!!record || selected.includes(attendee.email)}
+                      disabled={!!record || isLoading}
+                      onCheckedChange={(checked) =>
+                        setSelected((current) =>
+                          checked
+                            ? [...current, attendee.email]
+                            : current.filter((email) => email !== attendee.email),
+                        )
+                      }
+                    />
+                    <span className="min-w-0 break-words">
+                      {name ? `${name} (${attendee.email})` : attendee.email}
+                      {attendee.organizer ? " - organiser" : ""}
+                      {record && (
+                        <span className="block text-xs text-muted-foreground">
+                          {consentResponseLabel(record)}
+                        </span>
+                      )}
+                    </span>
+                  </label>
+                );
+              })}
+            </>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="button-send-consent-dismiss">
+            Cancel
+          </Button>
+          <Button
+            onClick={() => sendMutation.mutate()}
+            disabled={selected.length === 0 || sendMutation.isPending}
+            data-testid="button-confirm-send-consent"
+          >
+            {sendMutation.isPending ? (
+              <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+            ) : (
+              <Send className="w-4 h-4 mr-1" />
+            )}
+            {selected.length > 1 ? `Send ${selected.length} emails` : "Send"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -775,19 +874,12 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
     },
   });
   
-  const sendConsentMutation = useMutation({
-    mutationFn: async () => {
-      return apiRequest('POST', `/api/scheduled-meetings/${meeting.id}/send-consent`);
-    },
-    onSuccess: () => {
-      toast({ title: "Consent email sent", description: "The client will receive a consent request." });
-      queryClient.invalidateQueries({ queryKey: ['/api/scheduled-meetings'] });
-    },
-    onError: (error: any) => {
-      toast({ title: "Failed to send consent", description: error.message, variant: "destructive" });
-    },
-  });
-  
+  const [showConsentDialog, setShowConsentDialog] = useState(false);
+  const canSendConsent =
+    !meeting.autoRecordEnabled &&
+    (meeting.consentStatus === 'pending' || meeting.consentStatus === 'sent') &&
+    (consentRecipientOptions(meeting.attendees).length > 0 || !!meeting.clientEmail);
+
   const deployBotMutation = useMutation({
     mutationFn: async () => {
       return apiRequest('POST', `/api/scheduled-meetings/${meeting.id}/deploy-bot`);
@@ -886,8 +978,8 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
                 <Users className="w-4 h-4" />
                 <span>
                   {isReceivedCalendarMeeting(meeting.attendees) ? "Consent recipient" : "Client"}:{" "}
-                  {meeting.clientName || meeting.clientEmail}
-                  {meeting.clientName && meeting.clientName !== meeting.clientEmail && (
+                  {attendeeDisplayName(meeting.clientName) || meeting.clientEmail}
+                  {attendeeDisplayName(meeting.clientName) && (
                     <span className="text-xs"> ({meeting.clientEmail})</span>
                   )}
                 </span>
@@ -1012,19 +1104,14 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
                     Edit Meeting
                   </Button>
                   
-                  {meeting.clientEmail && !meeting.autoRecordEnabled && meeting.consentStatus === 'pending' && (
+                  {canSendConsent && (
                     <Button 
                       size="sm" 
                       variant="outline"
-                      onClick={() => sendConsentMutation.mutate()}
-                      disabled={sendConsentMutation.isPending}
+                      onClick={() => setShowConsentDialog(true)}
                       data-testid={`button-send-consent-${meeting.id}`}
                     >
-                      {sendConsentMutation.isPending ? (
-                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                      ) : (
-                        <Send className="w-3 h-3 mr-1" />
-                      )}
+                      <Send className="w-3 h-3 mr-1" />
                       Send Consent
                     </Button>
                   )}
@@ -1102,10 +1189,9 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
                           Copy guest link
                         </DropdownMenuItem>
                       )}
-                      {meeting.clientEmail && !meeting.autoRecordEnabled && meeting.consentStatus === 'pending' && (
+                      {canSendConsent && (
                         <DropdownMenuItem
-                          onClick={() => sendConsentMutation.mutate()}
-                          disabled={sendConsentMutation.isPending}
+                          onClick={() => setShowConsentDialog(true)}
                           data-testid={`menu-send-consent-${meeting.id}`}
                         >
                           <Send className="w-4 h-4 mr-2" />
@@ -1168,6 +1254,11 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
         meeting={meeting}
         open={showEditDialog}
         onOpenChange={setShowEditDialog}
+      />
+      <SendConsentDialog
+        meeting={meeting}
+        open={showConsentDialog}
+        onOpenChange={setShowConsentDialog}
       />
     </>
   );

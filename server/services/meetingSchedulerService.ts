@@ -500,7 +500,8 @@ export class MeetingSchedulerService {
     const preConsentEmail = await storage.createPreConsentEmail({
       userId: meeting.userId,
       recipientEmail: meeting.clientEmail,
-      recipientName: resolvedRecipientName,
+      // The column is required, but a calendar often has no real name for someone.
+      recipientName: resolvedRecipientName ?? meeting.clientEmail,
       meetingPlatform: (['zoom', 'teams', 'meet', 'webex'] as const).includes(
         meeting.meetingPlatform as 'zoom' | 'teams' | 'meet' | 'webex'
       ) ? (meeting.meetingPlatform as 'zoom' | 'teams' | 'meet' | 'webex') : undefined,
@@ -514,7 +515,7 @@ export class MeetingSchedulerService {
     });
 
     try {
-      await sendPreConsentEmail({
+      const result = await sendPreConsentEmail({
         to: meeting.clientEmail,
         recipientName: resolvedRecipientName,
         consentUrl,
@@ -522,6 +523,9 @@ export class MeetingSchedulerService {
         senderLabel: sender.capitalised,
         replyTo: (await storage.getUser(meeting.userId))?.email || undefined,
       });
+      if (!result.success) {
+        throw new Error(result.error || 'Email provider rejected the consent email');
+      }
 
       await storage.updatePreConsentEmail(preConsentEmail.id, { emailStatus: 'sent' });
       await storage.updateScheduledMeeting(meeting.id, {

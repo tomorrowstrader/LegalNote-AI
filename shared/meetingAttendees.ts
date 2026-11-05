@@ -83,3 +83,48 @@ export function consentRecipientOptions(
 
   return options.sort((a, b) => Number(b.organizer === true) - Number(a.organizer === true));
 }
+
+/** Calendars often use the address as the display name, sometimes in quotes. */
+export function attendeeDisplayName(name: string | null | undefined): string | undefined {
+  const cleaned = name?.trim().replace(/^['"]+|['"]+$/g, "").trim();
+  return cleaned && !cleaned.includes("@") ? cleaned : undefined;
+}
+
+type ConsentEmailRef = {
+  recipientEmail: string;
+  meetingUrl: string | null;
+  scheduledMeetingTime: Date | string | null;
+  consentResponseStatus: string;
+  emailStatus: string;
+};
+
+/** A meeting can have one consent email per person, linked by its join link and start time. */
+export function consentEmailsForMeeting<T extends ConsentEmailRef>(
+  emails: T[],
+  meeting: { meetingUrl: string | null; startTime: Date | string },
+): T[] {
+  if (!meeting.meetingUrl) return [];
+  const start = new Date(meeting.startTime).getTime();
+  return emails.filter(
+    (e) =>
+      e.meetingUrl === meeting.meetingUrl &&
+      e.scheduledMeetingTime != null &&
+      new Date(e.scheduledMeetingTime).getTime() === start,
+  );
+}
+
+/**
+ * One person can't agree for everyone: the meeting is approved only when everyone
+ * asked has agreed, and any refusal stops the recording for that meeting.
+ */
+export function meetingConsentStatus(
+  emails: Array<Pick<ConsentEmailRef, "consentResponseStatus" | "emailStatus">>,
+): "approved" | "declined" | "sent" {
+  const delivered = emails.filter((e) => e.emailStatus !== "failed");
+  if (delivered.some((e) => !["awaiting", "granted"].includes(e.consentResponseStatus))) {
+    return "declined";
+  }
+  return delivered.length > 0 && delivered.every((e) => e.consentResponseStatus === "granted")
+    ? "approved"
+    : "sent";
+}
