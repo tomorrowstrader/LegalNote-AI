@@ -1,0 +1,65 @@
+/* Public consent page. A separate file because the production security policy blocks inline styles. */
+:root {
+  --bg: hsl(38 30% 97%);
+  --card: hsl(40 33% 99%);
+  --ink: hsl(0 0% 10%);
+  --muted: hsl(0 0% 38%);
+  --line: hsl(36 20% 90%);
+  --primary: hsl(0 0% 8%);
+  --primary-hover: hsl(0 0% 20%);
+  --hover: hsl(36 20% 94%);
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  padding: 48px 16px;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Lora', Georgia, serif;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 480px; margin: 0 auto; }
+.brand { margin: 0 0 32px; text-align: center; }
+.brand img { display: block; width: 200px; max-width: 100%; height: auto; margin: 0 auto; }
+.brand-tagline {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.card {
+  padding: 32px 28px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(26, 26, 26, 0.05);
+}
+h1 { margin: 0 0 16px; font-size: 26px; font-weight: 500; line-height: 1.25; }
+p { margin: 0 0 12px; color: var(--muted); font-size: 16px; line-height: 1.6; }
+p strong { color: var(--ink); font-weight: 600; }
+.actions { display: flex; flex-direction: column; gap: 10px; margin-top: 24px; }
+button {
+  width: 100%;
+  min-height: 46px;
+  padding: 12px 18px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+button:disabled { opacity: 0.6; cursor: default; }
+.btn-primary { background: var(--primary); color: #fff; border: 1px solid var(--primary); }
+.btn-primary:hover:enabled { background: var(--primary-hover); }
+.btn-secondary { background: var(--card); color: var(--ink); border: 1px solid var(--line); }
+.btn-secondary:hover:enabled { background: var(--hover); }
+.status { margin-top: 20px; padding: 14px 16px; border-radius: 8px; font-size: 15px; line-height: 1.5; }
+.status:empty { display: none; }
+.status.ok { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+.status.err { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+.footer { margin: 20px 0 0; color: var(--muted); font-size: 12px; text-align: center; }

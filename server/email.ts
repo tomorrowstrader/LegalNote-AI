@@ -648,89 +648,86 @@ function publicFacingDisplayName(name?: string | null): string | null {
 /** Exported for meeting scheduler consent emails. */
 export { publicFacingDisplayName };
 
-/**
- * Pre-meeting recording consent request.
- * GDPR / data residency: omits client identifiers, matter titles, and case references.
- * Schedule date/time may be included; all matter detail stays behind the consent link.
- */
-export async function sendPreConsentEmail(params: SendPreConsentEmailParams): Promise<{ success: boolean; messageId?: string; error?: string }> {
-  const { to, recipientName, consentUrl, scheduledMeetingTime, senderLabel, replyTo } = params;
+export function buildPreConsentEmailHtml(params: SendPreConsentEmailParams): string {
+  const { recipientName, consentUrl, scheduledMeetingTime, senderLabel } = params;
   const sender = senderLabel?.trim() || "The person who sent this";
 
   const displayName = publicFacingDisplayName(recipientName);
   const greeting = displayName ? `Hi ${escapeHtmlPlain(displayName)},` : "Hi,";
 
-  const whenLine = scheduledMeetingTime && !isNaN(scheduledMeetingTime.getTime())
+  const meetingPhrase = scheduledMeetingTime && !isNaN(scheduledMeetingTime.getTime())
     ? (() => {
         const date = scheduledMeetingTime.toLocaleDateString("en-GB", {
           weekday: "long",
           day: "numeric",
           month: "long",
           year: "numeric",
+          timeZone: "Europe/London",
         });
         const time = scheduledMeetingTime.toLocaleTimeString("en-GB", {
           hour: "2-digit",
           minute: "2-digit",
+          timeZone: "Europe/London",
         });
-        return ` for your meeting on <strong>${escapeHtmlPlain(date)}</strong> at <strong>${escapeHtmlPlain(time)}</strong>`;
+        return `your meeting on <strong style="color:#1a1a1a;font-weight:600;">${escapeHtmlPlain(date)}</strong> at <strong style="color:#1a1a1a;font-weight:600;">${escapeHtmlPlain(time)}</strong>`;
       })()
-    : "";
+    : "an upcoming meeting";
 
-  const emailHtml = `
+  const sans = "-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif";
+  const bodyStyle = `margin:0 0 16px;font-family:${sans};font-size:15px;line-height:1.6;color:#4a4a4a;`;
+
+  return `
     <!DOCTYPE html>
     <html lang="en">
     <head>
       ${legalNoteEmailHeadTags()}
       <title>Recording consent request</title>
     </head>
-    <body style="margin:0;padding:0;background-color:#f3f3f3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f3f3f3;">
+    <body style="margin:0;padding:0;background-color:#faf9f7;font-family:${sans};">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#faf9f7;">
         <tr>
           <td align="center" style="padding:0;">
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;margin:0 auto;">
               ${legalNoteBrandHeaderTableRow()}
               <tr>
-                <td align="center" style="background-color:#f3f3f3;padding:36px 24px 48px;">
-                  <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:400;line-height:1.3;color:#1a1a1a;">
-                    Recording consent
-                  </p>
-                </td>
-              </tr>
-              <tr>
-                <td align="center" style="background-color:#000000;padding:0 20px 48px;">
-                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:480px;margin:-36px auto 0;background-color:#ffffff;border-radius:16px;">
+                <td align="center" style="padding:32px 20px 16px;">
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;margin:0 auto;background-color:#ffffff;border:1px solid #ebe7e1;border-radius:12px;">
                     <tr>
-                      <td style="padding:40px 32px 36px;text-align:left;">
-                        <p style="margin:0 0 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;line-height:1.55;color:#1a1a1a;">
+                      <td style="padding:36px 32px 32px;text-align:left;">
+                        <p style="margin:0 0 20px;font-family:Georgia,'Times New Roman',serif;font-size:24px;font-weight:400;line-height:1.3;color:#1a1a1a;">
+                          Recording consent
+                        </p>
+                        <p style="${bodyStyle}">
                           ${greeting}
                         </p>
-                        <p style="margin:0 0 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;line-height:1.55;color:#1a1a1a;">
-                          ${escapeHtmlPlain(sender)} has asked for your consent to record an upcoming meeting${whenLine}, so accurate attendance notes can be prepared.
+                        <p style="${bodyStyle}">
+                          ${escapeHtmlPlain(sender)} has asked for your consent to record ${meetingPhrase}, so accurate attendance notes can be prepared.
                         </p>
-                        <p style="margin:0 0 28px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;line-height:1.55;color:#555555;">
-                          Continue on LegalNote to consent or decline. No matter details are included in this email.
+                        <p style="${bodyStyle}">
+                          If you agree, a participant called LegalNote may ask to join the meeting. If you are hosting, please admit it from the lobby or waiting room.
                         </p>
-                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;">
+                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:24px auto 0;">
                           <tr>
-                            <td align="center" style="background-color:#000000;border-radius:8px;">
-                              <a href="${escapeHtmlPlain(consentUrl)}" style="display:block;padding:16px 24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:13px;font-weight:700;letter-spacing:0.06em;text-decoration:none;color:#ffffff;text-transform:uppercase;">
+                            <td align="center" style="background-color:#141414;border-radius:8px;">
+                              <a href="${escapeHtmlPlain(consentUrl)}" style="display:block;padding:14px 24px;font-family:${sans};font-size:15px;font-weight:600;text-decoration:none;color:#ffffff;">
                                 Review and respond
-                                <span style="display:inline-block;margin-left:12px;padding-left:12px;border-left:2px solid ${LEGALNOTE_BRAND_ACCENT};line-height:1;">→</span>
                               </a>
                             </td>
                           </tr>
                         </table>
-                        <p style="margin:24px 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:11px;line-height:1.5;color:#888888;">
-                          If the button does not work, copy this link into your browser:<br>
-                          <a href="${escapeHtmlPlain(consentUrl)}" style="color:#555555;word-break:break-all;">${escapeHtmlPlain(consentUrl)}</a>
+                        <p style="margin:20px 0 0;font-family:${sans};font-size:13px;line-height:1.55;color:#6b6b6b;">
+                          You can consent or decline on the next page. If you don't respond, you may be asked during the meeting. No matter details are included in this email.
                         </p>
                       </td>
                     </tr>
                   </table>
-                  <p style="margin:28px 20px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:11px;line-height:1.5;color:#999999;text-align:center;">
-                    If you do not wish the meeting to be recorded, open the link and choose Decline. If you do not respond, you may be asked in the meeting whether you agree to it being recorded.
-                    <br><br>Sent via LegalNote — Meeting to Matter.
-                  </p>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:8px 32px 36px;font-family:${sans};font-size:11px;line-height:1.55;color:#8a8a8a;text-align:center;">
+                  If the button doesn't work, copy this link into your browser:<br>
+                  <a href="${escapeHtmlPlain(consentUrl)}" style="color:#6b6b6b;word-break:break-all;">${escapeHtmlPlain(consentUrl)}</a>
+                  <br><br>Sent via LegalNote · Meeting to Matter
                 </td>
               </tr>
             </table>
@@ -740,6 +737,16 @@ export async function sendPreConsentEmail(params: SendPreConsentEmailParams): Pr
     </body>
     </html>
   `;
+}
+
+/**
+ * Pre-meeting recording consent request.
+ * GDPR / data residency: omits client identifiers, matter titles, and case references.
+ * Schedule date/time may be included; all matter detail stays behind the consent link.
+ */
+export async function sendPreConsentEmail(params: SendPreConsentEmailParams): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const { to, replyTo } = params;
+  const emailHtml = buildPreConsentEmailHtml(params);
 
   try {
     const result = await sendEmail({
