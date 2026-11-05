@@ -32,6 +32,7 @@ describe("consent pages under the production security policy", () => {
     expect(pages.decision).toContain('data-token="token-1"');
     expect(pages.decision).toContain('data-response="granted"');
     expect(pages.decision).toContain('data-response="declined"');
+    expect(pages.decision).toContain("an attendance note, a written record of what was discussed");
   });
 
   it("escapes the sender and token", () => {

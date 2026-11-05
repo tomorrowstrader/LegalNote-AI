@@ -25,5 +25,6 @@ describe("buildPreConsentEmailHtml", () => {
     expect(html).toContain("a participant called LegalNote");
     expect(html).toContain("https://legalnote.ai/consent/t");
     expect(html).toContain("No matter details are included");
+    expect(html).toContain("an attendance note, a written record of what was discussed");
   });
 });

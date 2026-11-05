@@ -81,7 +81,7 @@ export function renderConsentDecisionPage(token: string, senderName = "The perso
     script: true,
     body: `
       <h1>Recording consent</h1>
-      <p>${escapeHtml(senderName)} would like to record your meeting to prepare accurate attendance notes. Audio is kept confidential and deleted within 7 days.</p>
+      <p>${escapeHtml(senderName)} would like to record your meeting to prepare an attendance note, a written record of what was discussed. Audio is kept confidential and deleted within 7 days.</p>
       <p>Please choose one option below.</p>
       <div class="actions" id="actions" data-token="${safeToken}">
         <button type="button" class="btn-primary" data-response="granted" data-testid="button-grant-consent">I consent</button>

@@ -701,7 +701,7 @@ export function buildPreConsentEmailHtml(params: SendPreConsentEmailParams): str
                           ${greeting}
                         </p>
                         <p style="${bodyStyle}">
-                          ${escapeHtmlPlain(sender)} has asked for your consent to record ${meetingPhrase}, so accurate attendance notes can be prepared.
+                          ${escapeHtmlPlain(sender)} has asked for your consent to record ${meetingPhrase}, to prepare an attendance note, a written record of what was discussed.
                         </p>
                         <p style="${bodyStyle}">
                           If you agree, a participant called LegalNote may ask to join the meeting. If you are hosting, please admit it from the lobby or waiting room.
