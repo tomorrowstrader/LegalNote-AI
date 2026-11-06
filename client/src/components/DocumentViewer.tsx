@@ -3830,16 +3830,21 @@ export default function DocumentViewer({
     const element = stickyHeaderRef.current;
     if (!element) return;
     
-    const observer = new ResizeObserver(() => {
-      // Use getBoundingClientRect for accurate height including padding
-      const rect = element.getBoundingClientRect();
-      setHeaderHeight(rect.height);
-    });
-    
+    // Measure to the bottom of the header card, not the wrapper's bottom padding,
+    // so nested sticky bars (editor toolbar, side panels) sit flush under the card
+    // instead of leaving a transparent strip where scrolled text shows through.
+    const card = element.firstElementChild as HTMLElement | null;
+    const measure = () => {
+      const top = element.getBoundingClientRect().top;
+      const bottom = (card ?? element).getBoundingClientRect().bottom;
+      setHeaderHeight(Math.max(0, bottom - top));
+    };
+
+    const observer = new ResizeObserver(measure);
     observer.observe(element);
-    // Initial measurement
-    setHeaderHeight(element.getBoundingClientRect().height);
-    
+    if (card) observer.observe(card);
+    measure();
+
     return () => observer.disconnect();
   }, []);
 

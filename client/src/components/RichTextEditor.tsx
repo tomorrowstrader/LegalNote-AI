@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useRef, useState, type ReactNode } from "react";
+import { useEffect, useCallback, useRef, useState, type ReactNode, type CSSProperties } from "react";
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -1748,6 +1748,20 @@ export function RichTextEditor({
     });
   }, [editor, spellIssues, spellIndex, focusSpellIssue, refreshSpellSuggestions]);
 
+  // The tracked-changes panel sticks just below the sticky toolbar, so it needs
+  // the toolbar's live height (it grows when the bulk-action or search rows show).
+  const [toolbarHeight, setToolbarHeight] = useState(0);
+  const toolbarObserverRef = useRef<ResizeObserver | null>(null);
+  const toolbarRef = useCallback((node: HTMLDivElement | null) => {
+    toolbarObserverRef.current?.disconnect();
+    toolbarObserverRef.current = null;
+    if (!node) return;
+    const observer = new ResizeObserver(() => setToolbarHeight(node.getBoundingClientRect().height));
+    observer.observe(node);
+    toolbarObserverRef.current = observer;
+    setToolbarHeight(node.getBoundingClientRect().height);
+  }, []);
+
   if (!editor) return null;
 
   const wordCount = editor.storage.characterCount?.words() ?? 0;
@@ -1833,10 +1847,10 @@ export function RichTextEditor({
   return (
     <div 
       className="rounded-md overflow-visible min-w-0 max-w-full"
-      style={{ fontSize: `${zoom}%` }}
+      style={{ fontSize: `${zoom}%`, '--editor-toolbar-height': `${toolbarHeight}px` } as CSSProperties}
     >
       {!disabled && (
-        <div className="border border-border rounded-t-md bg-background/95 backdrop-blur-sm sticky z-30" style={{ top: 'var(--doc-header-height, 0px)' }}>
+        <div ref={toolbarRef} className="border border-border rounded-t-md bg-background/95 backdrop-blur-sm sticky z-30" style={{ top: 'var(--doc-header-height, 0px)' }}>
           {editActions ? (
             <div className="flex items-center gap-2 flex-wrap border-b border-border/60 px-2 py-1.5" data-testid="container-edit-actions">
               {editActions}
@@ -2008,13 +2022,14 @@ export function RichTextEditor({
           </div>
 
           {trackChangesEnabled && changeCount > 0 && (
-            <div className="flex items-center gap-2 px-3 pb-2 flex-wrap" data-testid="container-track-changes-actions">
-              <span className="text-xs text-muted-foreground">{changeCount} change{changeCount !== 1 ? 's' : ''} pending</span>
+            <div className="flex items-center gap-2 px-3 py-1.5 flex-wrap border-t border-amber-200 bg-amber-50/80 dark:border-amber-900/60 dark:bg-amber-950/30" data-testid="container-track-changes-actions">
+              <GitCompareArrows className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+              <span className="text-xs font-medium text-amber-800 dark:text-amber-300">{changeCount} change{changeCount !== 1 ? 's' : ''} pending</span>
               <Button
                 size="sm"
                 variant="outline"
                 onClick={acceptAllChanges}
-                className="gap-1 text-xs"
+                className="gap-1 text-xs border-green-300 bg-green-50 text-green-800 hover:bg-green-100 dark:border-green-800 dark:bg-green-950/40 dark:text-green-300"
                 data-testid="button-accept-all-changes"
               >
                 <CheckCheck className="w-3 h-3" />
@@ -2024,7 +2039,7 @@ export function RichTextEditor({
                 size="sm"
                 variant="outline"
                 onClick={rejectAllChanges}
-                className="gap-1 text-xs"
+                className="gap-1 text-xs border-red-300 bg-red-50 text-red-800 hover:bg-red-100 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300"
                 data-testid="button-reject-all-changes"
               >
                 <XCircle className="w-3 h-3" />
@@ -2165,11 +2180,15 @@ export function RichTextEditor({
         </div>
 
         {trackChangesEnabled && changeCount > 0 && !disabled && (
-          <div className="w-full max-h-64 border-t border-border bg-muted/10 overflow-y-auto lg:w-64 lg:max-h-[500px] lg:border-t-0 lg:border-l lg:flex-shrink-0" data-testid="panel-tracked-changes">
-            <div className="p-2 border-b border-border">
+          <div
+            className="w-full max-h-80 flex flex-col border-t border-border bg-muted/10 lg:w-64 lg:flex-shrink-0 lg:self-start lg:sticky lg:z-20 lg:border-t-0 lg:border-l lg:top-[calc(var(--doc-header-height,0px)_+_var(--editor-toolbar-height,0px))] lg:max-h-[calc(100dvh_-_4rem_-_var(--doc-header-height,0px)_-_var(--editor-toolbar-height,0px)_-_2.5rem)]"
+            data-testid="panel-tracked-changes"
+          >
+            <div className="p-2 border-b border-border shrink-0 flex items-center justify-between">
               <span className="text-xs font-semibold text-muted-foreground">Tracked Changes</span>
+              <span className="text-[10px] text-muted-foreground">{changeCount}</span>
             </div>
-            <div className="divide-y divide-border">
+            <div className="divide-y divide-border flex-1 min-h-0 overflow-y-auto">
               {trackedChanges.map((change) => (
                 <div 
                   key={change.id} 
@@ -2214,12 +2233,35 @@ export function RichTextEditor({
                 </div>
               ))}
             </div>
+            {/* Bulk actions stay pinned under the list, so they are reachable from any point in the document. */}
+            <div className="shrink-0 flex items-center gap-1.5 p-2 border-t border-amber-200 bg-amber-50/80 dark:border-amber-900/60 dark:bg-amber-950/30" data-testid="container-panel-bulk-actions">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={acceptAllChanges}
+                className="flex-1 h-7 gap-1 px-2 text-xs border-green-300 bg-green-50 text-green-800 hover:bg-green-100 dark:border-green-800 dark:bg-green-950/40 dark:text-green-300"
+                data-testid="button-panel-accept-all-changes"
+              >
+                <CheckCheck className="w-3 h-3" />
+                Accept All
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={rejectAllChanges}
+                className="flex-1 h-7 gap-1 px-2 text-xs border-red-300 bg-red-50 text-red-800 hover:bg-red-100 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300"
+                data-testid="button-panel-reject-all-changes"
+              >
+                <XCircle className="w-3 h-3" />
+                Reject All
+              </Button>
+            </div>
           </div>
         )}
       </div>
 
       {!disabled && (
-        <div className="flex items-center justify-between px-3 py-1.5 border border-border border-t-0 rounded-b-md bg-muted/20 text-xs text-muted-foreground">
+        <div className="sticky bottom-0 z-20 flex items-center justify-between px-3 py-1.5 border border-border rounded-b-md bg-background/95 backdrop-blur-sm shadow-[0_-1px_3px_rgba(0,0,0,0.04)] text-xs text-muted-foreground" data-testid="bar-editor-status">
           <div className="flex items-center gap-1">
             <Type className="w-3 h-3" />
             <span>{wordCount} words</span>
