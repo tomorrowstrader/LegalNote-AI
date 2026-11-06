@@ -69,6 +69,32 @@ describe("ensureDraftTimeEntryForSession", () => {
     expect(createTimeEntrySpy).not.toHaveBeenCalled();
   });
 
+  it("uses the recording's length when the session has no duration", async () => {
+    const caseRecord = await seedCase("client");
+    const session = await seedSession(caseRecord.id);
+    vi.spyOn(storage, "getMeetingSession").mockResolvedValue({ ...session, durationSeconds: null } as any);
+    vi.spyOn(storage, "getAudioRecordingBySession").mockResolvedValue({ duration: 13800 } as any);
+    vi.spyOn(storage, "createAuditLog").mockResolvedValue({} as any);
+    const createTimeEntrySpy = vi.spyOn(storage, "createTimeEntry").mockImplementation(async (e: any) => e);
+
+    await ensureDraftTimeEntryForSession({ caseId: caseRecord.id, userId: USER_ID, sessionId: session.id });
+
+    expect(createTimeEntrySpy.mock.calls[0][0]).toMatchObject({ durationMinutes: 230 });
+  });
+
+  it("creates no draft rather than inventing a duration", async () => {
+    const caseRecord = await seedCase("client");
+    const session = await seedSession(caseRecord.id);
+    vi.spyOn(storage, "getMeetingSession").mockResolvedValue({ ...session, durationSeconds: null } as any);
+    vi.spyOn(storage, "getAudioRecordingBySession").mockResolvedValue(undefined);
+    const createTimeEntrySpy = vi.spyOn(storage, "createTimeEntry");
+
+    const result = await ensureDraftTimeEntryForSession({ caseId: caseRecord.id, userId: USER_ID, sessionId: session.id });
+
+    expect(result).toBeNull();
+    expect(createTimeEntrySpy).not.toHaveBeenCalled();
+  });
+
   it("still creates a draft time entry for a client matter", async () => {
     const caseRecord = await seedCase("client");
     const session = await seedSession(caseRecord.id);

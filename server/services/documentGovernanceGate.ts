@@ -3,7 +3,8 @@ export type DocumentGovernanceViolationType =
   | 'transcript_reference'
   | 'recording_reference'
   | 'session_reference'
-  | 'continuation_commentary';
+  | 'continuation_commentary'
+  | 'page_marker';
 
 export interface DocumentGovernanceViolation {
   type: DocumentGovernanceViolationType;
@@ -27,6 +28,7 @@ const GOVERNANCE_PATTERNS: ReadonlyArray<{
   { type: 'continuation_commentary', label: 'the correct output is', regex: /\bthe correct output is\b/gi },
   { type: 'continuation_commentary', label: 'document appears to have ended', regex: /\bdocument appears to have (?:ended|ceased)\b/gi },
   { type: 'continuation_commentary', label: 'is a duplicate and should be deleted/removed', regex: /\bis a duplicate and should be (?:deleted|removed)\b/gi },
+  { type: 'page_marker', label: 'Page N on its own line', regex: /^[ \t]*(?:\*\*)?Page \d+(?: of \d+)?(?:\*\*)?[ \t]*$/gim },
 ];
 
 export function scanDocumentGovernanceViolations(content: string): DocumentGovernanceViolation[] {
@@ -46,6 +48,21 @@ export function scanDocumentGovernanceViolations(content: string): DocumentGover
   }
 
   return violations;
+}
+
+/**
+ * These are never right in a finished note, so they stop it being released as it is.
+ * "The transcript" and similar can be legitimate, for example a court transcript, so
+ * those stay logged only.
+ */
+const RELEASE_BLOCKING_TYPES = new Set<DocumentGovernanceViolationType>([
+  'speaker_label',
+  'continuation_commentary',
+  'page_marker',
+]);
+
+export function findReleaseBlockers(content: string): DocumentGovernanceViolation[] {
+  return scanDocumentGovernanceViolations(content).filter((v) => RELEASE_BLOCKING_TYPES.has(v.type));
 }
 
 /** Warn-mode instrument: log violations tagged by recording type; never reject. */

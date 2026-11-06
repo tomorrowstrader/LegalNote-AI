@@ -251,6 +251,35 @@ Reasoning behind advice and decisions:Because the facts support that course.`,
     expect(result.content).not.toContain('correct output is');
   });
 
+  it('quietly regenerates a note with a speaker label, and returns only the clean version', async () => {
+    const reply = (content: string) => ({ content, inputTokens: 10, outputTokens: 20, cost: 0.001, stopReason: 'end_turn' });
+    const closing = 'This note may be subject to legal professional privilege.';
+    const chatCompletion = vi
+      .fn()
+      .mockResolvedValueOnce(reply(`**MATTERS DISCUSSED**\n\nSpeaker A confirmed the date.\n\n${closing}`))
+      .mockResolvedValueOnce(reply(`**MATTERS DISCUSSED**\n\nThe client confirmed the date.\n\n${closing}`));
+
+    const result = await new DocumentService({ chatCompletion }).generateAttendanceNote('Transcript.', metadata);
+
+    expect(chatCompletion).toHaveBeenCalledTimes(2);
+    expect(chatCompletion.mock.calls[1][0].systemPrompt).toContain('FINAL CHECK');
+    expect(result.content).toContain('The client confirmed the date.');
+    expect(result.content).not.toContain('Speaker A');
+    expect(result.inputTokens).toBeGreaterThanOrEqual(20);
+  });
+
+  it('holds a note that still fails after regeneration, rather than releasing it', async () => {
+    const leaked = {
+      content: '**MATTERS DISCUSSED**\n\nThe document appears to have ended cleanly.\n\nThis note may be subject to legal professional privilege.',
+      inputTokens: 10, outputTokens: 20, cost: 0.001, stopReason: 'end_turn',
+    };
+    const chatCompletion = vi.fn().mockResolvedValue(leaked);
+
+    await expect(new DocumentService({ chatCompletion }).generateAttendanceNote('Transcript.', metadata))
+      .rejects.toThrow(/has not been released/);
+    expect(chatCompletion).toHaveBeenCalledTimes(2);
+  });
+
   it('discards a continuation response that is meta-commentary instead of document content', async () => {
     const chatCompletion = vi
       .fn()

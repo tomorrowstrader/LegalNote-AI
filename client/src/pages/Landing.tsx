@@ -2458,7 +2458,7 @@ export default function Landing() {
             transition={{ duration: 0.5 }}
           >
             <p className="text-lg text-[hsl(25,20%,40%)] dark:text-[hsl(30,15%,70%)] max-w-xl mx-auto mb-6" style={{ fontFamily: "'Lora', Georgia, serif" }}>
-              Choose the plan that fits your practice. 14-day professional evaluation included.
+              Choose the plan that fits your practice. 10-day professional evaluation included.
             </p>
             
             {/* Billing Period Tabs - pill style with background */}

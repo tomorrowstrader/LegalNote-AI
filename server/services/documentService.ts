@@ -26,6 +26,7 @@ import {
 import { normalizeAttendanceSectionLabels } from '@shared/attendanceNoteFormat';
 import { enrichContentWithGapEvidence, suppressStatedReasoningGaps } from '@shared/reasoningGapEvidence';
 import { insertPaymentSafetySection, resolvePaymentSafetyNotice } from '@shared/paymentSafety';
+import { findReleaseBlockers } from "./documentGovernanceGate";
 
 /**
  * Post-process document content to ensure known section headings are bold.
@@ -651,6 +652,8 @@ export function looksLikeTruncatedDocumentBody(content: string): boolean {
  * complete, or reasoning about what the "correct output" should be). That reasoning
  * must never be appended to the document.
  */
+const RELEASE_CORRECTION_INSTRUCTION = `FINAL CHECK: your output is the finished document and nothing else. Never comment on the document or on how it was prepared. Never write speaker labels such as "Speaker A": use the person's name or role where the meeting establishes it, and otherwise "another attendee". Never write page numbers or page markers.`;
+
 const CONTINUATION_META_COMMENTARY_PATTERNS = [
   /no continuation (?:is |was )?(?:required|needed)/i,
   /does not require (?:a |any )?continuation/i,
@@ -660,6 +663,8 @@ const CONTINUATION_META_COMMENTARY_PATTERNS = [
   /the correct output is/i,
   /is a duplicate and should be (?:deleted|removed)/i,
   /the only anomaly/i,
+  /\bdocument appears to have (?:ended|ceased)/i,
+  /\bappears to have ended cleanly\b/i,
 ];
 
 export function isContinuationMetaCommentary(continuation: string): boolean {
@@ -1406,7 +1411,44 @@ List each distinct defect once. Never repeat a statement. Never restate the same
     return process.env.BEDROCK_PRIVILEGED_MODEL_ID ?? 'bedrock';
   }
 
+  /**
+   * Nothing leaves here with leaked model commentary, speaker labels or page markers.
+   * A failing draft is regenerated once without telling the solicitor. If that fails
+   * too, the note is held by failing the job, so no broken version is ever shown.
+   */
   private async generateDocument(
+    systemPrompt: string,
+    userPrompt: string,
+    revision?: DocumentRevisionContext,
+  ): Promise<DocumentGenerationResult> {
+    const first = await this.generateDocumentOnce(systemPrompt, userPrompt, revision);
+    const firstBlockers = findReleaseBlockers(first.content);
+    if (firstBlockers.length === 0) return first;
+
+    console.warn(
+      `[DOCUMENT_GOVERNANCE] Regenerating before release: ${Array.from(new Set(firstBlockers.map((b) => b.type))).join(', ')}`,
+    );
+    const second = await this.generateDocumentOnce(
+      `${systemPrompt}\n\n${RELEASE_CORRECTION_INSTRUCTION}`,
+      userPrompt,
+      revision,
+    );
+    const secondBlockers = findReleaseBlockers(second.content);
+    if (secondBlockers.length > 0) {
+      console.error(
+        `[DOCUMENT_GOVERNANCE_HELD] Note held after regeneration: ${Array.from(new Set(secondBlockers.map((b) => b.type))).join(', ')}`,
+      );
+      throw new Error('This note needs more time and has not been released. Please retry processing.');
+    }
+    return {
+      content: second.content,
+      inputTokens: first.inputTokens + second.inputTokens,
+      outputTokens: first.outputTokens + second.outputTokens,
+      cost: first.cost + second.cost,
+    };
+  }
+
+  private async generateDocumentOnce(
     systemPrompt: string,
     userPrompt: string,
     revision?: DocumentRevisionContext,
