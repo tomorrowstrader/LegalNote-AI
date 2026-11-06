@@ -2,6 +2,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Shield, LogOut } from "lucide-react";
+import { signOut } from "@/lib/authSession";
 
 export default function AccessPending() {
   const { user } = useAuth();
@@ -32,7 +33,7 @@ export default function AccessPending() {
           </div>
           <Button
             variant="outline"
-            onClick={() => { window.location.href = "/api/logout"; }}
+            onClick={signOut}
             data-testid="button-sign-out-access-pending"
           >
             <LogOut className="h-4 w-4 mr-2" />

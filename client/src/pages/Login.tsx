@@ -7,6 +7,8 @@ import { SiGoogle } from "react-icons/si";
 import { FaMicrosoft } from "react-icons/fa";
 import Logo from "@/components/Logo";
 import { useAuth } from "@/hooks/useAuth";
+import { clearSignedInMarker } from "@/lib/authSession";
+import { SESSION_EXPIRED_REASON } from "@shared/signedInRoutes";
 
 function isSafeReturnTo(path: string | null): path is string {
   if (!path) return false;
@@ -28,6 +30,13 @@ export default function Login() {
   const returnTo = urlParams.get("returnTo");
   const authProvider = urlParams.get("authProvider");
   const authError = urlParams.get("error");
+  const sessionExpired = urlParams.get("reason") === SESSION_EXPIRED_REASON;
+
+  // The timeout has been explained; a later visit to the public home page
+  // should show it normally rather than bouncing back here.
+  useEffect(() => {
+    if (sessionExpired) clearSignedInMarker();
+  }, [sessionExpired]);
 
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
@@ -149,6 +158,20 @@ export default function Login() {
               Sign in to access your cases and documents
             </p>
           </div>
+
+          {sessionExpired && !authErrorMessage && !isAuthenticated && (
+            <div
+              className="flex gap-3 rounded-md border border-border bg-muted/50 px-3 py-3"
+              role="status"
+              data-testid="notice-session-expired"
+            >
+              <Lock className="mt-0.5 h-4 w-4 shrink-0 text-[hsl(18,70%,42%)]" />
+              <p className="text-sm text-foreground">
+                For your security, you were signed out after a period of inactivity.
+                {returnTo ? " Sign in to pick up where you left off." : " Sign in to continue."}
+              </p>
+            </div>
+          )}
 
           {inviteProviderMessage && (
             <p className="text-sm text-muted-foreground" data-testid="text-invite-auth-provider">

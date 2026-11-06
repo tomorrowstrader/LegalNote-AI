@@ -36,6 +36,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useQuery } from "@tanstack/react-query";
 import { applyTheme, getStoredTheme, type AppTheme } from "@/lib/theme";
+import { signOut } from "@/lib/authSession";
 
 interface MobileBottomNavProps {
   onRestartTour: () => void;
@@ -345,7 +346,7 @@ export default function MobileBottomNav({ onRestartTour }: MobileBottomNavProps)
               variant="ghost"
               className="justify-start gap-3 px-3 py-3 h-auto min-h-[44px] text-destructive hover:text-destructive"
               onClick={() => {
-                window.location.href = "/api/logout";
+                signOut();
               }}
               data-testid="mobile-more-logout"
             >

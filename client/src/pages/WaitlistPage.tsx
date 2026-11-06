@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Sparkles, Clock, CheckCircle, Mail, ArrowRight } from "lucide-react";
+import { signOut } from "@/lib/authSession";
 
 export default function WaitlistPage() {
   const [, setLocation] = useLocation();
@@ -32,7 +33,7 @@ export default function WaitlistPage() {
   }
 
   const handleLogout = () => {
-    window.location.href = "/api/logout";
+    signOut();
   };
 
   return (

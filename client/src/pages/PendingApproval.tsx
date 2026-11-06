@@ -2,6 +2,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Clock, LogOut } from "lucide-react";
+import { signOut } from "@/lib/authSession";
 
 export default function PendingApproval() {
   const { user } = useAuth();
@@ -31,7 +32,7 @@ export default function PendingApproval() {
           </div>
           <Button
             variant="outline"
-            onClick={() => { window.location.href = "/api/logout"; }}
+            onClick={signOut}
             data-testid="button-sign-out-pending"
           >
             <LogOut className="h-4 w-4 mr-2" />
