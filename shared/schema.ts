@@ -567,6 +567,8 @@ export const securityIncidents = pgTable("security_incidents", {
 
 export const firmProfile = pgTable("firm_profile", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  /** Owning firm. One profile per firm; rows with no firm are never read (see firmProfileScopeMigration). */
+  firmId: varchar("firm_id").references(() => firms.id).unique(),
   firmName: text("firm_name").notNull(),
   logoUrl: text("logo_url"), // URL to logo in object storage
   addressLine1: text("address_line_1"),
@@ -1204,7 +1206,13 @@ export const insertSecurityIncidentSchema = createInsertSchema(securityIncidents
 
 export const insertFirmProfileSchema = createInsertSchema(firmProfile).omit({
   id: true,
+  // Set by the server from the signed-in user's firm, never from the request body
+  firmId: true,
   updatedAt: true,
+  // Only POST /api/firm/compliance-code may set these (it checks the current code first)
+  complianceCodeHash: true,
+  complianceCodeSetAt: true,
+  complianceCodeSetBy: true,
 }).extend({
   firmName: z.string().min(1).max(200).transform(sanitizeString),
   // Relative proxy URLs (e.g. /api/firm-profile/logo/serve?key=...) or absolute https URLs
