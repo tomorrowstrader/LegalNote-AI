@@ -4,6 +4,8 @@ import {
   attendanceNoteToPlain,
   keepPlaceableProposals,
   noteRoleError,
+  readNoteRole,
+  roleOpeningSentence,
   proposeNameReplacements,
   resolvePassage,
   type NoteRole,
@@ -184,5 +186,62 @@ describe("who this note is about", () => {
     expect(kept.some((proposal) => proposal.original === "I advised" && proposal.replacement === "Jordan Lee advised")).toBe(true);
     expect(kept.some((proposal) => proposal.reason === "Prospective client")).toBe(false);
     expect(kept.find((proposal) => proposal.original.startsWith("Client Name:"))?.replacement).toBe("Client Name: Alex Morgan");
+  });
+});
+
+describe("reading back who a note is about", () => {
+  it("returns nothing for a note that has not been corrected", () => {
+    expect(readNoteRole("**Client Name:** Not specified\n\nThe client attended.")).toEqual({});
+  });
+
+  it("reads the choices back from a note the role correction was applied to", () => {
+    const role: NoteRole = {
+      clientName: "Alex Morgan",
+      instructionsTaken: false,
+      clientPresent: false,
+      representativeName: "Sam Reid",
+      adviserIsFeeEarner: false,
+      adviserName: "Jordan Lee",
+      attendees: "Pat Kerr",
+    };
+    const corrected = `**Client Name:** Alex Morgan (prospective client)
+
+**MATTERS DISCUSSED**
+
+**What was discussed:**
+
+${roleOpeningSentence(role)} The prospective client instructed that a claim be brought.`;
+    expect(readNoteRole(corrected)).toEqual(role);
+  });
+
+  it("treats the header suffix alone as instructions not taken", () => {
+    expect(readNoteRole("**Client Name:** Alex Morgan (prospective client)")).toEqual({
+      clientName: "Alex Morgan",
+      instructionsTaken: false,
+    });
+  });
+});
+
+describe("prospective client wording on a long note", () => {
+  it("changes every mention, past the old cap of 40", () => {
+    const body = Array.from({ length: 120 }, (_, i) => `The client confirmed point ${i}.`).join(" ");
+    const plain = attendanceNoteToPlain(`**What was discussed:**\n\n${body}`);
+    const { kept } = assembleRoleProposals(plain, { ...prospectiveRole, clientPresent: true, representativeName: "" }, []);
+    expect(kept.filter((proposal) => proposal.reason === "Prospective client")).toHaveLength(120);
+  });
+
+  it("rewrites the client inside a sentence the model replaced", () => {
+    const plain = attendanceNoteToPlain(draftedNote);
+    const { kept } = assembleRoleProposals(plain, prospectiveRole, [
+      {
+        original: "The client instructed that a claim be brought.",
+        replacement: "Sam Reid said the client wants a claim brought, and the client's partner agreed.",
+        reason: "Account",
+      },
+    ]);
+    const sentence = kept.find((proposal) => proposal.reason === "Account");
+    expect(sentence?.replacement).toBe(
+      "Sam Reid said the prospective client wants a claim brought, and the prospective client's partner agreed.",
+    );
   });
 });

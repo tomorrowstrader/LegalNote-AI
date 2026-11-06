@@ -333,6 +333,53 @@ export function roleOpeningSentence(role: NoteRole): string {
   return parts.join(" ");
 }
 
+/**
+ * What an existing note already says about who it is about, read back from
+ * the header and the opening line that roleOpeningSentence writes. Fields the
+ * note does not state are left out, so the caller keeps its own default.
+ */
+export function readNoteRole(markdown: string | null | undefined): Partial<NoteRole> {
+  if (!markdown) return {};
+  const plain = attendanceNoteToPlain(markdown)
+    .replace(/<del\b[^>]*>[\s\S]*?<\/del>/gi, "")
+    .replace(/<\/?ins\b[^>]*>/gi, "");
+  const found: Partial<NoteRole> = {};
+  const name = "([^.\n]{1,200}?)";
+
+  const header = plain.match(/^Client Name:[ \t]*(.+)$/im);
+  if (header) {
+    const value = header[1].trim();
+    const bare = value.replace(/\s*\(prospective client\)\s*$/i, "").trim();
+    if (bare && !/^not specified$/i.test(bare)) found.clientName = bare;
+    if (/\(prospective client\)\s*$/i.test(value)) found.instructionsTaken = false;
+  }
+
+  const prospective = plain.match(new RegExp(`${name} is the prospective client\\. Instructions have not been taken\\.`));
+  if (prospective) {
+    found.clientName = prospective[1].trim();
+    found.instructionsTaken = false;
+  }
+
+  const absent = plain.match(new RegExp(`${name} was not present\\.`));
+  if (absent) {
+    found.clientPresent = false;
+    found.clientName = found.clientName ?? absent[1].trim();
+    const representative = plain.match(new RegExp(`${name} attended and spoke on behalf of `));
+    if (representative) found.representativeName = representative[1].trim();
+  }
+
+  const adviser = plain.match(new RegExp(`${name} gave the advice\\.`));
+  if (adviser) {
+    found.adviserIsFeeEarner = false;
+    found.adviserName = adviser[1].trim();
+  }
+
+  const attendees = plain.match(/Also present: ([^\n]{1,500}?)\.(?=\s|$)/);
+  if (attendees) found.attendees = attendees[1].trim();
+
+  return found;
+}
+
 const ROLE_SECTION_MARKERS = [/What was discussed:/i, /Key Points:/i, /MATTERS DISCUSSED/i];
 
 /** The first sentence of the discussion, used as the anchor for the opening line. */
@@ -413,6 +460,22 @@ function proposeRolePhrases(plain: string, role: NoteRole): NoteProposal[] {
   return phrases.sort((a, b) => b.original.length - a.original.length);
 }
 
+/** Long notes can say "the client" well over a hundred times; every one must change. */
+const MAX_ROLE_PHRASES = 500;
+
+/** The role-word replacements applied to a piece of text directly. */
+export function applyRolePhrases(text: string, role: NoteRole): string {
+  let result = text;
+  for (let pass = 0; pass < MAX_ROLE_PHRASES; pass++) {
+    const phrase = proposeRolePhrases(result, role)[0];
+    if (!phrase) break;
+    const span = findFlexibleSpan(result, phrase.original);
+    if (!span) break;
+    result = `${result.slice(0, span.start)}${phrase.replacement}${result.slice(span.end)}`;
+  }
+  return result;
+}
+
 function headerClientProposal(plain: string, role: NoteRole): NoteProposal | null {
   const client = role.clientName.trim();
   if (!client) return null;
@@ -471,11 +534,16 @@ export function assembleRoleProposals(
     const span = findFlexibleSpan(plain, sentence.original);
     if (span) occupied.push(span);
   }
-  const kept: NoteProposal[] = [...sentences];
+  // The model is told to leave "the client" alone, so a sentence it rewrites
+  // would otherwise keep "the client" and hide that wording from the phrase pass.
+  const kept: NoteProposal[] = sentences.map((sentence) => ({
+    ...sentence,
+    replacement: applyRolePhrases(sentence.replacement, role),
+  }));
 
   let phraseCount = 0;
   for (const phrase of proposeRolePhrases(plain, role)) {
-    if (phraseCount >= 40) break;
+    if (phraseCount >= MAX_ROLE_PHRASES) break;
     const span = firstFreeSpan(plain, phrase.original, occupied);
     if (!span) continue;
     occupied.push(span);

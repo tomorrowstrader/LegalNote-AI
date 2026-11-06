@@ -11,6 +11,7 @@ import { Markdown } from 'tiptap-markdown';
 import { FileText } from "lucide-react";
 import { enrichGapCitationChips, hydrateReasoningGapAnchorsInHtml } from "@/lib/reasoningGapAnchors";
 import { isEditorHtml, repairNameAutolinks } from "@shared/editorHtml";
+import { isWholePiece, planPages, type PlanBlock, type PlanPiece, type PlanUnit } from "@shared/pageBreakPlan";
 
 // A4 layout constants matching the editor (Word/Docs 1" margins @ 96dpi)
 const PAGE_W    = 794;   // A4 width in px
@@ -125,6 +126,145 @@ interface PageViewProps {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Page breaks: measure each block so a long paragraph or list can carry on
+// over the page break, and a short bold heading moves with the text under it.
+// ---------------------------------------------------------------------------
+
+/** A short paragraph that is all bold, or a real heading. */
+function isKeepWithNext(el: HTMLElement): boolean {
+  if (/^H[1-6]$/.test(el.tagName)) return true;
+  if (el.tagName !== 'P') return false;
+  const text = (el.textContent ?? '').trim();
+  if (!text || text.length > 160) return false;
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (!node.textContent?.trim()) continue;
+    if (!node.parentElement?.closest('strong, b')) return false;
+  }
+  return true;
+}
+
+interface LineStart {
+  node: Text;
+  offset: number;
+  top: number;
+  bottom: number;
+}
+
+/** The first visible character of each rendered line in a paragraph. */
+function measureLines(block: HTMLElement): LineStart[] {
+  const lines: LineStart[] = [];
+  const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+  const range = document.createRange();
+  for (let node = walker.nextNode() as Text | null; node; node = walker.nextNode() as Text | null) {
+    const text = node.data;
+    for (let i = 0; i < text.length; i++) {
+      if (/\s/.test(text[i])) continue;
+      range.setStart(node, i);
+      range.setEnd(node, i + 1);
+      const rect = range.getClientRects()[0];
+      if (!rect || rect.height === 0) continue;
+      const last = lines[lines.length - 1];
+      if (!last || rect.top >= last.bottom - 1) {
+        lines.push({ node, offset: i, top: rect.top, bottom: rect.bottom });
+      } else {
+        last.bottom = Math.max(last.bottom, rect.bottom);
+      }
+    }
+  }
+  return lines;
+}
+
+interface MeasuredBlock {
+  plan: PlanBlock;
+  pieceHtml: (piece: PlanPiece) => string;
+}
+
+function measureBlock(block: HTMLElement): MeasuredBlock {
+  const style = getComputedStyle(block);
+  const marginTop = parseFloat(style.marginTop) || 0;
+  const marginBot = parseFloat(style.marginBottom) || 0;
+  const top = block.offsetTop - marginTop;
+  const end = block.offsetTop + block.offsetHeight + marginBot;
+  const whole = () => block.outerHTML;
+  const toDocY = (clientY: number) => block.offsetTop + (clientY - block.getBoundingClientRect().top);
+
+  /** Units between boundaries: unit k runs from boundary k to boundary k+1. */
+  const unitsFrom = (boundaries: number[]): PlanUnit[] =>
+    boundaries.map((boundary, k) => ({ top: boundary, bottom: k + 1 < boundaries.length ? boundaries[k + 1] : end }));
+
+  const shellFor = (from: number, to: number, count: number) => {
+    const shell = block.cloneNode(false) as HTMLElement;
+    if (from > 0) shell.style.marginTop = '0';
+    if (to < count) {
+      shell.style.marginBottom = '0';
+      // A justified paragraph keeps its last line before the break justified (index.css).
+      shell.classList.add('page-split-continues');
+    }
+    return shell;
+  };
+
+  if (block.tagName === 'P') {
+    let lines: LineStart[] = [];
+    return {
+      plan: {
+        top,
+        end,
+        keepWithNext: isKeepWithNext(block),
+        minEdge: 2,
+        units: () => {
+          lines = measureLines(block);
+          if (lines.length < 2) return [];
+          return unitsFrom(lines.map((line, k) =>
+            k === 0 ? top : toDocY((lines[k - 1].bottom + line.top) / 2),
+          ));
+        },
+      },
+      pieceHtml: (piece) => {
+        if (isWholePiece(piece) || lines.length < 2) return whole();
+        const range = document.createRange();
+        if (piece.from === 0) range.setStart(block, 0);
+        else range.setStart(lines[piece.from].node, lines[piece.from].offset);
+        if (piece.to >= lines.length) range.setEnd(block, block.childNodes.length);
+        else range.setEnd(lines[piece.to].node, lines[piece.to].offset);
+        const shell = shellFor(piece.from, piece.to, lines.length);
+        shell.appendChild(range.cloneContents());
+        return shell.outerHTML;
+      },
+    };
+  }
+
+  if (block.tagName === 'UL' || block.tagName === 'OL') {
+    const items = Array.from(block.children).filter((child): child is HTMLElement => child instanceof HTMLElement);
+    return {
+      plan: {
+        top,
+        end,
+        minEdge: 1,
+        units: () => items.length < 2
+          ? []
+          : unitsFrom(items.map((item, k) => (k === 0 ? top : toDocY(item.getBoundingClientRect().top)))),
+      },
+      pieceHtml: (piece) => {
+        if (isWholePiece(piece) || items.length < 2) return whole();
+        const shell = shellFor(piece.from, piece.to, items.length);
+        if (block.tagName === 'OL' && piece.from > 0) {
+          const first = parseInt(block.getAttribute('start') ?? '1', 10) || 1;
+          shell.setAttribute('start', String(first + piece.from));
+        }
+        for (const item of items.slice(piece.from, piece.to)) shell.appendChild(item.cloneNode(true));
+        return shell.outerHTML;
+      },
+    };
+  }
+
+  return {
+    plan: { top, end, keepWithNext: isKeepWithNext(block) },
+    pieceHtml: whole,
+  };
+}
+
 interface Page {
   blocks: string[];
   pageNumber: number;
@@ -199,43 +339,13 @@ export function PageView({ content, gapAnchorLabels }: PageViewProps) {
     );
     if (topLevelBlocks.length === 0) return;
 
-    const result: Page[] = [];
-    let currentBlocks: string[] = [];
-    // Y origin (in measure-doc coordinates) of the first block on the current page.
-    // Using offsetTop deltas respects CSS margin collapse; adding marginTop+marginBot
-    // per block double-counts collapsed gaps and triggers early breaks.
-    let pageStartY = 0;
-    let pageNumber = 1;
-    let pageHasBlocks = false;
-
-    for (const block of topLevelBlocks) {
-      const style = getComputedStyle(block);
-      const marginTop = parseFloat(style.marginTop) || 0;
-      const marginBot = parseFloat(style.marginBottom) || 0;
-      const blockEndY = block.offsetTop + block.offsetHeight + marginBot;
-      const html = hydrateReasoningGapAnchorsInHtml(block.outerHTML, gapAnchorLabels);
-
-      if (!pageHasBlocks) {
-        pageStartY = block.offsetTop - marginTop;
-        currentBlocks = [html];
-        pageHasBlocks = true;
-        continue;
-      }
-
-      const usedHeight = blockEndY - pageStartY;
-      if (usedHeight > CONTENT_H) {
-        result.push({ blocks: [...currentBlocks], pageNumber });
-        pageNumber++;
-        pageStartY = block.offsetTop - marginTop;
-        currentBlocks = [html];
-      } else {
-        currentBlocks.push(html);
-      }
-    }
-
-    if (currentBlocks.length > 0) {
-      result.push({ blocks: currentBlocks, pageNumber });
-    }
+    const gapHtml = (html: string) => hydrateReasoningGapAnchorsInHtml(html, gapAnchorLabels);
+    const measured = topLevelBlocks.map(measureBlock);
+    const plan = planPages(measured.map((entry) => entry.plan), CONTENT_H);
+    const result: Page[] = plan.map((pieces, index) => ({
+      pageNumber: index + 1,
+      blocks: pieces.map((piece) => gapHtml(measured[piece.block].pieceHtml(piece))),
+    }));
 
     setPages(result.length > 0 ? result : [{ blocks: topLevelBlocks.map(b => hydrateReasoningGapAnchorsInHtml(b.outerHTML, gapAnchorLabels)), pageNumber: 1 }]);
     setComputing(false);

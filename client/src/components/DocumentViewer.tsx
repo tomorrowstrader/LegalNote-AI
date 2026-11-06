@@ -49,7 +49,7 @@ import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 import { RichTextEditor, type SeededReplacement, type TrackedChange, type TrackChangeAuditRecord } from "@/components/RichTextEditor";
 import { NoteCorrectionPanel, type CorrectionProposal } from "@/components/NoteCorrectionPanel";
-import { attendanceNoteToPlain, resolvePassage } from "@shared/noteCorrections";
+import { attendanceNoteToPlain, resolvePassage, type NoteRole } from "@shared/noteCorrections";
 import { PageView } from "@/components/PageView";
 import DiarizedTranscriptViewer, { type SpeakerUtterance, type Redaction } from "@/components/DiarizedTranscriptViewer";
 import {
@@ -1973,6 +1973,7 @@ export default function DocumentViewer({
   
   const [trackChangesEnabled, setTrackChangesEnabled] = useState(false);
   const [correctionTarget, setCorrectionTarget] = useState<{ documentId: string; selectedText: string } | null>(null);
+  const [lastRoleByDocument, setLastRoleByDocument] = useState<Record<string, NoteRole>>({});
   const [selectionOffer, setSelectionOffer] = useState<{ documentId: string; text: string; top: number; left: number } | null>(null);
   const [selectionInstruction, setSelectionInstruction] = useState("");
   const [selectionPending, setSelectionPending] = useState(false);
@@ -4275,8 +4276,13 @@ export default function DocumentViewer({
                   documentId={attendanceNote.id}
                   selectedText={correctionTarget.selectedText}
                   instructionsAlreadyTaken={!isClientMatter || instructionStatus === "instructed"}
+                  noteContent={attendanceNote.content}
+                  lastRole={lastRoleByDocument[attendanceNote.id]}
                   onClose={() => setCorrectionTarget(null)}
-                  onProposed={(proposals, unplacedCount) => beginCorrection(attendanceNote, proposals, unplacedCount)}
+                  onProposed={(proposals, unplacedCount, role) => {
+                    if (role) setLastRoleByDocument((current) => ({ ...current, [attendanceNote.id]: role }));
+                    beginCorrection(attendanceNote, proposals, unplacedCount);
+                  }}
                 />
               )}
               {coerceVerificationWarnings(attendanceNote?.verificationWarnings).length > 0 && attendanceNote && (
@@ -4531,8 +4537,13 @@ export default function DocumentViewer({
                   documentId={summary.id}
                   selectedText={correctionTarget.selectedText}
                   instructionsAlreadyTaken={!isClientMatter || instructionStatus === "instructed"}
+                  noteContent={summary.content}
+                  lastRole={lastRoleByDocument[summary.id]}
                   onClose={() => setCorrectionTarget(null)}
-                  onProposed={(proposals, unplacedCount) => beginCorrection(summary, proposals, unplacedCount)}
+                  onProposed={(proposals, unplacedCount, role) => {
+                    if (role) setLastRoleByDocument((current) => ({ ...current, [summary.id]: role }));
+                    beginCorrection(summary, proposals, unplacedCount);
+                  }}
                 />
               )}
               {coerceVerificationWarnings(summary?.verificationWarnings).length > 0 && summary && (
