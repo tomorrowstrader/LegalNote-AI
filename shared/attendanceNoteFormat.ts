@@ -19,6 +19,16 @@ function escapeRegExp(value: string): string {
 
 const LABEL_ALTERNATION = ATTENDANCE_SECTION_LABELS.map(escapeRegExp).join('|');
 
+/** Labels that keep their value on the same line, e.g. "Next appointment: 24 March". */
+export const ATTENDANCE_INLINE_LABELS = [
+  'Next appointment:',
+  'Time Engaged:',
+  'Prepared by:',
+  'Date Prepared:',
+] as const;
+
+const INLINE_LABEL_ALTERNATION = ATTENDANCE_INLINE_LABELS.map(escapeRegExp).join('|');
+
 /** Find the start of the MATTERS DISCUSSED body (bold or plain heading). */
 export function findAttendanceMattersBodyIndex(content: string): number {
   if (!content) return -1;
@@ -134,6 +144,17 @@ export function normalizeAttendanceSectionLabels(body: string): string {
   result = result.replace(
     /^([ \t]*\*\*\d+\.\s+[A-Z][A-Z0-9 ,/'&()\u2014\u2013-]{2,}\*\*)[ \t]*\n(?!\n)/gm,
     '$1\n\n',
+  );
+
+  // Inline labels whose value stays on the same line: bold the label only.
+  result = result.replace(
+    new RegExp(`^([ \\t]*)(?:\\*\\*)?(${INLINE_LABEL_ALTERNATION})(?:\\*\\*)?[ \\t]*(.*)$`, 'gim'),
+    (_match, indent: string, label: string, rawValue: string) => {
+      // "**Next appointment: 24 March**" leaves a stray closing marker on the value.
+      const markers = rawValue.match(/\*\*/g)?.length ?? 0;
+      const value = (markers % 2 === 1 ? rawValue.replace(/\*\*\s*$/, '') : rawValue).trim();
+      return value ? `${indent}**${label}** ${value}` : `${indent}**${label}**`;
+    },
   );
 
   return result.replace(/\n{3,}/g, '\n\n');

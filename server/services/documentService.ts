@@ -477,7 +477,7 @@ function extractAuthoritativeNamesFromDocument(document: string): {
     document.match(/^\*\*Client Name:\*\*\s+(.+)$/m) ??
     document.match(/^\*\*CLIENT:\*\*\s+(.+)$/m) ??
     document.match(/^\*\*Client:\*\*\s+(.+)$/m);
-  const preparedMatch = document.match(/^Prepared by:\s*(.+)$/m);
+  const preparedMatch = document.match(/^(?:\*\*)?Prepared by:(?:\*\*)?\s*(.+)$/m);
   return {
     clientName: clientMatch?.[1]?.trim(),
     feeEarnerName: preparedMatch?.[1]?.trim(),
@@ -542,13 +542,13 @@ ${metadataBlock}
 function buildAttendanceNoteFooter(metadata: CaseMetadata, prefs: Required<FirmPreferences>): string {
   let footer = '';
   if (metadata.durationDisplay) {
-    footer += `\n\nTime Engaged: ${metadata.durationDisplay}\n`;
+    footer += `\n\n**Time Engaged:** ${metadata.durationDisplay}\n`;
   }
 
   footer += `\nThis attendance note is subject to legal professional privilege.
 
-Prepared by: ${metadata.feeEarnerDisplayName ?? 'Not specified'}
-Date Prepared: ${metadata.datePrepared ?? metadata.recordingDate}`;
+**Prepared by:** ${metadata.feeEarnerDisplayName ?? 'Not specified'}
+**Date Prepared:** ${metadata.datePrepared ?? metadata.recordingDate}`;
 
   if (prefs.includeClientConfirmation) {
     footer += `\n\n**CLIENT CONFIRMATION**
@@ -565,9 +565,9 @@ Date: ________________`;
 
 function stripTrailingAttendanceFooter(body: string): string {
   const footerPatterns = [
-    /\nTime Engaged:/i,
-    /\nDate prepared:/i,
-    /\nPrepared by:/i,
+    /\n(?:\*\*)?Time Engaged:/i,
+    /\n(?:\*\*)?Date prepared:/i,
+    /\n(?:\*\*)?Prepared by:/i,
     /\nlegal professional privilege/i,
     /\nThis attendance note is subject to legal professional privilege/i,
     /\nYours sincerely[,]?/i,
@@ -1592,8 +1592,8 @@ Client:
 
 This telephone attendance note is subject to legal professional privilege.
 
-Prepared by: ${preparedBy}
-Date Prepared: ${metadata.recordingDate}
+**Prepared by:** ${preparedBy}
+**Date Prepared:** ${metadata.recordingDate}
 
 FORMATTING: Use **bold** for headings. Keep the entire note to approximately half a page. Be factual and concise.`;
 
@@ -1788,8 +1788,8 @@ Next hearing: [Date if scheduled, or "To be listed"]
 
 This court attendance note is subject to legal professional privilege.
 
-Prepared by: ${preparedBy}
-Date Prepared: ${metadata.recordingDate}
+**Prepared by:** ${preparedBy}
+**Date Prepared:** ${metadata.recordingDate}
 
 FORMATTING: Use **bold** for all section headings. Be thorough but concise.`;
 
@@ -1881,8 +1881,8 @@ Client:
 
 This police station attendance record is subject to legal professional privilege.
 
-Prepared by: ${preparedBy}
-Date Prepared: ${metadata.recordingDate}
+**Prepared by:** ${preparedBy}
+**Date Prepared:** ${metadata.recordingDate}
 
 FORMATTING: Use **bold** for all section headings. Be thorough and PACE-compliant.`;
 

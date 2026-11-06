@@ -9,7 +9,7 @@ import { MeetingCastFields } from "@/components/MeetingCastFields";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { emptyMeetingCast, type MeetingCast } from "@shared/meetingCast";
-import { noteRoleError, type NoteRole } from "@shared/noteCorrections";
+import { noteRoleError, readNoteRole, type NoteRole } from "@shared/noteCorrections";
 
 export interface CorrectionProposal {
   id: string;
@@ -27,8 +27,12 @@ interface NoteCorrectionPanelProps {
   selectedText: string;
   /** True when the matter is already instructed. An enquiry opens unticked. */
   instructionsAlreadyTaken?: boolean;
+  /** The note as it stands, so the panel opens with what it already says about who it is about. */
+  noteContent?: string;
+  /** What was last asked for on this note in this session; wins over what the note says. */
+  lastRole?: NoteRole;
   onClose: () => void;
-  onProposed: (proposals: CorrectionProposal[], unplacedCount: number) => void;
+  onProposed: (proposals: CorrectionProposal[], unplacedCount: number, role?: NoteRole) => void;
 }
 
 export function NoteCorrectionPanel({
@@ -36,6 +40,8 @@ export function NoteCorrectionPanel({
   documentId,
   selectedText,
   instructionsAlreadyTaken = false,
+  noteContent,
+  lastRole,
   onClose,
   onProposed,
 }: NoteCorrectionPanelProps) {
@@ -44,8 +50,21 @@ export function NoteCorrectionPanel({
   const [instruction, setInstruction] = useState("");
   const [find, setFind] = useState("");
   const [replaceWith, setReplaceWith] = useState("");
-  const [instructionsTaken, setInstructionsTaken] = useState(instructionsAlreadyTaken);
-  const [cast, setCast] = useState<MeetingCast>(emptyMeetingCast);
+  const [startingRole] = useState<Partial<NoteRole>>(() => lastRole ?? readNoteRole(noteContent));
+  const [instructionsTaken, setInstructionsTaken] = useState(
+    startingRole.instructionsTaken ?? instructionsAlreadyTaken,
+  );
+  const [cast, setCast] = useState<MeetingCast>(() => {
+    const empty = emptyMeetingCast();
+    return {
+      clientName: startingRole.clientName ?? empty.clientName,
+      clientPresent: startingRole.clientPresent ?? empty.clientPresent,
+      representativeName: startingRole.representativeName ?? empty.representativeName,
+      adviserIsFeeEarner: startingRole.adviserIsFeeEarner ?? empty.adviserIsFeeEarner,
+      adviserName: startingRole.adviserName ?? empty.adviserName,
+      attendees: startingRole.attendees ?? empty.attendees,
+    };
+  });
   const [pending, setPending] = useState(false);
 
   const role: NoteRole = {
@@ -89,7 +108,7 @@ export function NoteCorrectionPanel({
         });
         return;
       }
-      onProposed(result.proposals, result.unplacedCount);
+      onProposed(result.proposals, result.unplacedCount, mode === "role" ? role : undefined);
     } catch (error: any) {
       toast({
         title: "Could not propose the correction",

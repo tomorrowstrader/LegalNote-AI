@@ -128,3 +128,26 @@ Details here.`;
     expect(findLegacyAttendanceBodyStart(input)).toBe(input.indexOf('## KEY ISSUES'));
   });
 });
+
+describe('inline attendance labels', () => {
+  it('bolds Next appointment, Time Engaged, Prepared by and Date Prepared, keeping the value on the line', () => {
+    const input = [
+      '   Next appointment: This was not discussed on this occasion',
+      '',
+      'Time Engaged: 45 minutes',
+      '',
+      'Prepared by: Jen Shipley',
+      'Date Prepared: 6 November 2026',
+    ].join('\n');
+    const result = normalizeAttendanceSectionLabels(input);
+    expect(result).toContain('   **Next appointment:** This was not discussed on this occasion');
+    expect(result).toContain('**Time Engaged:** 45 minutes');
+    expect(result).toContain('**Prepared by:** Jen Shipley');
+    expect(result).toContain('**Date Prepared:** 6 November 2026');
+  });
+
+  it('leaves an already bold label alone and drops a stray closing marker', () => {
+    expect(normalizeAttendanceSectionLabels('**Prepared by:** Jen Shipley')).toBe('**Prepared by:** Jen Shipley');
+    expect(normalizeAttendanceSectionLabels('**Next appointment: 24 March 2026**')).toBe('**Next appointment:** 24 March 2026');
+  });
+});
