@@ -171,9 +171,9 @@ Reasoning behind advice and decisions:Because the facts support that course.`,
 
     const result = await service.generateAttendanceNote('Meeting text', metadata);
 
-    expect(result.content).toContain('railway.\n\n**Advice given:**\nI advised the client');
+    expect(result.content).toContain('railway.\n\n**Advice given:**\n\nI advised the client');
     expect(result.content).toContain('**Key points advised:**');
-    expect(result.content).toContain('**Reasoning behind advice and decisions:**\nBecause the facts');
+    expect(result.content).toContain('**Reasoning behind advice and decisions:**\n\nBecause the facts');
     expect(result.content).not.toMatch(/\*\*Advice given:\*\*[^\n]/);
   });
 
@@ -344,7 +344,7 @@ Reasoning behind advice and decisions:Because the facts support that course.`,
     expect(systemPrompt).toContain('£48,000 a year');
     expect(systemPrompt).toContain('YOU ARE THE FEE EARNER');
     expect(systemPrompt).toContain('READ THE CONVERSATION - WHO WAS THERE');
-    expect(systemPrompt).toContain('NO SUBSTANTIVE CONTENT - BRIEF OUTPUT ONLY');
+    expect(systemPrompt).toContain('NO SUBSTANTIVE CONTENT — BRIEF OUTPUT ONLY');
     expect(systemPrompt).toContain(
       'No substantive legal consultation took place. No attendance note can be prepared.',
     );
