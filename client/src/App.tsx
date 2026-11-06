@@ -82,6 +82,8 @@ import MeetingNotesPopout from "@/pages/MeetingNotesPopout";
 import { isFeatureVisible } from "@/lib/features";
 import { useFeatureVisibility } from "@/hooks/useFeatureVisibility";
 import { isMeetingNotesPopoutRoute } from "@/lib/meetingNotesPopout";
+import { markSignedIn, wasSignedInThisTab } from "@/lib/authSession";
+import { signInRedirectFor } from "@shared/signedInRoutes";
 import { isCalendarOAuthPopupWindow } from "@/lib/calendarOAuthBridge";
 
 const publicComplianceBadgeVisible = isFeatureVisible("publicComplianceBadge");
@@ -105,9 +107,9 @@ function SessionCheck() {
   );
 }
 
-function RedirectTo({ to }: { to: string }) {
+function RedirectTo({ to, replace = false }: { to: string; replace?: boolean }) {
   const [, setLocation] = useLocation();
-  useEffect(() => { setLocation(to); }, [setLocation, to]);
+  useEffect(() => { setLocation(to, { replace }); }, [setLocation, to, replace]);
   return null;
 }
 
@@ -140,12 +142,30 @@ function Router() {
   const isAccessPending = user?.accessAllowed === false && !isAdmin;
   const [signingIn] = useState(() => hasPostLoginFlag());
 
+  // Subscribe to navigation so the signed-out redirect below re-evaluates.
+  useLocation();
+
   useEffect(() => {
     if (!isLoading && signingIn) clearPostLoginFlag();
   }, [isLoading, signingIn]);
 
+  useEffect(() => {
+    if (isAuthenticated) markSignedIn();
+  }, [isAuthenticated]);
+
   if (isLoading && signingIn) {
     return <SessionCheck />;
+  }
+
+  // Signed out on a page that needs an account (usually an idle timeout while
+  // a case was open): go to sign in and come back here, not "page not found".
+  if (!isLoading && !isAuthenticated) {
+    const signInTarget = signInRedirectFor(
+      window.location.pathname,
+      window.location.search,
+      wasSignedInThisTab(),
+    );
+    if (signInTarget) return <RedirectTo to={signInTarget} replace />;
   }
 
   return (

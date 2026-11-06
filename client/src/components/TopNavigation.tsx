@@ -17,6 +17,7 @@ import { NotificationsPanel } from "@/components/NotificationsPanel";
 import { useAuth } from "@/hooks/useAuth";
 import AdminQuickAccess from "@/components/AdminQuickAccess";
 import { useFeatureVisibility } from "@/hooks/useFeatureVisibility";
+import { signOut } from "@/lib/authSession";
 
 interface TopNavigationProps {
   onRestartTour: () => void;
@@ -220,7 +221,7 @@ export default function TopNavigation({ onRestartTour }: TopNavigationProps) {
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem 
-                    onClick={() => window.location.href = '/api/logout'} 
+                    onClick={signOut} 
                     data-testid="menu-item-logout"
                   >
                     Log Out
