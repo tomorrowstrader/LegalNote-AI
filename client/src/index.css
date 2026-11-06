@@ -1064,6 +1064,12 @@ nav.sticky {
   text-align: justify;
 }
 
+/* Page view: a paragraph that carries on over the page break keeps the last
+   line before the break justified, as Word does. */
+.legal-document-justified .page-view-content p.page-split-continues {
+  text-align-last: justify;
+}
+
 /* Title line: bold + centred - only the first page / document start,
    not the first paragraph of every paginated page. */
 .legal-document-justified .ProseMirror > p:first-child,

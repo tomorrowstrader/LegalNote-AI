@@ -540,6 +540,9 @@ function parseMarkdownLine(line: string, defaultRunOptions: Partial<{ size: numb
   return runs.length > 0 ? runs : [new TextRun({ text: line, ...defaultRunOptions })];
 }
 
+/** Two lines of 10pt body text in the PDF export, in mm. */
+const KEEP_WITH_NEXT_MM = 10;
+
 export async function exportToPDF(content: DocumentContent) {
   content = normalizeDocumentContent(content);
   const doc = new jsPDF();
@@ -706,7 +709,8 @@ export async function exportToPDF(content: DocumentContent) {
         const text = stripInlineMarkdown(headingMatch[2]);
         const fontSize = level === 1 ? 16 : level === 2 ? 13 : 11;
         yPosition += level <= 2 ? 6 : 4;
-        checkNewPage(fontSize);
+        // Room for the heading and two lines under it, so it is not left alone at the foot.
+        checkNewPage(fontSize * 0.5 + 3 + KEEP_WITH_NEXT_MM);
         addWrappedText(text, fontSize, true);
         yPosition += 3;
         continue;
@@ -715,7 +719,7 @@ export async function exportToPDF(content: DocumentContent) {
       const allBoldMatch = line.trim().match(/^\*\*(.+)\*\*$/);
       if (allBoldMatch) {
         yPosition += 4;
-        checkNewPage(11);
+        checkNewPage(11 * 0.5 + 2 + KEEP_WITH_NEXT_MM);
         addWrappedText(stripInlineMarkdown(allBoldMatch[1]), 11, true);
         yPosition += 2;
         continue;
@@ -1371,15 +1375,19 @@ export async function exportToWord(content: DocumentContent) {
   const formatTextSection = (text: string): Paragraph[] => {
     const lines = text.split('\n');
     const paragraphs: Paragraph[] = [];
+    // A heading keeps with the next paragraph in Word; the blank line under it
+    // keeps too, or the heading would only stay with that blank line.
+    let afterHeading = false;
     
     for (const line of lines) {
       const trimmedLine = line.trim();
       
       // Empty line creates spacing
       if (!trimmedLine) {
-        paragraphs.push(new Paragraph({ text: '', spacing: { after: 100 } }));
+        paragraphs.push(new Paragraph({ text: '', spacing: { after: 100 }, keepNext: afterHeading }));
         continue;
       }
+      afterHeading = false;
       
       // Check for numbered list (1. 2. etc) - render as plain text to avoid broken Word numbering refs
       const numberedMatch = trimmedLine.match(/^(\d+)\.\s+(.+)$/);
@@ -1421,8 +1429,10 @@ export async function exportToWord(content: DocumentContent) {
           new Paragraph({
             children: [new TextRun({ text: textContent, bold: true, size: headingSize, font: 'Calibri' })],
             spacing: { before: 240, after: 120 },
+            keepNext: true,
           })
         );
+        afterHeading = true;
         continue;
       }
       
@@ -1435,8 +1445,10 @@ export async function exportToWord(content: DocumentContent) {
           new Paragraph({
             children: [new TextRun({ text: textContent, bold: true, size: 24, font: 'Calibri' })],
             spacing: { before: 240, after: 120 },
+            keepNext: true,
           })
         );
+        afterHeading = true;
       } else {
         // Regular paragraph with inline markdown - 11pt Calibri, 1.15 line spacing, 120 twips after
         paragraphs.push(
@@ -1455,6 +1467,7 @@ export async function exportToWord(content: DocumentContent) {
   const makeSectionHeading = (text: string) => new Paragraph({
     children: [new TextRun({ text, bold: true, size: 24, font: 'Calibri' })],
     spacing: { before: 360, after: 120 },
+    keepNext: true,
   });
 
   // Helper to detect if a block of text is entirely placeholder content.
