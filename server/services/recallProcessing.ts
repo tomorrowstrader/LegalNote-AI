@@ -7,6 +7,7 @@ import { ObjectStorageService } from '../objectStorage';
 import { applyObjectLegalHoldForNewRecording } from './litigationHoldObjectLockService';
 import { preserveConsentSegmentFromFullAudio } from './consentSegmentService';
 import { recallService } from './recallService';
+import { resolveBotRecordingSession } from './botRecordingSession';
 import {
   isAbandonedMeetingSubCode,
   messageForAbandonedSubCode,
@@ -231,7 +232,13 @@ export async function markAbandonedIfNeverRecorded(
  * Download the recording media URL from Recall.ai's new API format.
  * Tries /recording/?bot_id=... endpoint, falls back to bot.recordings[].
  */
-async function getRecordingUrl(botId: string): Promise<{ url: string; durationSeconds?: number; recordingId?: string } | null> {
+function parseRecallTime(value: string | null | undefined): Date | undefined {
+  if (!value) return undefined;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? undefined : d;
+}
+
+async function getRecordingUrl(botId: string): Promise<{ url: string; durationSeconds?: number; recordingId?: string; startedAt?: Date } | null> {
   const key = (process.env.RECALL_API_KEY || '')
     .replace(/^(Token|Bearer)\s+/i, '')
     .replace(/[^\x21-\x7E]/g, '')
@@ -250,6 +257,7 @@ async function getRecordingUrl(botId: string): Promise<{ url: string; durationSe
         results?: Array<{
           id: string;
           duration?: number;
+          started_at?: string | null;
           media_shortcuts?: {
             audio_only?: { data?: { download_url?: string } };
             audio_mixed?: { data?: { download_url?: string } };
@@ -263,7 +271,7 @@ async function getRecordingUrl(botId: string): Promise<{ url: string; durationSe
           rec.media_shortcuts?.audio_only?.data?.download_url
           || rec.media_shortcuts?.audio_mixed?.data?.download_url;
         if (url) {
-          return { url, durationSeconds: rec.duration, recordingId: rec.id };
+          return { url, durationSeconds: rec.duration, recordingId: rec.id, startedAt: parseRecallTime(rec.started_at) };
         }
       }
     }
@@ -277,6 +285,7 @@ async function getRecordingUrl(botId: string): Promise<{ url: string; durationSe
       const bot = await botR.json() as {
         recordings?: Array<{
           id: string;
+          started_at?: string | null;
           media_shortcuts?: {
             audio_only?: { data?: { url?: string } };
             audio_mixed?: { data?: { url?: string } };
@@ -288,7 +297,7 @@ async function getRecordingUrl(botId: string): Promise<{ url: string; durationSe
         const url =
           rec.media_shortcuts?.audio_only?.data?.url
           || rec.media_shortcuts?.audio_mixed?.data?.url;
-        if (url) return { url, recordingId: rec.id };
+        if (url) return { url, recordingId: rec.id, startedAt: parseRecallTime(rec.started_at) };
       }
     }
   } catch (err) {
@@ -301,7 +310,10 @@ async function getRecordingUrl(botId: string): Promise<{ url: string; durationSe
  * Process a completed bot recording: download, store, and trigger transcription + doc generation.
  * Safe to call multiple times - guarded by import status check.
  */
-export async function processBotRecording(importRecord: MeetingImport): Promise<void> {
+export async function processBotRecording(
+  importRecord: MeetingImport,
+  options: { sessionId?: string } = {},
+): Promise<void> {
   const { id: importId, recallBotId: botId, caseId, userId } = importRecord;
 
   if (isConsentDeclinedImport(importRecord) || isUserCancelledImport(importRecord)) {
@@ -339,6 +351,7 @@ export async function processBotRecording(importRecord: MeetingImport): Promise<
 
     // Update metadata
     const metaUpdate: Partial<MeetingImport> = { recallRecordingId: recording.recordingId, importedAt: new Date() };
+    if (recording.startedAt && !importRecord.meetingStartTime) metaUpdate.meetingStartTime = recording.startedAt;
     if (recording.durationSeconds) {
       metaUpdate.durationSeconds = recording.durationSeconds;
       const hours = recording.durationSeconds / 3600;
@@ -443,6 +456,7 @@ export async function processBotRecording(importRecord: MeetingImport): Promise<
       recallRecordingId: recording.recordingId,
       importedAt: new Date(),
     };
+    if (recording.startedAt && !fresh.meetingStartTime) metaUpdate.meetingStartTime = recording.startedAt;
     if (recording.durationSeconds) {
       metaUpdate.durationSeconds = recording.durationSeconds;
       const hours = recording.durationSeconds / 3600;
@@ -490,19 +504,59 @@ export async function processBotRecording(importRecord: MeetingImport): Promise<
   const existingForThisFile = (await storage.getAudioRecordingsByCaseId(caseId)).find(
     (r) => r.filePath === audioPath,
   );
+
+  // Each bot recording is its own session on the matter. Without this the
+  // pipeline filed the new meeting under the matter's latest existing session.
+  const latestImport = (await storage.getMeetingImport(importId)) ?? fresh;
+  let sessionId: string;
+  let meetingStart: Date;
+  try {
+    const resolved = await resolveBotRecordingSession({
+      storage,
+      importRecord: latestImport,
+      caseId,
+      userId,
+      assignedSessionId: options.sessionId,
+      linkedSessionId: existingForThisFile?.meetingSessionId,
+    });
+    sessionId = resolved.sessionId;
+    meetingStart = resolved.meetingStart;
+    if (resolved.created) {
+      await storage.createAuditLog({
+        eventType: 'meeting_session_created',
+        userId,
+        caseId,
+        ipAddress: 'server-process',
+        metadata: { importId, botId, sessionId, source: 'recall_bot' },
+        severity: 'info',
+      });
+    }
+  } catch (err: any) {
+    console.error(`[RecallProcessing] Could not create a session for import ${importId}:`, err.message);
+    await storage.updateMeetingImport(importId, {
+      status: 'failed',
+      errorMessage: `Could not add this recording as a session: ${err.message}`,
+    });
+    return;
+  }
+
   const audioRecord = existingForThisFile
     ? (await storage.updateAudioRecording(existingForThisFile.id, {
         mimeType,
         duration: fresh.durationSeconds || existingForThisFile.duration || undefined,
         expiresAt,
+        meetingSessionId: sessionId,
       })) ?? existingForThisFile
     : await storage.createAudioRecording({
         caseId,
+        meetingSessionId: sessionId,
         filePath: audioPath,
         mimeType,
         duration: fresh.durationSeconds || undefined,
         expiresAt,
       });
+  // The note is dated from the recording; use when the meeting happened, not when it was processed.
+  await storage.updateAudioRecording(audioRecord.id, { recordedAt: meetingStart });
 
   let consentSegmentPath: string | undefined;
   let consentDurationSeconds: number | undefined;
@@ -567,6 +621,8 @@ export async function processBotRecording(importRecord: MeetingImport): Promise<
     audioStoragePath: audioPath,
   });
 
+  await storage.updateMeetingSession(sessionId, { status: 'processing' });
+
   await storage.updateCase(caseId, {
     status: 'processing',
     aiProcessingMetadata: {
@@ -582,7 +638,7 @@ export async function processBotRecording(importRecord: MeetingImport): Promise<
   const { AI_PROCESSING_MAX_ATTEMPTS } = await import('./transcriptionWait');
   const jobId = await jobQueue.addJob(
     'ai-processing',
-    { caseId, userId },
+    { caseId, userId, sessionId },
     { maxAttempts: AI_PROCESSING_MAX_ATTEMPTS },
   );
   console.log(`[RecallProcessing] Enqueued AI processing job ${jobId} for import ${importId}`);

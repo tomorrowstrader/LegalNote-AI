@@ -87,6 +87,20 @@ export class AIProcessingPipeline {
         throw new Error('No audio recording found for case');
       }
 
+      // Never guess which session a recording belongs to. Falling back to the
+      // matter's latest session files a new meeting under an earlier one.
+      if (!sessionId && audio.meetingSessionId) {
+        sessionId = audio.meetingSessionId;
+      }
+      if (!sessionId) {
+        const existingSessions = await this.storage.getMeetingSessionsByCase(caseId, userId);
+        if (existingSessions.length > 0) {
+          throw new Error(
+            'This recording is not linked to a session, and the matter already has sessions. Processing stopped so it is not filed under the wrong meeting.',
+          );
+        }
+      }
+
       if (!audio.filePath) {
         throw new Error('Audio file path not found');
       }

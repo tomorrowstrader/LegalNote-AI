@@ -1,0 +1,82 @@
+import type { InsertMeetingSession, MeetingImport } from "@shared/schema";
+import { defaultRecordingTypeForMatterKind } from "@shared/recordingTypes";
+import type { IStorage } from "../storage";
+
+type SessionStorage = Pick<
+  IStorage,
+  "getCase" | "getMeetingSession" | "createMeetingSession" | "updateMeetingSession" | "getScheduledMeetingByBotId"
+>;
+
+/**
+ * When the meeting actually took place. Prefers the bot's recording start,
+ * then the scheduled meeting time, then when the bot was sent.
+ */
+export async function resolveBotMeetingStart(
+  storage: Pick<IStorage, "getScheduledMeetingByBotId">,
+  importRecord: MeetingImport,
+): Promise<Date> {
+  if (importRecord.meetingStartTime) return new Date(importRecord.meetingStartTime);
+  if (importRecord.recallBotId) {
+    try {
+      const scheduled = await storage.getScheduledMeetingByBotId(importRecord.recallBotId);
+      if (scheduled?.startTime) return new Date(scheduled.startTime);
+    } catch {
+      // Fall through to when the bot was sent.
+    }
+  }
+  return new Date(importRecord.createdAt);
+}
+
+/**
+ * Every bot recording gets its own session on the matter. Never fall back to
+ * the matter's latest session: that files a new meeting under an old one.
+ *
+ * Order: the session the assign step just created, then the session already
+ * linked to this recording (a retry), then a new session.
+ */
+export async function resolveBotRecordingSession(params: {
+  storage: SessionStorage;
+  importRecord: MeetingImport;
+  caseId: string;
+  userId: string;
+  assignedSessionId?: string;
+  linkedSessionId?: string | null;
+}): Promise<{ sessionId: string; meetingStart: Date; created: boolean }> {
+  const { storage, importRecord, caseId, userId, assignedSessionId, linkedSessionId } = params;
+  const meetingStart = await resolveBotMeetingStart(storage, importRecord);
+
+  const belongsToCase = async (id: string | null | undefined) => {
+    if (!id) return false;
+    const session = await storage.getMeetingSession(id);
+    return !!session && session.caseId === caseId;
+  };
+
+  if (await belongsToCase(linkedSessionId)) {
+    return { sessionId: linkedSessionId!, meetingStart, created: false };
+  }
+
+  if (await belongsToCase(assignedSessionId)) {
+    await storage.updateMeetingSession(assignedSessionId!, {
+      startedAt: meetingStart,
+      durationSeconds: importRecord.durationSeconds ?? undefined,
+    });
+    return { sessionId: assignedSessionId!, meetingStart, created: false };
+  }
+
+  const caseData = await storage.getCase(caseId, userId);
+  if (!caseData) throw new Error("Matter not found for this recording");
+
+  const session = await storage.createMeetingSession({
+    caseId,
+    createdBy: userId,
+    // The insert type's list predates internal_meeting; the column is text and the
+    // routes store this same value for non-client matters.
+    recordingType: defaultRecordingTypeForMatterKind(caseData.matterKind) as InsertMeetingSession["recordingType"],
+    sessionTitle: importRecord.meetingTitle?.trim().slice(0, 200) || undefined,
+    status: "pending",
+    durationSeconds: importRecord.durationSeconds ?? undefined,
+  });
+  // startedAt is not settable on insert; set it to when the meeting happened.
+  await storage.updateMeetingSession(session.id, { startedAt: meetingStart });
+  return { sessionId: session.id, meetingStart, created: true };
+}

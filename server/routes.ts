@@ -11961,7 +11961,8 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       const resolvedRecordingType = recordingTypeResult.recordingType;
 
       // Create a meeting session for this recording with all required fields
-      let createdSessionId: string | undefined;
+      // Processing reuses this session, so the recording never lands in an older one.
+      let createdSessionId: string;
       try {
         const newSession = await storage.createMeetingSession({
           caseId,
@@ -11972,7 +11973,8 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         });
         createdSessionId = newSession.id;
       } catch (sessionErr) {
-        console.warn('[Assign] Failed to create meeting session:', sessionErr);
+        console.error('[Assign] Failed to create meeting session:', sessionErr);
+        return res.status(500).json({ message: "Could not add this recording as a session. Nothing was assigned - please try again." });
       }
 
       // Link the import to the case and mark as pending
@@ -12017,7 +12019,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       const updatedImport = await storage.getMeetingImport(importData.id);
       if (updatedImport) {
         const { processBotRecording } = await import('./services/recallProcessing');
-        processBotRecording(updatedImport).catch((err: Error) => {
+        processBotRecording(updatedImport, { sessionId: createdSessionId }).catch((err: Error) => {
           console.error(`[Assign] Background processing error for import ${importData.id}:`, err.message);
         });
       }

@@ -505,7 +505,9 @@ export default function CaseDetail() {
     enabled: !!caseId,
   });
 
-  const { data: audioData, isLoading: audioLoading } = useQuery<AudioRecording>({
+  // Newest recording on the matter. Only shown on its own when the matter has no
+  // sessions, or the recording predates sessions; see viewedAudio below.
+  const { data: caseAudio, isLoading: caseAudioLoading } = useQuery<AudioRecording>({
     queryKey: [`/api/audio/by-case/${caseId}`],
     enabled: !!caseId && (caseData?.sourceType === 'audio' || caseData?.sourceType === 'dictation'),
   });
@@ -616,10 +618,40 @@ export default function CaseDetail() {
     }
   }, [caseId, caseData?.status]);
 
-  const { data: meetingSessions = [] } = useQuery<MeetingSession[]>({
+  const { data: meetingSessions = [], isLoading: sessionsLoading } = useQuery<MeetingSession[]>({
     queryKey: [`/api/cases/${caseId}/sessions`],
     enabled: !!caseId,
   });
+
+  // The session being viewed: same rule as activeSessionId below (an explicit
+  // focus, then the URL, then the latest session). Needed here, before any early
+  // return, so the audio query can follow it.
+  const viewedSessionId =
+    focusSessionId ||
+    urlSessionId ||
+    [...meetingSessions].sort(
+      (a, b) => new Date(b.startedAt ?? 0).getTime() - new Date(a.startedAt ?? 0).getTime(),
+    )[0]?.id ||
+    null;
+  const audioEnabled = !!caseId && (caseData?.sourceType === 'audio' || caseData?.sourceType === 'dictation');
+  const { data: viewedSessionAudio, isLoading: viewedSessionAudioLoading } = useQuery<AudioRecording | null>({
+    queryKey: [`/api/audio/by-session/${viewedSessionId}`],
+    enabled: audioEnabled && !!viewedSessionId,
+    queryFn: async () => {
+      const res = await fetch(`/api/audio/by-session/${viewedSessionId}`, { credentials: "include" });
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error(`${res.status}: ${(await res.text()) || res.statusText}`);
+      return res.json();
+    },
+  });
+  // Each session plays its own recording. The matter's newest recording is used
+  // only when it is not linked to any session (matters from before sessions), so
+  // one session never plays another session's audio.
+  const audioData: AudioRecording | undefined = viewedSessionId
+    ? viewedSessionAudio ?? (caseAudio && !caseAudio.meetingSessionId ? caseAudio : undefined)
+    : caseAudio;
+  const audioLoading =
+    caseAudioLoading || sessionsLoading || (!!viewedSessionId && audioEnabled && viewedSessionAudioLoading);
 
   type ReadinessCriterion = { key: string; label: string; status: "green" | "amber" | "red"; detail: string; sraRef: string; actionRoute: string | null; externalNote: string | null };
   type ReadinessData = { overall: "green" | "amber" | "red"; outstandingCount: number; criteria: ReadinessCriterion[]; disclaimer: string };
