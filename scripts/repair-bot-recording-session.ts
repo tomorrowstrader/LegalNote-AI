@@ -9,6 +9,7 @@
  * Apply:
  *   npx tsx scripts/repair-bot-recording-session.ts <meetingImportId> --apply
  * Optional, when the stored data lacks them: --start=<ISO time> --duration=<seconds>
+ * Optional, when the script cannot tell which one: --audio=<id or prefix> --transcript=<id or prefix>
  */
 import { and, eq, inArray } from "drizzle-orm";
 import { db, pool } from "../server/db";
@@ -24,6 +25,8 @@ async function main() {
   const flag = (name: string) => process.argv.find((a) => a.startsWith(`--${name}=`))?.split("=")[1];
   const startFlag = flag("start");
   const durationFlag = flag("duration");
+  const audioFlag = flag("audio");
+  const transcriptFlag = flag("transcript");
   if (!importId) throw new Error("meetingImportId required");
 
   const { storage } = await import("../server/storage");
@@ -33,12 +36,24 @@ async function main() {
   if (!imp?.caseId || !imp.audioStoragePath) throw new Error("Import has no matter or stored recording");
   const caseId = imp.caseId;
 
-  const [audio] = await db
+  // A retried import can leave several audio rows for the same file. All of them
+  // belong to this recording; --audio picks the one whose processing made the transcript.
+  const fileAudio = await db
     .select()
     .from(audioRecordings)
     .where(and(eq(audioRecordings.caseId, caseId), eq(audioRecordings.filePath, imp.audioStoragePath)));
-  if (!audio) throw new Error("No audio record for this recording");
-  if (audio.meetingSessionId) throw new Error(`Audio is already linked to session ${sh(audio.meetingSessionId)}; nothing to repair`);
+  if (!fileAudio.length) throw new Error("No audio record for this recording");
+  const unlinkedAudio = fileAudio.filter((a) => !a.meetingSessionId);
+  if (!unlinkedAudio.length) throw new Error(`Audio is already linked to session ${sh(fileAudio[0].meetingSessionId)}; nothing to repair`);
+  let audio = unlinkedAudio[0];
+  if (audioFlag) {
+    const picked = unlinkedAudio.filter((a) => a.id.startsWith(audioFlag));
+    if (picked.length !== 1) throw new Error("--audio does not match exactly one unlinked audio record for this recording");
+    audio = picked[0];
+  } else if (unlinkedAudio.length > 1) {
+    throw new Error(`Several audio records for this recording (${unlinkedAudio.map((a) => sh(a.id)).join(", ")}); pass --audio=<id>`);
+  }
+  const duplicateAudio = unlinkedAudio.filter((a) => a.id !== audio.id);
 
   // The transcript made from this recording: the first one on the matter created
   // after the audio row, and before any later recording on the matter.
@@ -47,11 +62,15 @@ async function main() {
     .map((a) => new Date(a.recordedAt).getTime())
     .filter((t) => t > new Date(audio.recordedAt).getTime())
     .sort((a, b) => a - b)[0] ?? Infinity;
-  const caseTranscripts = (await db.select().from(transcripts).where(eq(transcripts.caseId, caseId)))
+  let caseTranscripts = (await db.select().from(transcripts).where(eq(transcripts.caseId, caseId)))
     .filter((t) => {
       const at = new Date(t.createdAt).getTime();
       return at >= new Date(audio.recordedAt).getTime() && at < nextAudioAt;
     });
+  if (transcriptFlag) {
+    // The named transcript must still fall inside this recording's window.
+    caseTranscripts = caseTranscripts.filter((t) => t.id.startsWith(transcriptFlag));
+  }
   if (caseTranscripts.length !== 1) {
     throw new Error(`Expected exactly one transcript for this recording, found ${caseTranscripts.length}; stopping`);
   }
@@ -86,6 +105,7 @@ async function main() {
   console.log(`  scheduled meeting: ${scheduled ? `found, starts ${dt(scheduled.startTime)}, ends ${dt((scheduled as { endTime?: Date | null }).endTime ?? null)}` : "not found"}`);
   console.log(`  new session: starts ${dt(meetingStart)} (${startSource}), length ${durationSeconds ?? "unknown"}s, type ${defaultRecordingTypeForMatterKind(caseData.matterKind)}`);
   console.log(`  move audio ${sh(audio.id)}: no session -> new session`);
+  for (const a of duplicateAudio) console.log(`  move duplicate audio ${sh(a.id)} (same file): no session -> new session`);
   console.log(`  move transcript ${sh(transcript.id)}: session ${sh(oldSessionId)} -> new session`);
   for (const d of docs) console.log(`  move document ${sh(d.id)} ${d.type} v${d.version} (${d.status}): session ${sh(d.meetingSessionId)} -> new session`);
   console.log(`  session ${sh(oldSessionId)} keeps everything else`);
@@ -109,7 +129,10 @@ async function main() {
         status: "completed",
       })
       .returning();
-    await tx.update(audioRecordings).set({ meetingSessionId: session.id }).where(eq(audioRecordings.id, audio.id));
+    await tx
+      .update(audioRecordings)
+      .set({ meetingSessionId: session.id })
+      .where(inArray(audioRecordings.id, [audio.id, ...duplicateAudio.map((a) => a.id)]));
     await tx.update(transcripts).set({ meetingSessionId: session.id }).where(eq(transcripts.id, transcript.id));
     if (docs.length) {
       await tx.update(documents).set({ meetingSessionId: session.id }).where(inArray(documents.id, docs.map((d) => d.id)));
@@ -128,6 +151,7 @@ async function main() {
       newSessionId: sessionId,
       previousSessionId: oldSessionId,
       audioRecordingId: audio.id,
+      duplicateAudioRecordingIds: duplicateAudio.map((a) => a.id),
       transcriptId: transcript.id,
       documentIds: docs.map((d) => d.id),
     },
