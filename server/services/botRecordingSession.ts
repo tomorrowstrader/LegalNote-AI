@@ -8,6 +8,23 @@ type SessionStorage = Pick<
 >;
 
 /**
+ * How long the bot recorded, in whole seconds. Recall's recording object gives
+ * started_at and completed_at, not a duration, so the length is worked out from
+ * those when no duration is supplied. Returns undefined rather than guessing.
+ */
+export function recordingDurationSeconds(params: {
+  duration?: number | null;
+  startedAt?: Date;
+  completedAt?: Date;
+}): number | undefined {
+  if (typeof params.duration === "number" && params.duration > 0) return Math.round(params.duration);
+  if (!params.startedAt || !params.completedAt) return undefined;
+  const seconds = Math.round((params.completedAt.getTime() - params.startedAt.getTime()) / 1000);
+  // A recording longer than a day is not a real meeting length.
+  return seconds > 0 && seconds <= 24 * 60 * 60 ? seconds : undefined;
+}
+
+/**
  * When the meeting actually took place. Prefers the bot's recording start,
  * then the scheduled meeting time, then when the bot was sent.
  */

@@ -7,7 +7,7 @@ import { ObjectStorageService } from '../objectStorage';
 import { applyObjectLegalHoldForNewRecording } from './litigationHoldObjectLockService';
 import { preserveConsentSegmentFromFullAudio } from './consentSegmentService';
 import { recallService } from './recallService';
-import { resolveBotRecordingSession } from './botRecordingSession';
+import { recordingDurationSeconds, resolveBotRecordingSession } from './botRecordingSession';
 import {
   isAbandonedMeetingSubCode,
   messageForAbandonedSubCode,
@@ -258,6 +258,7 @@ async function getRecordingUrl(botId: string): Promise<{ url: string; durationSe
           id: string;
           duration?: number;
           started_at?: string | null;
+          completed_at?: string | null;
           media_shortcuts?: {
             audio_only?: { data?: { download_url?: string } };
             audio_mixed?: { data?: { download_url?: string } };
@@ -271,7 +272,13 @@ async function getRecordingUrl(botId: string): Promise<{ url: string; durationSe
           rec.media_shortcuts?.audio_only?.data?.download_url
           || rec.media_shortcuts?.audio_mixed?.data?.download_url;
         if (url) {
-          return { url, durationSeconds: rec.duration, recordingId: rec.id, startedAt: parseRecallTime(rec.started_at) };
+          const startedAt = parseRecallTime(rec.started_at);
+          const durationSeconds = recordingDurationSeconds({
+            duration: rec.duration,
+            startedAt,
+            completedAt: parseRecallTime(rec.completed_at),
+          });
+          return { url, durationSeconds, recordingId: rec.id, startedAt };
         }
       }
     }
@@ -286,6 +293,7 @@ async function getRecordingUrl(botId: string): Promise<{ url: string; durationSe
         recordings?: Array<{
           id: string;
           started_at?: string | null;
+          completed_at?: string | null;
           media_shortcuts?: {
             audio_only?: { data?: { url?: string } };
             audio_mixed?: { data?: { url?: string } };
@@ -297,7 +305,14 @@ async function getRecordingUrl(botId: string): Promise<{ url: string; durationSe
         const url =
           rec.media_shortcuts?.audio_only?.data?.url
           || rec.media_shortcuts?.audio_mixed?.data?.url;
-        if (url) return { url, recordingId: rec.id, startedAt: parseRecallTime(rec.started_at) };
+        if (url) {
+          const startedAt = parseRecallTime(rec.started_at);
+          const durationSeconds = recordingDurationSeconds({
+            startedAt,
+            completedAt: parseRecallTime(rec.completed_at),
+          });
+          return { url, durationSeconds, recordingId: rec.id, startedAt };
+        }
       }
     }
   } catch (err) {
@@ -543,7 +558,8 @@ export async function processBotRecording(
   const audioRecord = existingForThisFile
     ? (await storage.updateAudioRecording(existingForThisFile.id, {
         mimeType,
-        duration: fresh.durationSeconds || existingForThisFile.duration || undefined,
+        // latestImport holds the length saved above; fresh was read before it.
+        duration: latestImport.durationSeconds || existingForThisFile.duration || undefined,
         expiresAt,
         meetingSessionId: sessionId,
       })) ?? existingForThisFile
@@ -552,7 +568,7 @@ export async function processBotRecording(
         meetingSessionId: sessionId,
         filePath: audioPath,
         mimeType,
-        duration: fresh.durationSeconds || undefined,
+        duration: latestImport.durationSeconds || undefined,
         expiresAt,
       });
   // The note is dated from the recording; use when the meeting happened, not when it was processed.

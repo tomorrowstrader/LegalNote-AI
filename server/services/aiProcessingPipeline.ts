@@ -196,6 +196,21 @@ export class AIProcessingPipeline {
           },
         },
       );
+      // Meeting-bot audio often arrives without a length. The transcription
+      // service measures the file, so record that length on the recording and
+      // its session; otherwise the note and time draft have no duration.
+      const measuredSeconds = Math.round(diarizedResult.duration || 0);
+      if (!audio.duration && measuredSeconds > 0) {
+        await this.storage.updateAudioRecording(audio.id, { duration: measuredSeconds });
+        audio = { ...audio, duration: measuredSeconds };
+        const owningSessionId = sessionId ?? audio.meetingSessionId;
+        if (owningSessionId) {
+          const owningSession = await this.storage.getMeetingSession(owningSessionId);
+          if (owningSession && !owningSession.durationSeconds) {
+            await this.storage.updateMeetingSession(owningSessionId, { durationSeconds: measuredSeconds });
+          }
+        }
+      }
       transcriptText = diarizedResult.text;
       transcriptUtterances = diarizedResult.utterances;
       speakerCount = diarizedResult.speakerCount;
