@@ -15,8 +15,9 @@ type DraftTimeEntryBannerProps = {
 export function DraftTimeEntryBanner({ caseId, entries }: DraftTimeEntryBannerProps) {
   const { toast } = useToast();
   const drafts = entries.filter((e) => e.status === "draft");
-  if (drafts.length === 0) return null;
 
+  // Hooks must run on every render. Returning before useMutation crashed the
+  // whole page (blank screen) the moment the last draft was confirmed.
   const confirmMutation = useMutation({
     mutationFn: async (entryId: string) => {
       return apiRequest("PATCH", `/api/time-entries/${entryId}`, { status: "confirmed" });
@@ -38,6 +39,8 @@ export function DraftTimeEntryBanner({ caseId, entries }: DraftTimeEntryBannerPr
       toast({ title: "Could not confirm time", description: error.message, variant: "destructive" });
     },
   });
+
+  if (drafts.length === 0) return null;
 
   return (
     <div
