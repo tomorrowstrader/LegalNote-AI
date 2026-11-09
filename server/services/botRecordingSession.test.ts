@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MeetingImport, MeetingSession } from "@shared/schema";
-import { chosenRecordingType, resolveBotMeetingStart, resolveBotRecordingSession } from "./botRecordingSession";
+import {
+  chosenRecordingType,
+  recordingDurationSeconds,
+  resolveBotMeetingStart,
+  resolveBotRecordingSession,
+} from "./botRecordingSession";
 
 const CASE = "case-1";
 const USER = "user-1";
@@ -140,5 +145,21 @@ describe("chosenRecordingType", () => {
     expect(await chosenRecordingType(storage as never, makeImport(), "client")).toBe("full_meeting");
     storage.getScheduledMeetingByBotId.mockResolvedValueOnce({ recordingType: "court_hearing" } as never);
     expect(await chosenRecordingType(storage as never, makeImport(), "internal")).toBe("internal_meeting");
+  });
+});
+
+describe("recordingDurationSeconds", () => {
+  const start = new Date("2026-11-05T15:00:00Z");
+  it("uses a supplied duration first", () => {
+    expect(recordingDurationSeconds({ duration: 6143.4, startedAt: start })).toBe(6143);
+  });
+  it("works the length out from start and end when no duration is given", () => {
+    expect(recordingDurationSeconds({ startedAt: start, completedAt: new Date("2026-11-05T16:02:00Z") })).toBe(3720);
+  });
+  it("gives no length rather than a wrong one", () => {
+    expect(recordingDurationSeconds({ startedAt: start })).toBeUndefined();
+    expect(recordingDurationSeconds({ startedAt: start, completedAt: start })).toBeUndefined();
+    expect(recordingDurationSeconds({ startedAt: start, completedAt: new Date("2026-11-03T15:00:00Z") })).toBeUndefined();
+    expect(recordingDurationSeconds({ startedAt: start, completedAt: new Date("2026-11-07T15:00:00Z") })).toBeUndefined();
   });
 });

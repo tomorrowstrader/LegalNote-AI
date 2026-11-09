@@ -76,6 +76,7 @@ import InviteAccept from "@/pages/InviteAccept";
 import PendingApproval from "@/pages/PendingApproval";
 import AccessPending from "@/pages/AccessPending";
 import ScrollToTop from "@/components/ScrollToTop";
+import { ErrorBoundary, PageErrorBoundary } from "@/components/ErrorBoundary";
 import PublicDemo from "@/pages/PublicDemo";
 import DemoGenerator from "@/pages/DemoGenerator";
 import MeetingNotesPopout from "@/pages/MeetingNotesPopout";
@@ -347,7 +348,9 @@ function AuthenticatedAppContent() {
         }
       >
         {!isNotesPopout && <ScrollToTop />}
-        <Router />
+        <PageErrorBoundary>
+          <Router />
+        </PageErrorBoundary>
       </main>
       {showAppChrome && <MobileBottomNav onRestartTour={handleRestartTour} />}
       {showAppChrome && <FirmSetupPrompt />}
@@ -389,13 +392,15 @@ function AuthenticatedApp() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <MobileViewportSync />
-        <AuthenticatedApp />
-        <Toaster />
-      </TooltipProvider>
-    </QueryClientProvider>
+    <ErrorBoundary variant="app">
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <MobileViewportSync />
+          <AuthenticatedApp />
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 
