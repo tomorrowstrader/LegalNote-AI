@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useFocusMode } from "@/contexts/FocusModeContext";
 import { MeetingCastFields, meetingCastFromUnknown } from "@/components/MeetingCastFields";
+import { RecoveredRecordingMoveCard } from "@/components/RecoveredRecordingMoveCard";
 import { meetingCastError, type MeetingCast, emptyMeetingCast } from "@shared/meetingCast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -599,6 +600,14 @@ export default function CaseDetail() {
     queryKey: [`/api/consent/by-case/${caseId}`],
     enabled: !!caseId && caseData?.sourceType === 'audio',
   });
+
+  // A recovered recording should move to its matter before consent is sealed here,
+  // because sealed consent cannot move with it.
+  const { data: recoveredStatus } = useQuery<{ recovered: boolean; block: string | null }>({
+    queryKey: [`/api/cases/${caseId}/recovered-recording`],
+    enabled: !!caseId && caseData?.sourceType === 'audio',
+  });
+  const recoveredAwaitingMove = !!recoveredStatus?.recovered && !recoveredStatus.block;
 
   const { data: undertakingsData = [] } = useQuery<Array<{ id: string; status: string }>>({
     queryKey: [`/api/cases/${caseId}/undertakings`],
@@ -2081,8 +2090,10 @@ export default function CaseDetail() {
 
           <DraftTimeEntryBanner caseId={caseId!} entries={timeEntries} />
 
+          {caseData.sourceType === 'audio' && <RecoveredRecordingMoveCard caseId={caseId!} />}
+
           {/* GDPR / Consent alert — client or non-client with external attendees */}
-          {requiresConsentGate && caseData.sourceType === 'audio' && !consentLoading && !hasValidConsent && (
+          {requiresConsentGate && caseData.sourceType === 'audio' && !consentLoading && !hasValidConsent && !recoveredAwaitingMove && (
             <div className="p-4 bg-destructive/10 border border-destructive/40 rounded-md" data-testid="alert-gdpr-required">
               <div className="flex items-start gap-3">
                 <Shield className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />

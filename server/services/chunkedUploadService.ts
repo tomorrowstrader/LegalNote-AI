@@ -932,6 +932,27 @@ export class ChunkedUploadService {
     };
   }
 
+  /** The recovered recording session that created this case, if the case came from recovery. */
+  async findRecoveredSessionForCase(caseId: string, userId: string): Promise<{ id: string } | null> {
+    const rows = await db.select({ id: recordingSessions.id })
+      .from(recordingSessions)
+      .where(
+        and(
+          eq(recordingSessions.caseId, caseId),
+          eq(recordingSessions.userId, userId),
+          eq(recordingSessions.status, "recovered"),
+        ),
+      );
+    return rows[0] ?? null;
+  }
+
+  /** Point a recovered recording session at the matter it was moved to. */
+  async relinkRecoveredSession(sessionId: string, caseId: string): Promise<void> {
+    await db.update(recordingSessions)
+      .set({ caseId })
+      .where(eq(recordingSessions.id, sessionId));
+  }
+
   // Discard an interrupted session (user chose not to recover)
   async discardSession(sessionId: string, userId: string): Promise<boolean> {
     try {

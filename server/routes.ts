@@ -5514,6 +5514,58 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
     }
   });
 
+  // A recording recovered into its own case can be moved, whole, onto the matter it belongs to.
+  const recoveredMoveDeps = async () => {
+    const { recordConsentEvent } = await import("./services/recordConsentEvent");
+    const { syncCaseObjectLegalHolds } = await import("./services/litigationHoldObjectLockService");
+    const { clearCaseGraceWindow } = await import("./services/litigationHoldGraceWindowService");
+    return {
+      storage,
+      findRecoveredSession: (caseId: string, userId: string) =>
+        chunkedUploadService.findRecoveredSessionForCase(caseId, userId),
+      relinkRecoveredSession: (recoverySessionId: string, caseId: string) =>
+        chunkedUploadService.relinkRecoveredSession(recoverySessionId, caseId),
+      recordConsent: recordConsentEvent,
+      syncObjectHolds: (caseId: string, userId: string, req?: any) =>
+        syncCaseObjectLegalHolds({ caseId, apply: true, userId, req }),
+      clearGraceWindow: (caseId: string, userId: string, req?: any) =>
+        clearCaseGraceWindow({ caseId, userId, req }),
+    };
+  };
+
+  app.get("/api/cases/:id/recovered-recording", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { getRecoveredMoveStatus } = await import("./services/moveRecoveredRecording");
+      const status = await getRecoveredMoveStatus(await recoveredMoveDeps(), req.params.id, userId);
+      if (!status) return res.status(404).json({ message: "Case not found" });
+      res.json(status);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/cases/:id/move-recovered-recording", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { moveRecoveredRecording } = await import("./services/moveRecoveredRecording");
+      const result = await moveRecoveredRecording(await recoveredMoveDeps(), {
+        sourceCaseId: req.params.id,
+        targetCaseId: req.body?.targetCaseId,
+        recordingType: req.body?.recordingType,
+        practiceArea: req.body?.practiceArea,
+        consentConfirmed: req.body?.consentConfirmed,
+        userId,
+        practiceAreas: PRACTICE_AREAS,
+        req,
+      });
+      if (!result.ok) return res.status(result.status).json({ message: result.message });
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Discard an interrupted recording session
   app.delete("/api/audio/recover-session/:sessionId", isAuthenticated, async (req: any, res, next) => {
     try {
