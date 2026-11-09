@@ -1,6 +1,14 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Input } from "@/components/ui/input";
-import { Search, FolderOpen, FileText, MessageSquare, ClipboardList, Clock, ChevronRight, ChevronDown, ChevronUp } from "lucide-react";
+import { Search, FolderOpen, FileText, MessageSquare, ClipboardList, Clock, ChevronRight, ChevronDown, ChevronUp, AudioLines } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  groupMatters,
+  sortMatters,
+  MATTER_SORT_LABELS,
+  type MatterSort,
+} from "@shared/matterList";
+import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import CaseListView from "@/components/CaseListView";
 import EmptyState from "@/components/EmptyState";
@@ -46,6 +54,9 @@ export default function SavedCases() {
   const [documentType, setDocumentType] = useState("all");
   const lastSavedQuery = useRef<string>("");
   const [expandedCases, setExpandedCases] = useState<Set<string>>(new Set());
+  const [view, setView] = useState<"open" | "closed">("open");
+  const [sort, setSort] = useState<MatterSort>("newest");
+  const [showRecovered, setShowRecovered] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -102,9 +113,14 @@ export default function SavedCases() {
   }, [searchQuery, enhancedResults]);
 
   const isLoading = casesLoading || searchLoading;
-  const activeCases = searchQuery.trim()
-    ? (enhancedResults?.map(r => r.case) || [])
-    : (cases || []);
+  const isSearching = !!searchQuery.trim();
+  const groups = useMemo(() => groupMatters(cases ?? []), [cases]);
+  const listedMatters = useMemo(
+    () => sortMatters(view === "open" ? groups.open : groups.closed, sort),
+    [groups, view, sort],
+  );
+  const recoveredMatters = useMemo(() => sortMatters(groups.recovered, "newest"), [groups]);
+  const searchResults = enhancedResults ?? [];
 
   const getMatchIcon = (type: string) => {
     switch (type) {
@@ -185,56 +201,126 @@ export default function SavedCases() {
     <div className="min-h-screen bg-background">
       <div className="max-w-7xl mx-auto px-6 lg:px-8 py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-semibold text-foreground mb-1">Saved Cases</h1>
+          <h1 className="text-3xl font-semibold text-foreground mb-1">Matters</h1>
           <p className="text-sm text-muted-foreground">
-            Browse and search all your case documentation
+            Find and open any matter, open or closed
           </p>
         </div>
 
         <div className="space-y-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <h2 className="text-lg font-medium text-foreground">
-                {searchQuery ? "Search Results" : "Active Cases"}
-              </h2>
-              <Badge variant="secondary">
-                {activeCases.length}
-              </Badge>
-            </div>
+            {isSearching ? (
+              <div className="flex items-center gap-3">
+                <h2 className="text-lg font-medium text-foreground">Search results</h2>
+                <Badge variant="secondary">{searchResults.length}</Badge>
+              </div>
+            ) : (
+              <Tabs value={view} onValueChange={(v) => setView(v as "open" | "closed")}>
+                <TabsList>
+                  <TabsTrigger value="open" className="gap-2" data-testid="tab-matters-open">
+                    Open
+                    <Badge variant="secondary" className="text-xs px-1.5 py-0">{groups.open.length}</Badge>
+                  </TabsTrigger>
+                  <TabsTrigger value="closed" className="gap-2" data-testid="tab-matters-closed">
+                    Closed
+                    <Badge variant="secondary" className="text-xs px-1.5 py-0">{groups.closed.length}</Badge>
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            )}
 
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full sm:w-auto">
               <div className="relative w-full sm:w-auto sm:max-w-md">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   type="search"
-                  placeholder="Search cases by title, client, or content..."
+                  placeholder="Search by client, matter or what was said..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10 w-full sm:w-80"
                   data-testid="input-search-cases"
                 />
               </div>
-              <Select value={documentType} onValueChange={setDocumentType}>
-                <SelectTrigger className="w-full sm:w-40" data-testid="select-doc-type">
-                  <SelectValue placeholder="All Types" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Types</SelectItem>
-                  <SelectItem value="transcript">Transcripts</SelectItem>
-                  <SelectItem value="attendance_note">Attendance Notes</SelectItem>
-                  <SelectItem value="summary">Summaries</SelectItem>
-                </SelectContent>
-              </Select>
+              {isSearching ? (
+                <Select value={documentType} onValueChange={setDocumentType}>
+                  <SelectTrigger className="w-full sm:w-44" data-testid="select-doc-type">
+                    <SelectValue placeholder="Everywhere" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Everywhere</SelectItem>
+                    <SelectItem value="transcript">Transcripts</SelectItem>
+                    <SelectItem value="attendance_note">Attendance notes</SelectItem>
+                    <SelectItem value="summary">Summaries</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Select value={sort} onValueChange={(v) => setSort(v as MatterSort)}>
+                  <SelectTrigger className="w-full sm:w-44" data-testid="select-matter-sort" aria-label="Sort matters">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(MATTER_SORT_LABELS) as MatterSort[]).map((key) => (
+                      <SelectItem key={key} value={key}>{MATTER_SORT_LABELS[key]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           </div>
 
+          {!isSearching && view === "open" && recoveredMatters.length > 0 && (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5" data-testid="panel-recovered-recordings">
+              <button
+                type="button"
+                onClick={() => setShowRecovered((v) => !v)}
+                className="w-full flex items-center gap-3 px-4 py-3 text-left"
+                aria-expanded={showRecovered}
+                data-testid="button-toggle-recovered"
+              >
+                <AudioLines className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0" />
+                <span className="text-sm text-foreground">
+                  <span className="font-medium">
+                    {recoveredMatters.length} recovered recording{recoveredMatters.length === 1 ? "" : "s"}
+                  </span>{" "}
+                  <span className="text-muted-foreground">
+                    need{recoveredMatters.length === 1 ? "s" : ""} moving to the matter{recoveredMatters.length === 1 ? "" : "s"} they belong to
+                  </span>
+                </span>
+                {showRecovered ? (
+                  <ChevronUp className="w-4 h-4 ml-auto text-muted-foreground" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 ml-auto text-muted-foreground" />
+                )}
+              </button>
+              {showRecovered && (
+                <ul className="border-t border-amber-500/20 divide-y divide-amber-500/10">
+                  {recoveredMatters.map((rec) => (
+                    <li key={rec.id}>
+                      <button
+                        type="button"
+                        onClick={() => setLocation(`/case/${rec.id}`)}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-amber-500/10 transition-colors"
+                        data-testid={`row-recovered-${rec.id}`}
+                      >
+                        <span className="text-sm text-foreground">
+                          Recorded {format(new Date(rec.createdAt), "d MMM yyyy, HH:mm")}
+                        </span>
+                        <span className="text-xs text-muted-foreground ml-auto">Open to move</span>
+                        <ChevronRight className="w-4 h-4 text-muted-foreground/60" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
           {isLoading ? (
-            <div className="text-center py-8 text-muted-foreground">Loading cases...</div>
-          ) : activeCases.length > 0 ? (
-            <>
-              {searchQuery.trim() && enhancedResults ? (
+            <div className="text-center py-8 text-muted-foreground">Loading matters...</div>
+          ) : isSearching ? (
+            searchResults.length > 0 ? (
                 <div className="space-y-2">
-                  {enhancedResults.map((result) => (
+                  {searchResults.map((result) => (
                     <div key={result.case.id} className="space-y-1">
                       <button
                         onClick={() => setLocation(`/case/${result.case.id}`)}
@@ -254,7 +340,12 @@ export default function SavedCases() {
                             {result.case.title}
                           </p>
                         </div>
-                        <div className="flex items-center justify-end">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {result.case.archived && (
+                            <Badge variant="outline" className="text-xs" data-testid={`badge-closed-${result.case.id}`}>
+                              Closed
+                            </Badge>
+                          )}
                           <Badge variant="secondary" className="text-xs">
                             {result.matches.length} match{result.matches.length !== 1 ? 'es' : ''}
                           </Badge>
@@ -326,21 +417,28 @@ export default function SavedCases() {
                     </div>
                   ))}
                 </div>
-              ) : (
-                <CaseListView cases={activeCases} />
-              )}
-            </>
+            ) : (
+              <EmptyState
+                icon={FolderOpen}
+                title="No matters found"
+                description="Nothing matches that search, in open or closed matters. Try a client name, a matter reference or a word that was said."
+              />
+            )
+          ) : listedMatters.length > 0 ? (
+            <CaseListView cases={listedMatters} />
+          ) : view === "closed" ? (
+            <EmptyState
+              icon={FolderOpen}
+              title="No closed matters"
+              description="Matters archived from the dashboard appear here, and stay searchable."
+            />
           ) : (
             <EmptyState
               icon={FolderOpen}
-              title="No cases found"
-              description={
-                searchQuery
-                  ? "No cases match your search criteria. Try different keywords or filters."
-                  : "Start by creating your first attendance note"
-              }
-              actionLabel={searchQuery ? undefined : "Capture"}
-              onAction={searchQuery ? undefined : () => setLocation('/capture')}
+              title="No open matters"
+              description="Start by capturing your first meeting"
+              actionLabel="Capture"
+              onAction={() => setLocation('/capture')}
             />
           )}
         </div>

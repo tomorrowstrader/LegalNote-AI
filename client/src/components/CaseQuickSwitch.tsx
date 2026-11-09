@@ -93,12 +93,12 @@ export default function CaseQuickSwitch() {
         className="flex gap-2 text-primary-foreground/80 hover:text-primary-foreground max-w-[200px]"
         onClick={() => setOpen((o) => !o)}
         data-testid="button-case-quick-switch"
-        aria-label="Recent cases"
+        aria-label="Recent matters"
         aria-expanded={open}
       >
         <Briefcase className="w-4 h-4 flex-shrink-0" />
         <span className="truncate hidden sm:inline">
-          {currentCaseData ? currentCaseData.title : "Switch Case"}
+          {currentCaseData ? currentCaseData.title : "Switch matter"}
         </span>
         <ChevronDown className="w-3 h-3 flex-shrink-0" />
       </Button>
@@ -111,7 +111,7 @@ export default function CaseQuickSwitch() {
           <div className="flex items-start justify-between gap-3 border-b border-[#e8dfd2] bg-white px-4 py-3 dark:border-border dark:bg-popover">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-semibold">Recent Cases</h3>
+                <h3 className="text-sm font-semibold">Recent matters</h3>
                 {recentCases.length > 0 && (
                   <Badge variant="secondary" className="text-xs px-1.5 py-0">
                     {recentCases.length}
@@ -120,7 +120,7 @@ export default function CaseQuickSwitch() {
               </div>
               {hasScrollableList && (
                 <p className="mt-0.5 text-[11px] text-muted-foreground">
-                  Showing latest cases. Scroll for more.
+                  Showing latest matters. Scroll for more.
                 </p>
               )}
             </div>
@@ -143,7 +143,7 @@ export default function CaseQuickSwitch() {
                 variant="ghost"
                 className="h-7 w-7"
                 onClick={() => setOpen(false)}
-                aria-label="Close recent cases"
+                aria-label="Close recent matters"
               >
                 <X className="w-3 h-3" />
               </Button>
@@ -158,9 +158,9 @@ export default function CaseQuickSwitch() {
             ) : recentCases.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-10 text-center px-4">
                 <Briefcase className="w-8 h-8 text-muted-foreground mb-2" />
-                <p className="text-sm text-muted-foreground">No cases found</p>
+                <p className="text-sm text-muted-foreground">No matters found</p>
                 <p className="text-xs text-muted-foreground/70 mt-1">
-                  Your recent cases will appear here
+                  Your recent matters will appear here
                 </p>
               </div>
             ) : (

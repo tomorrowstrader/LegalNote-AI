@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { Case, PRACTICE_AREA_LABELS, type PracticeArea } from "@shared/schema";
 import { useLocation } from "wouter";
 import CaseDetailDrawer from "./CaseDetailDrawer";
+import { MATTER_FLAG_LABELS, matterFlag, matterStatus, type MatterStatusTone } from "@shared/matterList";
 
 // Hook for reduced motion preference
 function useReducedMotion(): boolean {
@@ -59,27 +60,14 @@ function scrollRowIntoAttention(row: HTMLElement) {
   });
 }
 
-type CaseStatus = "completed" | "processing" | "pending" | "review_required" | "failed";
-
-/**
- * Status dots encode workflow status only.
- * Urgency (overdue / urgent / soon) stays in the Priority column + deadline colour.
- */
-const STATUS_DOT: Record<CaseStatus, { color: string; label: string; pulse?: boolean }> = {
-  pending: { color: "bg-slate-400 dark:bg-slate-500", label: "Pending" },
-  processing: { color: "bg-blue-500", label: "Processing", pulse: true },
-  review_required: { color: "bg-amber-500", label: "Needs review" },
-  completed: { color: "bg-emerald-500", label: "Completed" },
-  failed: { color: "bg-red-500", label: "Failed" },
+/** Dot colour for each plain status tone (see shared/matterList.ts). */
+const TONE_DOT: Record<MatterStatusTone, string> = {
+  neutral: "bg-slate-400 dark:bg-slate-500",
+  working: "bg-blue-500",
+  attention: "bg-amber-500",
+  done: "bg-emerald-500",
+  error: "bg-red-500",
 };
-
-const STATUS_LEGEND: Array<{ color: string; label: string; pulse?: boolean }> = [
-  STATUS_DOT.pending,
-  STATUS_DOT.processing,
-  STATUS_DOT.review_required,
-  STATUS_DOT.completed,
-  STATUS_DOT.failed,
-];
 
 const RISK_AGEING_THRESHOLDS: Record<string, number> = {
   low: 365,
@@ -95,48 +83,22 @@ function isRiskAgeingOverdue(caseItem: Case, amlActivityDates?: Record<string, s
   return differenceInDays(new Date(), lastActivity) > threshold;
 }
 
-function getStatusDot(caseItem: Case): { color: string; label: string; pulse?: boolean } {
-  if (caseItem.reviewed) {
-    return { color: STATUS_DOT.completed.color, label: "Reviewed" };
-  }
-  const status = caseItem.status as CaseStatus;
-  return STATUS_DOT[status] ?? { color: "bg-muted-foreground", label: "Unknown" };
-}
-
-function getPriorityBadge(caseItem: Case) {
-  if (caseItem.reviewed) {
-    return (
-      <Badge className="bg-emerald-500/15 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400 border-emerald-500/30 text-xs font-medium">
-        Reviewed
-      </Badge>
-    );
-  }
-  
-  if (caseItem.deadline && isPast(new Date(caseItem.deadline))) {
-    return (
-      <Badge className="bg-red-500/15 text-red-700 dark:bg-red-500/20 dark:text-red-400 border-red-500/30 text-xs font-medium">
-        Overdue
-      </Badge>
-    );
-  }
-  
-  if (caseItem.priority === "urgent") {
-    return (
-      <Badge className="bg-red-500/15 text-red-700 dark:bg-red-500/20 dark:text-red-400 border-red-500/30 text-xs font-medium">
-        Urgent
-      </Badge>
-    );
-  }
-  
-  if (caseItem.priority === "deadline-soon") {
-    return (
-      <Badge className="bg-amber-500/15 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400 border-amber-500/30 text-xs font-medium">
-        Soon
-      </Badge>
-    );
-  }
-  
-  return null;
+function getFlagBadge(caseItem: Case) {
+  const flag = matterFlag(caseItem);
+  if (!flag) return null;
+  return (
+    <Badge
+      className={cn(
+        "text-[11px] font-medium px-1.5 py-0 no-default-hover-elevate no-default-active-elevate",
+        flag === "soon"
+          ? "bg-amber-500/15 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400 border-amber-500/30"
+          : "bg-red-500/15 text-red-700 dark:bg-red-500/20 dark:text-red-400 border-red-500/30",
+      )}
+      data-testid={`badge-flag-${caseItem.id}`}
+    >
+      {MATTER_FLAG_LABELS[flag]}
+    </Badge>
+  );
 }
 
 export default function CaseListView({
@@ -269,37 +231,20 @@ export default function CaseListView({
   }
 
   const gridCols = selectionEnabled
-    ? "sm:grid-cols-[auto_auto_1fr_1fr_minmax(0,140px)_100px_100px_32px]"
-    : "sm:grid-cols-[auto_1fr_1fr_minmax(0,140px)_100px_100px_32px]";
+    ? "sm:grid-cols-[auto_auto_1fr_1fr_minmax(0,150px)_70px_minmax(0,160px)_32px]"
+    : "sm:grid-cols-[auto_1fr_1fr_minmax(0,150px)_70px_minmax(0,160px)_32px]";
   const mobileGridCols = selectionEnabled
     ? "grid-cols-[auto_auto_1fr_auto]"
     : "grid-cols-[auto_1fr_auto]";
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-1 pb-2 text-xs text-muted-foreground" data-testid="case-status-legend">
-        <span className="font-medium text-muted-foreground/80">Status</span>
-        {STATUS_LEGEND.map((item) => (
-          <span key={item.label} className="inline-flex items-center gap-1.5">
-            <span
-              className={cn(
-                "w-2 h-2 rounded-full shrink-0",
-                item.color,
-                item.pulse && !prefersReducedMotion && "animate-pulse",
-              )}
-              aria-hidden
-            />
-            {item.label}
-          </span>
-        ))}
-      </div>
-
       <TooltipProvider delayDuration={200}>
       <div 
         ref={listRef}
         className="divide-y divide-border rounded-lg border border-border bg-card overflow-hidden"
         role="listbox"
-        aria-label="Case list"
+        aria-label="Matter list"
         aria-multiselectable={selectionEnabled || undefined}
         onKeyDown={handleKeyDown}
       >
@@ -320,17 +265,22 @@ export default function CaseListView({
           )}
           <div className="w-3" aria-hidden />
           <div>Client</div>
-          <div>Case Title</div>
+          <div>Matter</div>
           <div>Practice Area</div>
           <div className="flex items-center">Deadline</div>
-          <div className="flex items-center">Priority</div>
+          <div className="flex items-center">Status</div>
           <div></div>
         </div>
 
         {/* Case rows */}
         {cases.map((caseItem, index) => {
-          const statusDot = getStatusDot(caseItem);
-          const priorityBadge = getPriorityBadge(caseItem);
+          const status = matterStatus(caseItem);
+          const statusDot = {
+            color: TONE_DOT[status.tone],
+            label: status.label,
+            pulse: status.tone === "working",
+          };
+          const flagBadge = getFlagBadge(caseItem);
           const isSelected = selectedCase?.id === caseItem.id && isDrawerOpen;
           const isFocused = focusedIndex === index;
           const isChecked = selection.has(caseItem.id);
@@ -427,7 +377,12 @@ export default function CaseListView({
               {/* Practice area - desktop only */}
               <div className="hidden sm:flex items-center min-w-0">
                 {caseItem.practiceArea ? (
-                  <Badge variant="outline" className="text-[11px] truncate max-w-full no-default-hover-elevate no-default-active-elevate" data-testid={`badge-practice-${caseItem.id}`}>
+                  <Badge
+                    variant="outline"
+                    className="text-[11px] truncate max-w-full no-default-hover-elevate no-default-active-elevate"
+                    title={PRACTICE_AREA_LABELS[caseItem.practiceArea as PracticeArea] || caseItem.practiceArea}
+                    data-testid={`badge-practice-${caseItem.id}`}
+                  >
                     {PRACTICE_AREA_LABELS[caseItem.practiceArea as PracticeArea] || caseItem.practiceArea}
                   </Badge>
                 ) : (
@@ -448,9 +403,12 @@ export default function CaseListView({
                 )}
               </div>
 
-              {/* Priority badge */}
+              {/* Plain status + urgency flag */}
               <div className="hidden sm:flex items-center gap-1.5">
-                {priorityBadge || <span className="text-muted-foreground/50 text-xs">Normal</span>}
+                <span className="text-xs text-foreground/80 truncate" data-testid={`text-status-${caseItem.id}`}>
+                  {status.label}
+                </span>
+                {flagBadge}
                 {complianceEnabled && caseItem.riskLevel && (
                   <Badge className={cn(
                     "text-xs no-default-hover-elevate no-default-active-elevate",
@@ -478,9 +436,9 @@ export default function CaseListView({
 
               {/* Arrow indicator + mobile badge */}
               <div className="flex items-center gap-2 justify-end">
-                {/* Mobile priority badge */}
+                {/* Mobile flag badge */}
                 <div className="sm:hidden">
-                  {priorityBadge}
+                  {flagBadge}
                 </div>
                 <ChevronRight className={cn(
                   "w-4 h-4 text-muted-foreground/50 transition-transform duration-150",

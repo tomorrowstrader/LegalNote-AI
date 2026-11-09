@@ -39,7 +39,7 @@ export interface RankedMatterHit extends VoiceMatterCandidate {
 
 const NAV_PATTERNS: Array<{ re: RegExp; path: string; label: string }> = [
   { re: /\b(go to |open |show )?(the )?(dashboard|home)\b/i, path: "/", label: "Dashboard" },
-  { re: /\b(go to |open |show )?(all )?cases\b/i, path: "/cases", label: "Cases" },
+  { re: /\b(go to |open |show )?(all )?(cases|matters)\b/i, path: "/cases", label: "Matters" },
   { re: /\b(go to |open |show )?settings\b/i, path: "/settings", label: "Settings" },
   { re: /\b(go to |open |show )?(my )?(actions|obligations)\b/i, path: "/my-actions", label: "My Actions" },
   { re: /\b(go to |open |show )?clients?\b/i, path: "/clients", label: "Clients" },

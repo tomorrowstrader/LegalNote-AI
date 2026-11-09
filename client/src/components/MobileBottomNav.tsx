@@ -106,7 +106,7 @@ export default function MobileBottomNav({ onRestartTour }: MobileBottomNavProps)
 
           <Link href="/cases" className={tabClass(isCases)} data-testid="mobile-tab-cases">
             <FolderOpen className={cn("w-5 h-5", isCases && "text-foreground")} strokeWidth={isCases ? 2.25 : 1.75} />
-            <span>Cases</span>
+            <span>Matters</span>
           </Link>
 
           <Link

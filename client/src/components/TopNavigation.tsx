@@ -33,7 +33,7 @@ interface NavLinkItem {
 const primaryNavLinks: NavLinkItem[] = [
   { path: "/", label: "Dashboard", testId: "link-dashboard", icon: Home },
   { path: "/capture", label: "Capture", testId: "link-capture", icon: Mic },
-  { path: "/cases", label: "Cases", testId: "link-cases", icon: FolderOpen },
+  { path: "/cases", label: "Matters", testId: "link-cases", icon: FolderOpen },
 ];
 
 const moreNavLinks: NavLinkItem[] = [
