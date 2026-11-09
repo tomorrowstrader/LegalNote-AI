@@ -113,6 +113,7 @@ import { db } from "./db";
 import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema, insertAmlMonitoringNoteSchema, insertAmlDecisionRecordSchema, insertTimeEntrySchema, insertUndertakingSchema, insertConflictCheckSchema, PRACTICE_AREAS, type ScheduledMeeting, PRIMARY_ROLES, PRIMARY_ROLE_LABELS, REGULATORY_DESIGNATIONS, REGULATORY_DESIGNATION_LABELS, type RegulatoryDesignation, demoLeads, dpaRequestSchema, dpaConfirmBodySchema, evaluationOnboardingSubmitSchema, isClientMatterKind, normalizeMatterKind, partyLabelForMatterKind, requiresSealedConsentForProcessing, type InsertCase, adoptFeedbackBodySchema, shareFeedbackBodySchema, supportTicketPreviewBodySchema, supportTicketCreateBodySchema, supportTicketAdminUpdateSchema } from "@shared/schema";
 import { scrubInsightComment } from "@shared/productInsights";
 import { consentScriptWording, isConsentScript } from "@shared/consent";
+import { buildCaseSummary } from "@shared/caseSummary";
 import { CONSENT_DECLINED_BOT_MESSAGE, consentDeclinedBlocksBot } from "@shared/liveBotLifecycle";
 import { defaultRecordingTypeForMatterKind, validateRecordingType } from "@shared/recordingTypes";
 import { RECORDING_TYPE_LABELS, type RecordingType } from "@shared/schema";
@@ -2742,6 +2743,27 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         colpReviewStatus: recording.colpReviewStatus,
         deletedAt: recording.deletedAt,
       })));
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // At-a-glance facts for the dashboard quick view. Counts and statuses only:
+  // no document, transcript or note content leaves the server here.
+  app.get("/api/cases/:id/summary", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const caseData = await storage.getCase(req.params.id, userId);
+      if (!caseData) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+      const [sessions, recordings, documents, actionItems] = await Promise.all([
+        storage.getMeetingSessionsByCase(caseData.id, userId),
+        storage.getAudioRecordingsByCaseId(caseData.id),
+        storage.getActiveDocumentsByCase(caseData.id, userId),
+        storage.getActionItemsByCase(caseData.id, userId),
+      ]);
+      res.json(buildCaseSummary({ sessions, recordings, documents, actionItems }));
     } catch (error: any) {
       next(error);
     }

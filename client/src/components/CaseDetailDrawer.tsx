@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { format, isPast } from "date-fns";
+import { format, isPast, differenceInCalendarDays } from "date-fns";
 import { 
   FileText, 
   Calendar, 
@@ -12,8 +12,23 @@ import {
   MessageSquarePlus, 
   AlertCircle,
   ExternalLink,
-  Loader2
+  Loader2,
+  Mic,
+  Timer,
+  Briefcase,
+  FileCheck2,
+  ListChecks,
+  Lock,
+  AudioLines,
+  UserCheck,
+  type LucideIcon,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { PRACTICE_AREA_LABELS, type PracticeArea } from "@shared/schema";
+import { formatDuration, type CaseSummary } from "@shared/caseSummary";
+import { parseInstructionStatus } from "@shared/instructionStatus";
+import { isClientMatterKind } from "@shared/matterKinds";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Sheet,
   SheetContent,
@@ -78,7 +93,42 @@ export default function CaseDetailDrawer({ caseItem, open, onOpenChange }: CaseD
     enabled: (showDownloadModal || showShareModal) && hasCaseId
   });
 
+  const { data: summary, isLoading: summaryLoading } = useQuery<CaseSummary>({
+    queryKey: ["/api/cases", caseId, "summary"],
+    enabled: open && hasCaseId,
+    staleTime: 30_000,
+  });
+
   if (!caseItem) return null;
+
+  const matterStatusLabel = !isClientMatterKind(caseItem.matterKind)
+    ? "Non-client meeting"
+    : parseInstructionStatus(caseItem.instructionStatus) === "enquiry"
+      ? "Enquiry"
+      : "Instructed";
+
+  const attendanceNoteLabel = (() => {
+    if (!summary) return "—";
+    const { status, total, approved } = summary.attendanceNote;
+    if (status === "none") return "Not yet produced";
+    if (status === "approved") return total > 1 ? `All ${total} approved` : "Approved";
+    return total > 1 ? `${approved} of ${total} approved` : "Draft, awaiting review";
+  })();
+
+  const audioDaysLeft = summary?.audio.expiresAt
+    ? differenceInCalendarDays(new Date(summary.audio.expiresAt), new Date())
+    : null;
+  const audioExpiresSoon = !caseItem.litigationHold && audioDaysLeft !== null && audioDaysLeft <= 1;
+  const audioLabel = (() => {
+    if (caseItem.litigationHold) return "Kept: litigation hold";
+    if (!summary) return "—";
+    if (!summary.audio.hasAudio) return "No audio";
+    if (summary.audio.allDeleted) return "Deleted";
+    if (summary.audio.expiresAt) {
+      return `Deletes ${format(new Date(summary.audio.expiresAt), "d MMM")}`;
+    }
+    return "Kept";
+  })();
 
   const isOverdue = caseItem.deadline && isPast(new Date(caseItem.deadline)) && !caseItem.reviewed;
   const isProcessing = caseItem.status === "processing";
@@ -196,46 +246,97 @@ export default function CaseDetailDrawer({ caseItem, open, onOpenChange }: CaseD
 
           <Separator className="my-4" />
 
-          {/* Case Details */}
+          {/* Case Summary */}
           <div className="space-y-4">
-            <div className="grid gap-3">
-              <div className="flex items-center gap-3 text-sm">
-                <Calendar className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                <div>
-                  <p className="text-muted-foreground text-xs">Created</p>
-                  <p className="font-medium">{format(new Date(caseItem.createdAt), "d MMMM yyyy, h:mm a")}</p>
-                </div>
-              </div>
-
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Summary</p>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-3" data-testid="drawer-summary">
+              <SummaryFact
+                icon={Mic}
+                label={summary && summary.meetingCount > 1 ? "Latest meeting" : "Meeting"}
+                loading={summaryLoading}
+                value={
+                  summary?.latestMeetingAt
+                    ? `${format(new Date(summary.latestMeetingAt), "d MMM yyyy, HH:mm")}`
+                    : "Not recorded yet"
+                }
+                sub={summary?.latestMeetingTypeLabel ?? undefined}
+              />
+              <SummaryFact
+                icon={Timer}
+                label="Duration"
+                loading={summaryLoading}
+                value={
+                  summary?.totalDurationSeconds != null
+                    ? formatDuration(summary.totalDurationSeconds)
+                    : "Not known"
+                }
+                sub={
+                  summary && summary.meetingCount > 1
+                    ? `Across ${summary.meetingCount} meetings`
+                    : undefined
+                }
+              />
+              <SummaryFact
+                icon={Briefcase}
+                label="Practice area"
+                value={
+                  caseItem.practiceArea
+                    ? PRACTICE_AREA_LABELS[caseItem.practiceArea as PracticeArea] ?? caseItem.practiceArea
+                    : "Not set"
+                }
+                sub={matterStatusLabel}
+              />
+              <SummaryFact
+                icon={FileCheck2}
+                label="Attendance note"
+                loading={summaryLoading}
+                value={attendanceNoteLabel}
+                tone={summary?.attendanceNote.status === "draft" ? "warn" : undefined}
+              />
+              <SummaryFact
+                icon={ListChecks}
+                label="Action items"
+                loading={summaryLoading}
+                value={
+                  summary
+                    ? summary.openActionItems === 0
+                      ? "None open"
+                      : `${summary.openActionItems} open`
+                    : "—"
+                }
+              />
+              <SummaryFact
+                icon={caseItem.litigationHold ? Lock : AudioLines}
+                label="Audio"
+                loading={summaryLoading}
+                value={audioLabel}
+                tone={audioExpiresSoon ? "warn" : undefined}
+              />
               {caseItem.deadline && (
-                <div className="flex items-center gap-3 text-sm">
-                  <Clock className={cn(
-                    "w-4 h-4 flex-shrink-0",
-                    isOverdue ? "text-red-500" : "text-muted-foreground"
-                  )} />
-                  <div>
-                    <p className="text-muted-foreground text-xs">Deadline</p>
-                    <p className={cn(
-                      "font-medium",
-                      isOverdue && "text-red-600 dark:text-red-400"
-                    )}>
-                      {format(new Date(caseItem.deadline), "d MMMM yyyy")}
-                      {isOverdue && " (Overdue)"}
-                    </p>
-                  </div>
-                </div>
+                <SummaryFact
+                  icon={Clock}
+                  label="Deadline"
+                  value={`${format(new Date(caseItem.deadline), "d MMM yyyy")}${isOverdue ? " (Overdue)" : ""}`}
+                  tone={isOverdue ? "danger" : undefined}
+                />
               )}
-
+              {caseItem.supervisorName && (
+                <SummaryFact icon={UserCheck} label="Supervisor" value={caseItem.supervisorName} />
+              )}
+              <SummaryFact
+                icon={Calendar}
+                label="Created"
+                value={format(new Date(caseItem.createdAt), "d MMM yyyy, HH:mm")}
+              />
               {caseItem.matterReference && (
-                <div className="flex items-center gap-3 text-sm">
-                  <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                  <div>
-                    <p className="text-muted-foreground text-xs">Matter Reference</p>
-                    <p className="font-medium font-mono text-xs">{caseItem.matterReference}</p>
-                  </div>
-                </div>
+                <SummaryFact
+                  icon={FileText}
+                  label="Matter reference"
+                  value={caseItem.matterReference}
+                  mono
+                />
               )}
-            </div>
+            </dl>
 
             <Separator />
 
@@ -391,5 +492,49 @@ export default function CaseDetailDrawer({ caseItem, open, onOpenChange }: CaseD
         onDownload={handleDownload}
       />
     </>
+  );
+}
+
+function SummaryFact({
+  icon: Icon,
+  label,
+  value,
+  sub,
+  tone,
+  mono,
+  loading,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+  sub?: string;
+  tone?: "warn" | "danger";
+  mono?: boolean;
+  loading?: boolean;
+}) {
+  return (
+    <div className="flex items-start gap-2.5 min-w-0">
+      <Icon
+        className={cn(
+          "w-4 h-4 mt-0.5 flex-shrink-0",
+          tone === "danger" ? "text-red-500" : tone === "warn" ? "text-amber-500" : "text-muted-foreground",
+        )}
+        aria-hidden
+      />
+      <div className="min-w-0">
+        <dt className="text-muted-foreground text-xs">{label}</dt>
+        <dd
+          className={cn(
+            "text-sm font-medium break-words",
+            mono && "font-mono text-xs",
+            tone === "danger" && "text-red-600 dark:text-red-400",
+            tone === "warn" && "text-amber-700 dark:text-amber-400",
+          )}
+        >
+          {loading ? <Skeleton className="h-4 w-20 mt-0.5" /> : value}
+        </dd>
+        {sub && !loading && <dd className="text-xs text-muted-foreground">{sub}</dd>}
+      </div>
+    </div>
   );
 }
