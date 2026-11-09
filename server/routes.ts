@@ -115,6 +115,7 @@ import { scrubInsightComment } from "@shared/productInsights";
 import { CONSENT_DISCLAIMER_TEXT, CONSENT_DISCLAIMER_VERSION } from "@shared/consent";
 import { CONSENT_DECLINED_BOT_MESSAGE, consentDeclinedBlocksBot } from "@shared/liveBotLifecycle";
 import { defaultRecordingTypeForMatterKind, validateRecordingType } from "@shared/recordingTypes";
+import { RECORDING_TYPE_LABELS, type RecordingType } from "@shared/schema";
 import { toAssignableRecordings } from "./services/assignableRecordingView";
 import { CAPTURE_CONFLICT_DEFERRAL_NOTE } from "@shared/matterKinds";
 import { isFeatureVisible, type FeatureKey } from "@shared/featureVisibility";
@@ -13981,7 +13982,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
     try {
       const userId = req.user.claims.sub;
       const { id } = req.params;
-      const { autoRecordEnabled, clientEmail, clientName, caseId, title } = req.body;
+      const { autoRecordEnabled, clientEmail, clientName, caseId, title, recordingType } = req.body;
       
       const meeting = await storage.getScheduledMeeting(id);
       if (!meeting || meeting.userId !== userId) {
@@ -14042,6 +14043,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         updates.clientName = resolveConsentRecipientName(meeting, nextEmail);
       }
       
+      let linkedMatterKind: string | null | undefined;
       if (caseId !== undefined) {
         if (caseId) {
           const caseData = await storage.getCase(caseId, userId);
@@ -14049,8 +14051,35 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
             return res.status(403).json({ message: "Case not found or not authorized" });
           }
           updates.caseId = caseId;
+          linkedMatterKind = caseData.matterKind;
         } else {
           updates.caseId = null;
+          updates.recordingType = null;
+        }
+      }
+
+      // Meeting type for the bot recording's session, checked against the linked matter.
+      const nextCaseId = updates.caseId !== undefined ? updates.caseId : meeting.caseId;
+      const nextRecordingType =
+        recordingType !== undefined ? recordingType : updates.caseId ? meeting.recordingType : undefined;
+      if (nextRecordingType !== undefined && updates.recordingType !== null) {
+        if (nextRecordingType === null || nextRecordingType === "") {
+          updates.recordingType = null;
+        } else if (!nextCaseId) {
+          return res.status(400).json({ message: "Link a matter before choosing the meeting type" });
+        } else {
+          if (linkedMatterKind === undefined) {
+            linkedMatterKind = (await storage.getCase(nextCaseId, userId))?.matterKind;
+          }
+          const check = validateRecordingType(nextRecordingType, { matterKind: linkedMatterKind });
+          if (check.ok) {
+            updates.recordingType = check.recordingType;
+          } else if (recordingType !== undefined) {
+            return res.status(400).json({ message: check.message });
+          } else {
+            // The new matter does not allow the earlier choice; fall back to its default.
+            updates.recordingType = null;
+          }
         }
       }
       
@@ -15955,8 +15984,82 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         updates.instructionsTaken = req.body.instructionsTaken;
       }
 
+      // Changing the meeting type after recording: allowed until a note is adopted.
+      // The note is then produced again as a new version, and the change is audited.
+      let regenerateFromDocumentId: string | null = null;
+      const previousRecordingType = session.recordingType;
+      if (req.body.recordingType !== undefined && req.body.recordingType !== session.recordingType) {
+        const typeCheck = validateRecordingType(req.body.recordingType, { matterKind: caseData.matterKind });
+        if (!typeCheck.ok) {
+          return res.status(400).json({ message: typeCheck.message });
+        }
+        if (caseData.litigationHold) {
+          return res.status(403).json({ message: "This matter is under litigation hold" });
+        }
+        const sessionDocs = (await storage.getDocumentsBySession(sessionId)).filter((d) => d.isActive);
+        if (sessionDocs.some((d) => d.status === "approved")) {
+          return res.status(409).json({
+            message: "A note for this meeting has been adopted, so its type can no longer be changed.",
+            code: "note_adopted",
+          });
+        }
+        const caseMeta = (caseData.aiProcessingMetadata as { status?: string } | null) || {};
+        if (session.status === "processing" || caseData.status === "processing" || caseMeta.status === "processing") {
+          return res.status(409).json({
+            message: "This meeting is still being processed. Change the type once the note is ready.",
+            code: "still_processing",
+          });
+        }
+        updates.recordingType = typeCheck.recordingType;
+        regenerateFromDocumentId =
+          sessionDocs.find((d) => d.type === "attendance_note" || d.type === "meeting_notes")?.id ?? null;
+      }
+
       const updated = await storage.updateMeetingSession(sessionId, updates);
       if (!updated) return res.status(404).json({ message: "Session not found" });
+
+      if (updates.recordingType) {
+        await storage.createAuditLog({
+          eventType: "session_recording_type_changed",
+          severity: "info",
+          userId,
+          caseId: session.caseId,
+          ipAddress: req.ip,
+          userAgent: req.get("user-agent"),
+          metadata: {
+            sessionId,
+            from: previousRecordingType,
+            to: updates.recordingType,
+            regenerateFromDocumentId,
+          },
+        });
+        if (regenerateFromDocumentId) {
+          const { enqueueProduceDocumentVersion } = await import("./services/produceDocumentVersion");
+          try {
+            await enqueueProduceDocumentVersion({
+              storage,
+              caseId: session.caseId,
+              documentId: regenerateFromDocumentId,
+              userId,
+              reason: `Meeting type changed from ${RECORDING_TYPE_LABELS[previousRecordingType as RecordingType] ?? previousRecordingType} to ${RECORDING_TYPE_LABELS[updates.recordingType as RecordingType] ?? updates.recordingType}. Produce the note for the new meeting type from the same meeting record.`,
+            });
+          } catch (produceError: any) {
+            // Keep the type and the audit entry consistent: put the old type back.
+            await storage.updateMeetingSession(sessionId, { recordingType: previousRecordingType });
+            await storage.createAuditLog({
+              eventType: "session_recording_type_changed",
+              severity: "warning",
+              userId,
+              caseId: session.caseId,
+              metadata: { sessionId, from: updates.recordingType, to: previousRecordingType, revertedBecause: produceError?.message },
+            });
+            return res.status(produceError?.statusCode || 500).json({
+              message: produceError?.message || "Could not produce the note for the new meeting type",
+            });
+          }
+          return res.status(202).json({ ...updated, regenerating: true });
+        }
+      }
       res.json(updated);
     } catch (error: any) {
       console.error("[Sessions] Error updating session:", error);

@@ -40,7 +40,10 @@ import {
 import { format, formatDistanceToNow, isToday, isTomorrow, isPast, addDays, startOfDay } from "date-fns";
 import { useState, useMemo, useEffect } from "react";
 import { useLocation } from "wouter";
-import type { ScheduledMeeting, Case, MeetingBookingProposal, MeetingBookingSlot } from "@shared/schema";
+import type { ScheduledMeeting, Case, MeetingBookingProposal, MeetingBookingSlot, RecordingType } from "@shared/schema";
+import { RECORDING_TYPE_LABELS } from "@shared/schema";
+import { defaultRecordingTypeForMatterKind, recordingTypesForMatterKind } from "@shared/recordingTypes";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import ConfigurationErrorModal from "@/components/ConfigurationErrorModal";
 import ScheduleMeetingModal from "@/components/ScheduleMeetingModal";
 import EditBookingProposalDialog from "@/components/EditBookingProposalDialog";
@@ -997,6 +1000,45 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
                 </Badge>
               )}
             </div>
+
+            {linkedCase && isActive && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <FileText className="w-4 h-4" />
+                <span id={`meeting-type-label-${meeting.id}`}>Meeting type</span>
+                <Select
+                  value={meeting.recordingType || defaultRecordingTypeForMatterKind(linkedCase.matterKind)}
+                  onValueChange={(value) =>
+                    updateMutation.mutate(
+                      { recordingType: value },
+                      {
+                        onError: (error: any) =>
+                          toast({
+                            title: "Could not set the meeting type",
+                            description: getApiErrorMessage(error, error.message),
+                            variant: "destructive",
+                          }),
+                      },
+                    )
+                  }
+                  disabled={updateMutation.isPending}
+                >
+                  <SelectTrigger
+                    className="h-8 w-auto min-w-40 text-xs"
+                    aria-labelledby={`meeting-type-label-${meeting.id}`}
+                    data-testid={`select-meeting-type-${meeting.id}`}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {recordingTypesForMatterKind(linkedCase.matterKind).map((value) => (
+                      <SelectItem key={value} value={value}>
+                        {RECORDING_TYPE_LABELS[value as RecordingType] ?? value}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             
             {meeting.clientEmail && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">

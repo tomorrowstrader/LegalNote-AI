@@ -28,7 +28,7 @@ describe("validateRecordingType", () => {
   });
 
   it("restricts types by matter kind", () => {
-    expect(validateRecordingType("internal_meeting", { matterKind: "client" }).ok).toBe(false);
+    expect(validateRecordingType("internal_meeting", { matterKind: "client" }).ok).toBe(true);
     expect(validateRecordingType("full_meeting", { matterKind: "internal" }).ok).toBe(false);
     expect(validateRecordingType("internal_meeting", { matterKind: "internal" })).toEqual({
       ok: true,
@@ -45,6 +45,12 @@ describe("shouldGenerateClientLetter", () => {
     expect(shouldGenerateClientLetter({ matterKind: "client", recordingType: "full_meeting" })).toBe(
       true,
     );
+  });
+
+  it("skips letters for file notes and case discussions on client matters", () => {
+    expect(shouldGenerateClientLetter({ matterKind: "client", recordingType: "file_note" })).toBe(false);
+    expect(shouldGenerateClientLetter({ matterKind: "client", recordingType: "internal_meeting" })).toBe(false);
+    expect(shouldGenerateClientLetter({ matterKind: "client", recordingType: "telephone_call" })).toBe(true);
   });
 });
 

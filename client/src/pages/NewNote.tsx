@@ -149,6 +149,7 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
   const needsParticipantConsent = requiresParticipantConsent(
     effectiveMatterKind,
     effectiveHasExternalAttendees,
+    recordingType,
   );
   const allowedRecordingTypes = recordingTypesForMatterKind(effectiveMatterKind);
 
@@ -1033,7 +1034,7 @@ export default function NewNote({ initialCaseId = null, captureBranding = false 
             <CardContent className="space-y-4">
               <div className="p-4 bg-muted rounded-md space-y-3">
                 <p className="text-sm text-muted-foreground">
-                  {isClientMatter
+                  {isClientMatter && !needsParticipantConsent
                     ? "The recording will begin with a 3-second countdown in the bottom-right control center. You will then read the consent disclaimer to your client, and they will verbally confirm their consent on the recording. You can navigate away - the recording stays manageable from the control center."
                     : needsParticipantConsent
                       ? "The recording will begin with a 3-second countdown in the bottom-right control center. You will then read a short participant recording notice to attendees and confirm their agreement on the recording."

@@ -35,13 +35,22 @@ export function isInternalRecordingType(value: unknown): boolean {
   return value === "internal_meeting";
 }
 
+/** A client matter can also hold a discussion the client is not part of. */
+export const CLIENT_MATTER_RECORDING_TYPES = [
+  ...CLIENT_FACING_RECORDING_TYPES,
+  "internal_meeting",
+] as const;
+
 export function recordingTypesForMatterKind(kind: string | null | undefined): readonly string[] {
   const normalized = normalizeMatterKind(kind);
   if (normalized === "client") {
-    return CLIENT_FACING_RECORDING_TYPES;
+    return CLIENT_MATTER_RECORDING_TYPES;
   }
   return INTERNAL_RECORDING_TYPES;
 }
+
+/** Types that never produce a client letter: nothing was said to the client. */
+const NO_CLIENT_LETTER_TYPES = new Set<string>(["internal_meeting", "file_note"]);
 
 export function defaultRecordingTypeForMatterKind(kind: string | null | undefined): PermittedRecordingType {
   return normalizeMatterKind(kind) === "client" ? "full_meeting" : "internal_meeting";
@@ -54,7 +63,7 @@ export function shouldGenerateClientLetter(params: {
 }): boolean {
   if (params.explicit === false) return false;
   if (!isClientMatterKindSafe(params.matterKind)) return false;
-  if (isInternalRecordingType(params.recordingType)) return false;
+  if (params.recordingType && NO_CLIENT_LETTER_TYPES.has(params.recordingType)) return false;
   return true;
 }
 

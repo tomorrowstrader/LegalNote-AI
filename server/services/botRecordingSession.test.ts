@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MeetingImport, MeetingSession } from "@shared/schema";
-import { resolveBotMeetingStart, resolveBotRecordingSession } from "./botRecordingSession";
+import { chosenRecordingType, resolveBotMeetingStart, resolveBotRecordingSession } from "./botRecordingSession";
 
 const CASE = "case-1";
 const USER = "user-1";
@@ -125,5 +125,20 @@ describe("resolveBotMeetingStart", () => {
     expect(await resolveBotMeetingStart(storage as never, makeImport())).toEqual(scheduled);
 
     expect(await resolveBotMeetingStart(storage as never, makeImport())).toEqual(new Date("2026-11-05T09:58:00Z"));
+  });
+});
+
+describe("chosenRecordingType", () => {
+  it("uses the type chosen on the upcoming meeting when the matter allows it", async () => {
+    const storage = makeStorage();
+    storage.getScheduledMeetingByBotId.mockResolvedValueOnce({ recordingType: "internal_meeting" } as never);
+    expect(await chosenRecordingType(storage as never, makeImport(), "client")).toBe("internal_meeting");
+  });
+
+  it("falls back to the matter default when nothing was chosen or the choice does not fit", async () => {
+    const storage = makeStorage();
+    expect(await chosenRecordingType(storage as never, makeImport(), "client")).toBe("full_meeting");
+    storage.getScheduledMeetingByBotId.mockResolvedValueOnce({ recordingType: "court_hearing" } as never);
+    expect(await chosenRecordingType(storage as never, makeImport(), "internal")).toBe("internal_meeting");
   });
 });

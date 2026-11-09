@@ -1,6 +1,7 @@
 import { clientNameForNote, parseMeetingCast } from "@shared/meetingCast";
 import { earliestMeetingTime, formatUkLongDate, toUkIsoDate } from "@shared/meetingTime";
 import { parseInstructionStatus, resolveInstructionsTaken } from "@shared/instructionStatus";
+import { shouldGenerateClientLetter } from "@shared/recordingTypes";
 import { DocumentService, type CaseMetadata } from "./documentService";
 import { formatDiarizedTranscript, type SpeakerUtterance } from "./assemblyAIService";
 import { logDocumentGovernanceViolations } from "./documentGovernanceGate";
@@ -385,6 +386,8 @@ export async function produceDocumentVersion(params: {
       const attendanceUnchanged = attendanceResult.content === parent.content;
       primaryContentUnchanged = attendanceUnchanged;
 
+      // A meeting type change can turn an attendance note into meeting notes or back.
+      const primaryType = recordingType === "internal_meeting" ? "meeting_notes" : "attendance_note";
       const attendanceVersion = await storage.createDocumentVersion(
         documentId,
         attendanceResult.content,
@@ -393,6 +396,7 @@ export async function produceDocumentVersion(params: {
         {
           verificationWarnings:
             verification.warnings.length > 0 ? verification.warnings : undefined,
+          ...(primaryType !== parent.type ? { type: primaryType } : {}),
         },
       );
 
@@ -444,7 +448,31 @@ export async function produceDocumentVersion(params: {
             (d.type === "client_letter" || d.type === "summary") && d.id !== attendanceVersion.id,
         );
 
-      if (clientLetterParent) {
+      // File notes and case discussions have no client letter. After a type change,
+      // the session's own letter is taken off the file (kept as an inactive version).
+      const letterAllowed = shouldGenerateClientLetter({
+        matterKind: (caseData as { matterKind?: string }).matterKind,
+        recordingType,
+      });
+      if (
+        !letterAllowed &&
+        clientLetterParent &&
+        parent.meetingSessionId &&
+        clientLetterParent.meetingSessionId === parent.meetingSessionId
+      ) {
+        await storage.updateDocument(clientLetterParent.id, { isActive: false }, userId);
+        await logAuditEvent(userId, "document_regenerated", {
+          caseId,
+          documentId: clientLetterParent.id,
+          metadata: {
+            action: "client_letter_withdrawn",
+            reason: `No client letter for this meeting type (${recordingType})`,
+            recordingType,
+          },
+        });
+      }
+
+      if (clientLetterParent && letterAllowed) {
         await setProgress(70, "Compiling client letter...");
         const letterResult = await documentService.generateSummary(
           attendanceResult.content,

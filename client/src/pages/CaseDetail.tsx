@@ -68,6 +68,7 @@ import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import type { Case, AudioRecording, ConsentLog, MeetingSession, Transcript, Document, QuickNote } from "@shared/schema";
 import { RECORDING_TYPE_LABELS, type RecordingType } from "@shared/schema";
+import { recordingTypesForMatterKind } from "@shared/recordingTypes";
 import { PRACTICE_AREA_LABELS, PRACTICE_AREAS, type PracticeArea } from "@shared/schema";
 import { isClientMatterKind, normalizeMatterKind, requiresParticipantConsent, requiresSealedConsentForProcessing } from "@shared/matterKinds";
 import { noteRoleTitle, professionalActionLabel } from "@shared/professionalIdentity";
@@ -137,7 +138,7 @@ const NAV_LABELS: Record<CaseSection, string> = {
   audit: "Audit",
 };
 
-function SessionDetails({ sessionId, caseId, onOpenAttendanceNote, litigationHold, litigationHoldReason, matterClientName, matterInstructionStatus }: { sessionId: string; caseId: string; onOpenAttendanceNote: () => void; litigationHold?: boolean; litigationHoldReason?: string | null; matterClientName?: string; matterInstructionStatus?: string | null }) {
+function SessionDetails({ sessionId, caseId, onOpenAttendanceNote, litigationHold, litigationHoldReason, matterClientName, matterInstructionStatus, matterKind }: { sessionId: string; caseId: string; onOpenAttendanceNote: () => void; litigationHold?: boolean; litigationHoldReason?: string | null; matterClientName?: string; matterInstructionStatus?: string | null; matterKind?: string | null }) {
   const { toast } = useToast();
   const { data, isLoading } = useQuery<SessionWithDetails>({
     queryKey: ['/api/sessions', sessionId],
@@ -166,6 +167,30 @@ function SessionDetails({ sessionId, caseId, onOpenAttendanceNote, litigationHol
     },
     onError: (error: any) => {
       toast({ title: "Could not save the meeting cast", description: error.message || "Check the names and try again.", variant: "destructive" });
+    },
+  });
+
+  const [pendingType, setPendingType] = useState<string | null>(null);
+  const changeTypeMutation = useMutation({
+    mutationFn: async (recordingType: string) =>
+      (await apiRequest("PATCH", `/api/sessions/${sessionId}`, { recordingType })).json() as Promise<{ regenerating?: boolean }>,
+    onSuccess: (result) => {
+      setPendingType(null);
+      toast({
+        title: "Meeting type changed",
+        description: result?.regenerating
+          ? "The note is being produced again for the new type. The earlier version stays on file."
+          : "Notes produced from this meeting will use the new type.",
+        duration: 5000,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId] });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/sessions`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/processing-status`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/documents`] });
+    },
+    onError: (error: any) => {
+      toast({ title: "Could not change the meeting type", description: getApiErrorMessage(error, "Please try again."), variant: "destructive" });
     },
   });
 
@@ -271,6 +296,64 @@ function SessionDetails({ sessionId, caseId, onOpenAttendanceNote, litigationHol
           <p className="text-xs text-muted-foreground">No transcript for this session.</p>
         )}
       </div>
+
+      {(() => {
+        const noteAdopted = activeDocuments.some((d) => d.status === "approved");
+        const locked = noteAdopted || sessionIsPending || !!litigationHold;
+        const currentType = data.recordingType;
+        const shownType = pendingType ?? currentType;
+        return (
+          <div className="space-y-2 rounded-md border border-border p-3" data-testid={`meeting-type-${sessionId}`}>
+            <div className="flex flex-wrap items-center gap-2">
+              <Label htmlFor={`session-type-${sessionId}`} className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                Meeting type
+              </Label>
+              <Select
+                value={shownType}
+                onValueChange={(value) => setPendingType(value === currentType ? null : value)}
+                disabled={locked || changeTypeMutation.isPending}
+              >
+                <SelectTrigger id={`session-type-${sessionId}`} className="h-8 w-auto min-w-40 text-xs" data-testid={`select-session-type-${sessionId}`}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {recordingTypesForMatterKind(matterKind).map((value) => (
+                    <SelectItem key={value} value={value}>
+                      {RECORDING_TYPE_LABELS[value as RecordingType] ?? value}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {pendingType && (
+                <>
+                  <Button
+                    size="sm"
+                    onClick={() => changeTypeMutation.mutate(pendingType)}
+                    disabled={changeTypeMutation.isPending}
+                    data-testid={`button-confirm-session-type-${sessionId}`}
+                  >
+                    {changeTypeMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Change type"}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setPendingType(null)} disabled={changeTypeMutation.isPending}>
+                    Cancel
+                  </Button>
+                </>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {noteAdopted
+                ? "The note for this meeting has been adopted, so its type is fixed."
+                : sessionIsPending
+                  ? "You can change the type once this meeting has been processed."
+                  : litigationHold
+                    ? "This matter is under litigation hold."
+                    : pendingType && activeAttendanceNote
+                      ? "The note will be produced again for the new type, as a new version. The earlier version stays on file, and the change is recorded in the audit trail."
+                      : "File notes and internal meetings have no client letter."}
+            </p>
+          </div>
+        );
+      })()}
 
       <div className="space-y-3 rounded-md border border-border p-3" data-testid={`meeting-cast-${sessionId}`}>
         <MeetingCastFields
@@ -2519,6 +2602,7 @@ export default function CaseDetail() {
                                 litigationHoldReason={caseData.litigationHoldReason}
                                 matterClientName={caseData.clientName}
                                 matterInstructionStatus={caseData.instructionStatus}
+                                matterKind={caseData.matterKind}
                               />
                             </div>
                           )}

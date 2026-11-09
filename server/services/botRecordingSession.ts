@@ -1,5 +1,5 @@
 import type { InsertMeetingSession, MeetingImport } from "@shared/schema";
-import { defaultRecordingTypeForMatterKind } from "@shared/recordingTypes";
+import { defaultRecordingTypeForMatterKind, validateRecordingType } from "@shared/recordingTypes";
 import type { IStorage } from "../storage";
 
 type SessionStorage = Pick<
@@ -25,6 +25,29 @@ export async function resolveBotMeetingStart(
     }
   }
   return new Date(importRecord.createdAt);
+}
+
+/**
+ * The meeting type chosen on the upcoming meeting, if it suits the matter.
+ * Otherwise the matter's default.
+ */
+export async function chosenRecordingType(
+  storage: Pick<IStorage, "getScheduledMeetingByBotId">,
+  importRecord: MeetingImport,
+  matterKind: string | null | undefined,
+): Promise<string> {
+  if (importRecord.recallBotId) {
+    try {
+      const scheduled = await storage.getScheduledMeetingByBotId(importRecord.recallBotId);
+      if (scheduled?.recordingType) {
+        const check = validateRecordingType(scheduled.recordingType, { matterKind });
+        if (check.ok) return check.recordingType;
+      }
+    } catch {
+      // Fall back to the matter's default.
+    }
+  }
+  return defaultRecordingTypeForMatterKind(matterKind);
 }
 
 /**
@@ -66,12 +89,13 @@ export async function resolveBotRecordingSession(params: {
   const caseData = await storage.getCase(caseId, userId);
   if (!caseData) throw new Error("Matter not found for this recording");
 
+  const recordingType = await chosenRecordingType(storage, importRecord, caseData.matterKind);
   const session = await storage.createMeetingSession({
     caseId,
     createdBy: userId,
     // The insert type's list predates internal_meeting; the column is text and the
     // routes store this same value for non-client matters.
-    recordingType: defaultRecordingTypeForMatterKind(caseData.matterKind) as InsertMeetingSession["recordingType"],
+    recordingType: recordingType as InsertMeetingSession["recordingType"],
     sessionTitle: importRecord.meetingTitle?.trim().slice(0, 200) || undefined,
     status: "pending",
     durationSeconds: importRecord.durationSeconds ?? undefined,

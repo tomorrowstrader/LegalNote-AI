@@ -39,6 +39,11 @@ describe("matterKinds", () => {
     expect(requiresParticipantConsent("internal", true)).toBe(true);
     expect(requiresParticipantConsent("internal", false)).toBe(false);
     expect(requiresParticipantConsent("client", true)).toBe(false);
+    // The client is not in a case discussion, so the participant notice is used.
+    expect(requiresParticipantConsent("client", false, "internal_meeting")).toBe(true);
+    expect(requiresClientConsent("client", "internal_meeting")).toBe(false);
+    expect(requiresClientConsent("client", "full_meeting")).toBe(true);
+    expect(requiresSealedConsentForProcessing("client", false, "internal_meeting")).toBe(true);
     expect(requiresSealedConsentForProcessing("internal", false)).toBe(false);
     expect(requiresSealedConsentForProcessing("internal", true)).toBe(true);
     expect(requiresSealedConsentForProcessing("client", false)).toBe(true);

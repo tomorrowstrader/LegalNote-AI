@@ -787,6 +787,8 @@ export const scheduledMeetings = pgTable("scheduled_meetings", {
   clientEmail: text("client_email"),
   clientName: text("client_name"),
   autoRecordEnabled: boolean("auto_record_enabled").notNull().default(false),
+  /** Meeting type chosen when the matter is linked. Null uses the matter's default. */
+  recordingType: text("recording_type"),
   consentStatus: text("consent_status").notNull().default("pending"), // pending, sent, approved, declined, expired
   preConsentEmailId: varchar("pre_consent_email_id").references(() => preConsentEmails.id),
   recallBotId: text("recall_bot_id"),

@@ -35,9 +35,24 @@ export function requiresClientForMatter(kind: string | null | undefined): boolea
   return isClientMatterKind(kind);
 }
 
-/** Client-facing GDPR consent script - client matters only. */
-export function requiresClientConsent(kind: string | null | undefined): boolean {
-  return isClientMatterKind(kind);
+/**
+ * A conversation on a client matter that the client is not part of, such as a
+ * case discussion with colleagues, counsel or a witness. The client consent
+ * script would be wrong here, so the participant notice is used instead.
+ */
+function isClientAbsentSession(
+  kind: string | null | undefined,
+  recordingType: string | null | undefined,
+): boolean {
+  return isClientMatterKind(kind) && recordingType === "internal_meeting";
+}
+
+/** Client-facing GDPR consent script - client matters only, when the client takes part. */
+export function requiresClientConsent(
+  kind: string | null | undefined,
+  recordingType?: string | null,
+): boolean {
+  return isClientMatterKind(kind) && !isClientAbsentSession(kind, recordingType);
 }
 
 /**
@@ -47,7 +62,9 @@ export function requiresClientConsent(kind: string | null | undefined): boolean 
 export function requiresParticipantConsent(
   kind: string | null | undefined,
   hasExternalAttendees: boolean | null | undefined,
+  recordingType?: string | null,
 ): boolean {
+  if (isClientAbsentSession(kind, recordingType)) return true;
   return !isClientMatterKind(kind) && !!hasExternalAttendees;
 }
 
@@ -55,9 +72,12 @@ export function requiresParticipantConsent(
 export function requiresSealedConsentForProcessing(
   kind: string | null | undefined,
   hasExternalAttendees: boolean | null | undefined,
+  recordingType?: string | null,
 ): boolean {
+  // Every client matter still needs sealed consent; only the script changes.
   return (
-    requiresClientConsent(kind) || requiresParticipantConsent(kind, hasExternalAttendees)
+    requiresClientConsent(kind, recordingType) ||
+    requiresParticipantConsent(kind, hasExternalAttendees, recordingType)
   );
 }
 

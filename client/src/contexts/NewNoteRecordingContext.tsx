@@ -269,6 +269,7 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
       const needsConsent = requiresSealedConsentForProcessing(
         kind,
         metaRef.current?.hasExternalAttendees,
+        metaRef.current?.recordingType,
       );
       if (!needsConsent) {
         setConsentGiven(null);
@@ -297,10 +298,14 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
           matterKind: kind,
           hasExternalAttendees: !!metaRef.current?.hasExternalAttendees,
           skipConsent: !needsConsent,
-          consentVariant: isClientMatterKind(kind)
-            ? "client"
-            : requiresParticipantConsent(kind, metaRef.current?.hasExternalAttendees)
-              ? "participant"
+          consentVariant: requiresParticipantConsent(
+            kind,
+            metaRef.current?.hasExternalAttendees,
+            metaRef.current?.recordingType,
+          )
+            ? "participant"
+            : isClientMatterKind(kind)
+              ? "client"
               : "none",
         },
         severity: "info",
@@ -527,6 +532,7 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
           const isParticipant = requiresParticipantConsent(
             snapshot.matterKind,
             snapshot.hasExternalAttendees,
+            snapshot.recordingType,
           );
           await apiRequest("POST", "/api/consent", {
             caseId: targetCaseId,
@@ -871,7 +877,7 @@ export function NewNoteRecordingProvider({ children }: { children: ReactNode }) 
       <ConsentModal
         open={showConsentModal}
         variant={
-          requiresParticipantConsent(meta?.matterKind, meta?.hasExternalAttendees)
+          requiresParticipantConsent(meta?.matterKind, meta?.hasExternalAttendees, meta?.recordingType)
             ? "participant"
             : "client"
         }

@@ -574,6 +574,8 @@ export interface IStorage {
     options?: {
       approvalComment?: string;
       verificationWarnings?: VerificationWarning[];
+      /** Only when the meeting type changed: attendance note <-> meeting notes. */
+      type?: "attendance_note" | "meeting_notes";
     }
   ): Promise<Document | undefined>;
   getDocument(id: string): Promise<Document | undefined>;
@@ -1799,7 +1801,12 @@ export class MemStorage implements IStorage {
     newContent: string,
     versionType: string,
     userId: string,
-    options?: { approvalComment?: string; verificationWarnings?: VerificationWarning[] }
+    options?: {
+      approvalComment?: string;
+      verificationWarnings?: VerificationWarning[];
+      /** Only when the meeting type changed: attendance note <-> meeting notes. */
+      type?: "attendance_note" | "meeting_notes";
+    }
   ): Promise<Document | undefined> {
     const parent = this.documents.get(parentDocumentId);
     if (!parent) return undefined;
@@ -1826,7 +1833,7 @@ export class MemStorage implements IStorage {
       caseId: parent.caseId,
       meetingSessionId: parent.meetingSessionId ?? undefined,
       transcriptSnapshotId: parent.transcriptSnapshotId ?? undefined,
-      type: parent.type as InsertDocument["type"],
+      type: (options?.type ?? parent.type) as InsertDocument["type"],
       content: newContent,
       version: parent.version + 1,
       versionType: versionType as InsertDocument["versionType"],
@@ -4312,7 +4319,12 @@ export class DbStorage implements IStorage {
     newContent: string,
     versionType: string,
     userId: string,
-    options?: { approvalComment?: string; verificationWarnings?: VerificationWarning[] }
+    options?: {
+      approvalComment?: string;
+      verificationWarnings?: VerificationWarning[];
+      /** Only when the meeting type changed: attendance note <-> meeting notes. */
+      type?: "attendance_note" | "meeting_notes";
+    }
   ): Promise<Document | undefined> {
     const parentResult = await db
       .select()
@@ -4341,7 +4353,7 @@ export class DbStorage implements IStorage {
       caseId: parent.caseId,
       meetingSessionId: parent.meetingSessionId ?? undefined,
       transcriptSnapshotId: parent.transcriptSnapshotId ?? undefined,
-      type: parent.type as InsertDocument["type"],
+      type: (options?.type ?? parent.type) as InsertDocument["type"],
       content: newContent,
       version: parent.version + 1,
       versionType: versionType as InsertDocument["versionType"],
