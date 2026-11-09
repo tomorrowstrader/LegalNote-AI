@@ -3,13 +3,14 @@ import { useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Check, CheckCircle2, Loader2, Shield, X } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { CONSENT_DISCLAIMER_TEXT } from "@shared/consent";
+import { consentScriptWording } from "@shared/consent";
 
 type ImportPoll = {
   id: string;
   botStatus: string | null;
   consentMode?: string;
   consentConfirmed?: boolean;
+  consentScript?: string | null;
   status: string;
 };
 
@@ -39,6 +40,8 @@ export function InMeetingConsentPanel({
   const [consentObtained, setConsentObtained] = useState(false);
   const [consentRecordedElapsed, setConsentRecordedElapsed] = useState<number | null>(null);
   const [importData, setImportData] = useState<ImportPoll | null>(null);
+  // Set when the bot was sent: the participant notice when the client is not in the meeting.
+  const isParticipant = importData?.consentScript === "participant";
   const recordingStartedAtRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -155,15 +158,18 @@ export function InMeetingConsentPanel({
       <div className="flex items-center gap-2">
         <Shield className="w-4 h-4 text-amber-600 shrink-0" />
         <p className="text-sm font-semibold text-amber-700 dark:text-amber-300">
-          Read consent script to client now
+          {isParticipant ? "Read participant notice to attendees now" : "Read consent script to client now"}
         </p>
       </div>
       <div className="bg-background rounded-md p-3 border border-border">
-        <p className="text-xs font-medium text-muted-foreground mb-1.5">READ TO CLIENT:</p>
-        <p className="text-sm leading-relaxed italic">&quot;{CONSENT_DISCLAIMER_TEXT}&quot;</p>
+        <p className="text-xs font-medium text-muted-foreground mb-1.5">
+          {isParticipant ? "READ TO ATTENDEES:" : "READ TO CLIENT:"}
+        </p>
+        <p className="text-sm leading-relaxed italic">&quot;{consentScriptWording(isParticipant ? "participant" : "client").text}&quot;</p>
       </div>
       <p className="text-xs text-muted-foreground">
-        Recording time: {formatElapsed(recordingElapsed)} - client&apos;s verbal response is captured
+        Recording time: {formatElapsed(recordingElapsed)} -{" "}
+        {isParticipant ? "attendees' verbal responses are" : "client's verbal response is"} captured
         on the recording.
       </p>
       <div className="flex gap-2">
@@ -176,7 +182,7 @@ export function InMeetingConsentPanel({
           data-testid="button-client-declined"
         >
           <X className="w-4 h-4" />
-          Client Declined
+          {isParticipant ? "Declined" : "Client Declined"}
         </Button>
         <Button
           className="flex-1 gap-2"
@@ -190,7 +196,7 @@ export function InMeetingConsentPanel({
           ) : (
             <Check className="w-4 h-4" />
           )}
-          Client Consented
+          {isParticipant ? "Everyone agreed" : "Client Consented"}
         </Button>
       </div>
     </div>

@@ -14,6 +14,7 @@ import {
   messageForAbandonedSubCode,
 } from '@shared/liveBotLifecycle';
 import { isReceivedCalendarMeeting, withCalendarOrganizer } from '@shared/meetingAttendees';
+import { consentScriptFor } from '@shared/matterKinds';
 import {
   detectMeetingPlatform,
   extractMeetingLink,
@@ -560,6 +561,23 @@ export class MeetingSchedulerService {
       const bot = await recallService.createBot(meeting.meetingUrl, 'LegalNote');
       const platform = recallService.detectMeetingPlatform(meeting.meetingUrl);
 
+      // Participant notice when the linked matter's meeting type means the client is not there.
+      let consentScript: 'client' | 'participant' = 'client';
+      if (meeting.caseId) {
+        try {
+          const linkedCase = await storage.getCase(meeting.caseId, meeting.userId);
+          if (linkedCase) {
+            consentScript = consentScriptFor(
+              linkedCase.matterKind,
+              linkedCase.hasExternalAttendees,
+              meeting.recordingType,
+            );
+          }
+        } catch {
+          // Keep the client script.
+        }
+      }
+
       // Verbal-primary: live import with in_meeting consent (same chain as LiveBot).
       const meetingImport = await storage.createMeetingImport({
         userId: meeting.userId,
@@ -572,6 +590,7 @@ export class MeetingSchedulerService {
         botStatus: recallService.getBotStatusCode(bot) || 'joining',
         consentConfirmed: false,
         consentMode: 'in_meeting',
+        consentScript,
       });
 
       await storage.updateScheduledMeeting(meeting.id, {

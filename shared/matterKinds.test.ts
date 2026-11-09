@@ -7,6 +7,7 @@ import {
   requiresClientForMatter,
   requiresParticipantConsent,
   requiresSealedConsentForProcessing,
+  consentScriptFor,
 } from "./matterKinds";
 
 describe("matterKinds", () => {
@@ -51,5 +52,11 @@ describe("matterKinds", () => {
 
   it("provides display party labels for non-client matters", () => {
     expect(partyLabelForMatterKind("internal")).toBe("Non-client");
+  });
+
+  it("picks the script to show and seal", () => {
+    expect(consentScriptFor("client", false)).toBe("client");
+    expect(consentScriptFor("client", false, "internal_meeting")).toBe("participant");
+    expect(consentScriptFor("internal", true)).toBe("participant");
   });
 });

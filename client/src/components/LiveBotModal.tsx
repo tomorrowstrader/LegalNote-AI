@@ -104,6 +104,8 @@ interface LiveBotModalProps {
    * after the call (same pattern as Quick Recording).
    */
   allocateLater?: boolean;
+  /** Meeting type chosen on the upcoming meeting, if any. */
+  recordingType?: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -199,6 +201,7 @@ export function LiveBotModal({
   initialMeetingUrl,
   suggestedClientName,
   allocateLater = false,
+  recordingType: presetRecordingType,
   open,
   onOpenChange,
 }: LiveBotModalProps) {
@@ -254,6 +257,9 @@ export function LiveBotModal({
   const [postMeetingHasExternalAttendees, setPostMeetingHasExternalAttendees] = useState(false);
   /** Whether the live consent UI should use the participant (non-client external) script. */
   const [useParticipantConsentScript, setUseParticipantConsentScript] = useState(false);
+  /** Client matter, but the client is not in this meeting: participant notice, internal meeting type. */
+  const [clientAbsent, setClientAbsent] = useState(presetRecordingType === "internal_meeting");
+  const consentRecordingType = clientAbsent ? "internal_meeting" : presetRecordingType;
   /** When true, show the full matter list instead of the suggested confirm card. */
   const [browseAllCases, setBrowseAllCases] = useState(false);
   /** Join without a matter; assign the recording after the call. */
@@ -415,8 +421,8 @@ export function LiveBotModal({
       hasExternalAttendees ??
       caseRow?.hasExternalAttendees ??
       false;
-    const needsConsent = requiresSealedConsentForProcessing(kind, external);
-    setUseParticipantConsentScript(requiresParticipantConsent(kind, external));
+    const needsConsent = requiresSealedConsentForProcessing(kind, external, consentRecordingType);
+    setUseParticipantConsentScript(requiresParticipantConsent(kind, external, consentRecordingType));
     if (!needsConsent) {
       setConsentMode("pre_confirmed");
       setConsentObtained(true);
@@ -533,13 +539,40 @@ export function LiveBotModal({
     },
   });
 
+  // The matter the bot will record for, so the consent script fits it (also when the
+  // window opens with a matter already chosen).
+  const consentCaseId = deferCaseAssignment ? null : (selectedCaseId ?? caseId ?? null);
+  const { data: consentCase } = useQuery<Case & { hasExternalAttendees?: boolean }>({
+    queryKey: [`/api/cases/${consentCaseId}`],
+    enabled: open && !!consentCaseId,
+  });
+  const consentCaseIsClientMatter = !!consentCase && isClientMatterKind(consentCase.matterKind);
+  useEffect(() => {
+    if (!consentCase) {
+      if (!consentCaseId) setUseParticipantConsentScript(false);
+      return;
+    }
+    setUseParticipantConsentScript(
+      requiresParticipantConsent(consentCase.matterKind, consentCase.hasExternalAttendees, consentRecordingType),
+    );
+  }, [consentCase, consentCaseId, consentRecordingType]);
+  useEffect(() => {
+    if (clientAbsent) setPostMeetingRecordingType("internal_meeting");
+  }, [clientAbsent]);
+
   const deployMutation = useMutation({
     mutationFn: async () => {
       const resolvedCaseId = deferCaseAssignment ? undefined : (selectedCaseId ?? caseId ?? undefined);
       return apiRequest<{ importId: string; botId: string; platform: string; status: string }>(
         "POST",
         "/api/recall/bot",
-        { meetingUrl, ...(resolvedCaseId ? { caseId: resolvedCaseId } : {}), consentMode }
+        {
+          meetingUrl,
+          ...(resolvedCaseId ? { caseId: resolvedCaseId } : {}),
+          consentMode,
+          // Sealed with the same wording the solicitor is shown.
+          consentScript: useParticipantConsentScript ? "participant" : "client",
+        }
       );
     },
     onSuccess: async (data) => {
@@ -782,6 +815,7 @@ export function LiveBotModal({
   }, [open]);
 
   const resetState = () => {
+    setClientAbsent(presetRecordingType === "internal_meeting");
     const url = (initialMeetingUrl || "").trim();
     const detected = url ? detectPlatform(url) : null;
     const skipCase = allocateLater;
@@ -1241,6 +1275,26 @@ export function LiveBotModal({
               <p className="font-medium">{PLATFORM_LABELS[platform!]} meeting</p>
               <p className="text-xs text-muted-foreground mt-0.5 break-all">{meetingUrl}</p>
             </div>
+
+            {consentCaseIsClientMatter && (
+              <label
+                className="flex items-start gap-3 p-3 border rounded-md text-sm cursor-pointer"
+                data-testid="toggle-client-absent"
+              >
+                <Checkbox
+                  checked={clientAbsent}
+                  onCheckedChange={(checked) => setClientAbsent(checked === true)}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="font-medium">The client is not in this meeting</span>
+                  <span className="block text-xs text-muted-foreground mt-0.5">
+                    For example a discussion with colleagues, counsel or a witness. You will read the participant
+                    notice instead of the client consent script, and the note is filed as an internal meeting.
+                  </span>
+                </span>
+              </label>
+            )}
 
             <div className="space-y-3">
               <p className="text-sm font-medium">How will you obtain consent?</p>

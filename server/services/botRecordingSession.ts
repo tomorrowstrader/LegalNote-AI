@@ -1,5 +1,6 @@
 import type { InsertMeetingSession, MeetingImport } from "@shared/schema";
 import { defaultRecordingTypeForMatterKind, validateRecordingType } from "@shared/recordingTypes";
+import { isClientMatterKind } from "@shared/matterKinds";
 import type { IStorage } from "../storage";
 
 type SessionStorage = Pick<
@@ -63,6 +64,11 @@ export async function chosenRecordingType(
     } catch {
       // Fall back to the matter's default.
     }
+  }
+  // The solicitor said the client was not in the meeting and read the participant notice.
+  if (importRecord.consentScript === "participant") {
+    const check = validateRecordingType("internal_meeting", { matterKind });
+    if (check.ok && isClientMatterKind(matterKind)) return check.recordingType;
   }
   return defaultRecordingTypeForMatterKind(matterKind);
 }

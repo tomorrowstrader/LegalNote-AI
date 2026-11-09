@@ -112,7 +112,7 @@ import { getFirmProfileForCase, getFirmProfileForUser } from "./firmBranding";
 import { db } from "./db";
 import { insertCaseSchema, insertAudioRecordingSchema, insertConsentLogSchema, insertTranscriptSchema, insertDocumentSchema, insertFirmProfileSchema, insertAmlMonitoringNoteSchema, insertAmlDecisionRecordSchema, insertTimeEntrySchema, insertUndertakingSchema, insertConflictCheckSchema, PRACTICE_AREAS, type ScheduledMeeting, PRIMARY_ROLES, PRIMARY_ROLE_LABELS, REGULATORY_DESIGNATIONS, REGULATORY_DESIGNATION_LABELS, type RegulatoryDesignation, demoLeads, dpaRequestSchema, dpaConfirmBodySchema, evaluationOnboardingSubmitSchema, isClientMatterKind, normalizeMatterKind, partyLabelForMatterKind, requiresSealedConsentForProcessing, type InsertCase, adoptFeedbackBodySchema, shareFeedbackBodySchema, supportTicketPreviewBodySchema, supportTicketCreateBodySchema, supportTicketAdminUpdateSchema } from "@shared/schema";
 import { scrubInsightComment } from "@shared/productInsights";
-import { CONSENT_DISCLAIMER_TEXT, CONSENT_DISCLAIMER_VERSION } from "@shared/consent";
+import { consentScriptWording, isConsentScript } from "@shared/consent";
 import { CONSENT_DECLINED_BOT_MESSAGE, consentDeclinedBlocksBot } from "@shared/liveBotLifecycle";
 import { defaultRecordingTypeForMatterKind, validateRecordingType } from "@shared/recordingTypes";
 import { RECORDING_TYPE_LABELS, type RecordingType } from "@shared/schema";
@@ -11997,15 +11997,16 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       // Seal prior in-meeting attestation onto the case now that it has a matter ID.
       if (importData.consentConfirmed) {
         const { recordConsentEvent } = await import('./services/recordConsentEvent');
+        const wording = consentScriptWording(importData.consentScript as never);
         await recordConsentEvent({
           caseId,
           solicitorId: userId,
           consentGiven: true,
-          disclaimerScriptVersion: CONSENT_DISCLAIMER_VERSION,
-          disclaimerWordingText: CONSENT_DISCLAIMER_TEXT,
+          disclaimerScriptVersion: wording.version,
+          disclaimerWordingText: wording.text,
           consentModality: 'verbal_attested',
           lawfulBasis: 'consent',
-          recordingPurpose: 'Creation of attendance notes and transcripts for legal record-keeping',
+          recordingPurpose: wording.purpose,
           source: 'recall_assign_prior_attestation',
           req,
           auditMetadataExtras: {
@@ -12165,17 +12166,19 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
             ? "verbal_recorded"
             : "verbal_attested";
 
+        // Seal the wording the solicitor was shown for this recording.
+        const wording = consentScriptWording(importData.consentScript as never);
         if (importData.caseId) {
           const { recordConsentEvent } = await import("./services/recordConsentEvent");
           await recordConsentEvent({
             caseId: importData.caseId,
             solicitorId: userId,
             consentGiven: true,
-            disclaimerScriptVersion: CONSENT_DISCLAIMER_VERSION,
-            disclaimerWordingText: CONSENT_DISCLAIMER_TEXT,
+            disclaimerScriptVersion: wording.version,
+            disclaimerWordingText: wording.text,
             consentModality,
             lawfulBasis: "consent",
-            recordingPurpose: "Creation of attendance notes and transcripts for legal record-keeping",
+            recordingPurpose: wording.purpose,
             source: auditSource,
             req,
             ipAddress: req.ip || req.socket?.remoteAddress,
@@ -12198,8 +12201,8 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
               meetingPlatform: importData.meetingPlatform,
               source: auditSource,
               consentModality,
-              disclaimerScriptVersion: CONSENT_DISCLAIMER_VERSION,
-              disclaimerWordingText: CONSENT_DISCLAIMER_TEXT,
+              disclaimerScriptVersion: wording.version,
+              disclaimerWordingText: wording.text,
               ...(elapsedLabel ? { elapsedIntoRecording: elapsedLabel } : {}),
               ...(typeof elapsedSeconds === "number" ? { audioSecondsAtConsent: elapsedSeconds } : {}),
             },
@@ -12418,8 +12421,10 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
     try {
       const { recallService } = await import("./services/recallService");
       const userId = req.user.claims.sub;
-      const { meetingUrl, caseId, consentMode } = req.body;
+      const { meetingUrl, caseId, consentMode, consentScript } = req.body;
       const resolvedConsentMode = consentMode === 'in_meeting' ? 'in_meeting' : 'pre_confirmed';
+      // The script shown to the solicitor; the sealed consent uses the same wording.
+      const resolvedConsentScript = isConsentScript(consentScript) ? consentScript : 'client';
 
       if (!meetingUrl) {
         return res.status(400).json({ message: "Meeting URL is required" });
@@ -12465,6 +12470,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         botStatus: recallService.getBotStatusCode(bot) || 'joining_call',
         consentConfirmed: false,
         consentMode: resolvedConsentMode,
+        consentScript: resolvedConsentScript,
       });
 
       await storage.createAuditLog({

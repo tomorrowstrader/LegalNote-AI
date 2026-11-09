@@ -148,6 +148,18 @@ describe("chosenRecordingType", () => {
   });
 });
 
+describe("chosenRecordingType with the participant notice", () => {
+  it("files a client-matter bot recording as an internal meeting when the client was not there", async () => {
+    const storage = makeStorage();
+    expect(
+      await chosenRecordingType(storage as never, makeImport({ consentScript: "participant" }), "client"),
+    ).toBe("internal_meeting");
+    expect(
+      await chosenRecordingType(storage as never, makeImport({ consentScript: "client" }), "client"),
+    ).toBe("full_meeting");
+  });
+});
+
 describe("recordingDurationSeconds", () => {
   const start = new Date("2026-11-05T15:00:00Z");
   it("uses a supplied duration first", () => {

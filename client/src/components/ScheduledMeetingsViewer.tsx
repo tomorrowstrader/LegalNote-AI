@@ -1313,6 +1313,7 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
         }}
         caseId={allocateLater ? null : meeting.caseId}
         caseTitle={allocateLater ? undefined : (linkedCase?.title || meeting.title)}
+        recordingType={allocateLater ? null : meeting.recordingType}
         initialMeetingUrl={liveBotLaunchUrl || safeJoinUrl}
         suggestedClientName={meeting.clientName || linkedCase?.clientName || undefined}
         allocateLater={allocateLater}

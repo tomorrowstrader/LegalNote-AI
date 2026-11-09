@@ -81,6 +81,15 @@ export function requiresSealedConsentForProcessing(
   );
 }
 
+/** The script to show and seal: the participant notice when the client is not taking part. */
+export function consentScriptFor(
+  kind: string | null | undefined,
+  hasExternalAttendees: boolean | null | undefined,
+  recordingType?: string | null,
+): "client" | "participant" {
+  return requiresParticipantConsent(kind, hasExternalAttendees, recordingType) ? "participant" : "client";
+}
+
 export function partyLabelForMatterKind(kind: string | null | undefined): string {
   const normalized = normalizeMatterKind(kind);
   return MATTER_KIND_PARTY_LABELS[normalized] || "Non-client";
