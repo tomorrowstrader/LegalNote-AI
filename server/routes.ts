@@ -6,6 +6,7 @@ import {
   meetingConsentStatus,
 } from "@shared/meetingAttendees";
 import { cleanMeetingLink } from "@shared/meetingLinks";
+import { recordingStartFromDevice } from "@shared/meetingTime";
 import { createServer, type Server } from "http";
 import path, { dirname } from "path";
 import { fileURLToPath } from "url";
@@ -5167,13 +5168,40 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
   app.post("/api/audio/chunk-session", isAuthenticated, async (req: any, res, next) => {
     try {
       const userId = req.user.claims.sub;
-      const { mimeType, caseId } = req.body;
+      const { mimeType, caseId, deviceStartedAt, deviceNow } = req.body;
 
       if (!mimeType) {
         return res.status(400).json({ message: "mimeType is required" });
       }
 
-      const sessionId = await chunkedUploadService.createSession(userId, mimeType, caseId);
+      // Date the recording from when the device pressed record, so one started
+      // offline keeps its real start rather than the time the connection returned.
+      const serverNow = new Date();
+      const start = recordingStartFromDevice({ serverNow, deviceStartedAt, deviceNow });
+      const sessionId = await chunkedUploadService.createSession(
+        userId,
+        mimeType,
+        caseId,
+        start.source === "device" ? start.startedAt : undefined,
+      );
+      const waitedMs = serverNow.getTime() - start.startedAt.getTime();
+      if (waitedMs > 60_000 || (start.source === "server" && start.deviceStartedAt)) {
+        await storage.createAuditLog({
+          eventType: "recording_start_from_device",
+          userId,
+          caseId: caseId || null,
+          ipAddress: req.ip || req.socket?.remoteAddress,
+          metadata: {
+            recordingSessionId: sessionId,
+            startedAt: start.startedAt.toISOString(),
+            source: start.source,
+            deviceStartedAt: start.deviceStartedAt?.toISOString() ?? null,
+            deviceClockOffsetMs: start.deviceClockOffsetMs,
+            serverReceivedAt: serverNow.toISOString(),
+          },
+          severity: "info",
+        });
+      }
       
       res.json({ 
         sessionId,

@@ -161,7 +161,7 @@ export class ChunkedUploadService {
     return session;
   }
 
-  async createSession(userId: string, mimeType: string, caseId?: string): Promise<string> {
+  async createSession(userId: string, mimeType: string, caseId?: string, startedAt?: Date): Promise<string> {
     const sessionId = randomUUID();
     
     const session: RecordingSession = {
@@ -188,6 +188,8 @@ export class ChunkedUploadService {
         mimeType,
         chunksReceived: 0,
         totalBytes: 0,
+        // When the recording began on the device; otherwise the database's now().
+        ...(startedAt ? { startedAt } : {}),
       });
       console.log(`[ChunkedUpload] Created session ${sessionId} for user ${userId} (saved to DB)`);
     } catch (error) {

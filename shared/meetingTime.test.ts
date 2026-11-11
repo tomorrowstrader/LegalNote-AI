@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { earliestMeetingTime, formatUkLongDate, sessionStartFromRecording, toUkIsoDate } from "./meetingTime";
+import { earliestMeetingTime, formatUkLongDate, recordingStartFromDevice, sessionStartFromRecording, toUkIsoDate } from "./meetingTime";
 
 describe("UK meeting dates", () => {
   it("uses the UK day for a late evening meeting in summer time", () => {
@@ -64,5 +64,51 @@ describe("sessionStartFromRecording", () => {
   it("ignores a missing or unreadable recording start", () => {
     expect(sessionStartFromRecording("2026-11-10T11:00:00Z", null, now)).toBeNull();
     expect(sessionStartFromRecording("2026-11-10T11:00:00Z", "not a date", now)).toBeNull();
+  });
+});
+
+describe("recordingStartFromDevice", () => {
+  const serverNow = new Date("2026-11-10T11:30:00Z");
+
+  it("uses the device's start time when its clock is right (started offline at 10:00)", () => {
+    const result = recordingStartFromDevice({
+      serverNow,
+      deviceStartedAt: "2026-11-10T10:00:00Z",
+      deviceNow: "2026-11-10T11:30:00Z",
+    });
+    expect(result.source).toBe("device");
+    expect(result.startedAt.toISOString()).toBe("2026-11-10T10:00:00.000Z");
+    expect(result.deviceClockOffsetMs).toBe(0);
+  });
+
+  it("corrects a device clock that is five minutes slow", () => {
+    const result = recordingStartFromDevice({
+      serverNow,
+      deviceStartedAt: "2026-11-10T09:55:00Z",
+      deviceNow: "2026-11-10T11:25:00Z",
+    });
+    expect(result.startedAt.toISOString()).toBe("2026-11-10T10:00:00.000Z");
+    expect(result.deviceStartedAt?.toISOString()).toBe("2026-11-10T09:55:00.000Z");
+    expect(result.deviceClockOffsetMs).toBe(5 * 60 * 1000);
+  });
+
+  it("falls back to the server's time when the device sends nothing", () => {
+    const result = recordingStartFromDevice({ serverNow });
+    expect(result.source).toBe("server");
+    expect(result.startedAt).toBe(serverNow);
+  });
+
+  it("falls back when the device clock went backwards or the wait is implausible", () => {
+    expect(recordingStartFromDevice({
+      serverNow,
+      deviceStartedAt: "2026-11-10T12:00:00Z",
+      deviceNow: "2026-11-10T11:00:00Z",
+    }).source).toBe("server");
+    expect(recordingStartFromDevice({
+      serverNow,
+      deviceStartedAt: "2026-11-01T10:00:00Z",
+      deviceNow: "2026-11-10T11:00:00Z",
+    }).source).toBe("server");
+    expect(recordingStartFromDevice({ serverNow, deviceStartedAt: "nonsense", deviceNow: "x" }).source).toBe("server");
   });
 });

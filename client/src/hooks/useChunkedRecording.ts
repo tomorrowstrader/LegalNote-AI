@@ -128,6 +128,8 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
   const durationIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const pendingChunksRef = useRef<Map<number, Blob>>(new Map());
   const lastAudioActivityRef = useRef<number>(Date.now());
+  /** Device time when record was pressed, sent with the upload session. */
+  const recordingStartedAtRef = useRef<number | null>(null);
   const silenceCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -251,6 +253,9 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
     try {
       const response = await apiRequest<{ sessionId: string }>("POST", "/api/audio/chunk-session", {
         mimeType: audioFormatRef.current.mimeType,
+        // Lets the server date a recording started offline from when record was pressed.
+        deviceStartedAt: recordingStartedAtRef.current ? new Date(recordingStartedAtRef.current).toISOString() : undefined,
+        deviceNow: new Date().toISOString(),
       });
 
       chunkSessionRef.current = {
@@ -409,6 +414,7 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
+      recordingStartedAtRef.current = Date.now();
       setLastSyncTime(null);
       setChunksUploaded(0);
       setPendingChunksCount(0);

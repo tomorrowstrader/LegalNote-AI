@@ -61,3 +61,51 @@ export function sessionStartFromRecording(
   if (Number.isNaN(current.getTime())) return recording;
   return recording.getTime() < current.getTime() ? recording : null;
 }
+
+/** A recording held on the device for longer than this before reaching the server is not trusted. */
+const MAX_DEVICE_HOLD_MS = 24 * 60 * 60 * 1000;
+
+export interface DeviceRecordingStart {
+  /** When the recording began, on the server's clock. */
+  startedAt: Date;
+  /** "device": from the device's own times. "server": when the server heard of it. */
+  source: "device" | "server";
+  /** The device's start time as it reported it, if any. */
+  deviceStartedAt: Date | null;
+  /** How far the device clock was behind (+) or ahead (-) of the server, in ms. */
+  deviceClockOffsetMs: number | null;
+}
+
+/**
+ * When a recording began. The device reports when it pressed record and its own time
+ * now; the gap between the two is how long the recording waited, for example while
+ * offline. That gap is taken back from the server's time now. When the device clock is
+ * right this is exactly the device's start time; when it is off, the error cancels out.
+ * The server's own time is only used when the device gives nothing usable.
+ */
+export function recordingStartFromDevice(input: {
+  serverNow: Date;
+  deviceStartedAt?: string | Date | null;
+  deviceNow?: string | Date | null;
+}): DeviceRecordingStart {
+  const serverOnly: DeviceRecordingStart = {
+    startedAt: input.serverNow,
+    source: "server",
+    deviceStartedAt: null,
+    deviceClockOffsetMs: null,
+  };
+  if (input.deviceStartedAt == null || input.deviceNow == null) return serverOnly;
+  const started = new Date(input.deviceStartedAt);
+  const now = new Date(input.deviceNow);
+  if (Number.isNaN(started.getTime()) || Number.isNaN(now.getTime())) return serverOnly;
+  const waitedMs = now.getTime() - started.getTime();
+  if (waitedMs < 0 || waitedMs > MAX_DEVICE_HOLD_MS) {
+    return { ...serverOnly, deviceStartedAt: started };
+  }
+  return {
+    startedAt: new Date(input.serverNow.getTime() - waitedMs),
+    source: "device",
+    deviceStartedAt: started,
+    deviceClockOffsetMs: input.serverNow.getTime() - now.getTime(),
+  };
+}
