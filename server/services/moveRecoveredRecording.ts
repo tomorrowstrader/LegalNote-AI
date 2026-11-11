@@ -3,6 +3,7 @@ import type { IStorage } from "../storage";
 import type { AudioRecording, Case, MeetingSession } from "@shared/schema";
 import { consentScriptWording } from "@shared/consent";
 import { consentScriptFor } from "@shared/matterKinds";
+import { sessionStartFromRecording } from "@shared/meetingTime";
 import {
   carriedHoldReason,
   checkRecoveredMoveTarget,
@@ -210,12 +211,15 @@ export async function moveRecoveredRecording(
   }
 
   const existingSession = sessions[0];
+  // Sessions are numbered by start, so the moved session keeps the time the recording began.
+  const recordedStart = sessionStartFromRecording(existingSession?.startedAt ?? null, recording.recordedAt, now());
   let session: MeetingSession;
   if (existingSession) {
     const moved = await storage.updateMeetingSession(existingSession.id, {
       caseId: targetCase.id,
       recordingType: targetCheck.recordingType,
       status: "pending",
+      ...(recordedStart ? { startedAt: recordedStart } : {}),
     });
     if (!moved) return { ok: false, status: 500, message: "Could not move the session. Nothing was moved." };
     session = moved;
@@ -228,6 +232,10 @@ export async function moveRecoveredRecording(
       status: "pending",
       durationSeconds: recording.duration ?? undefined,
     });
+    // startedAt is not settable on insert; set it to when the recording began.
+    if (recordedStart) {
+      session = (await storage.updateMeetingSession(session.id, { startedAt: recordedStart })) ?? session;
+    }
   }
 
   try {
@@ -242,6 +250,7 @@ export async function moveRecoveredRecording(
         caseId: source.id,
         recordingType: existingSession.recordingType,
         status: existingSession.status,
+        startedAt: existingSession.startedAt,
       }).catch(() => undefined);
     }
     return { ok: false, status: 500, message: "Could not move the audio. The recording is still on its recovered case." };
@@ -261,6 +270,7 @@ export async function moveRecoveredRecording(
     recordingType: targetCheck.recordingType,
     holdCarried,
     consentConfirmed: input.consentConfirmed,
+    sessionStartedAt: session.startedAt ? new Date(session.startedAt).toISOString() : null,
   };
   await storage.createAuditLog({
     eventType: "recovered_recording_moved",

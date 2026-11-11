@@ -1,3 +1,4 @@
+import { ParkedRecordingsCard } from "@/components/ParkedRecordingsCard";
 import { useState, useMemo, useEffect } from "react";
 import { FileText, Clock, CheckCircle2, FolderOpen, AlertTriangle, Search, SortAsc, Archive, AlertCircle, Mic, Keyboard, ClipboardCheck, Eye, ShieldCheck, Shield, Phone, Video, Trash2, ArchiveRestore, Loader2, X } from "lucide-react";
 import { ScheduledMeetingsViewer } from "@/components/ScheduledMeetingsViewer";
@@ -601,6 +602,9 @@ export default function Dashboard() {
             )}
           </div>
         )}
+
+        {/* Quick Records set aside with "File later" */}
+        <ParkedRecordingsCard />
 
         {/* Unassigned Recordings - above Case Files so assignment isn't buried */}
         {unassignedImports && unassignedImports.length > 0 && (

@@ -39,6 +39,20 @@ const FALLBACK_CONSENT_CHUNKS = 2;
 const SESSION_EXPIRY_MS = 30 * 60 * 1000;
 const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
 
+/** A stopped recording kept on the server until it is filed on a matter. */
+export const PARKED_STATUS = "awaiting_filing";
+/** Recordings are kept 7 days from when they began, filed or not. */
+const PARKED_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+const parkedExpiry = (startedAt: Date) => new Date(startedAt.getTime() + PARKED_RETENTION_MS);
+
+export interface ParkedRecording {
+  id: string;
+  startedAt: Date;
+  durationSeconds: number;
+  hasConsent: boolean;
+  expiresAt: Date;
+}
+
 export class ChunkedUploadService {
   private objectStorage: ObjectStorageService;
 
@@ -513,6 +527,14 @@ export class ChunkedUploadService {
     }
   }
 
+  /** When the recording began, as the server saw it. Null when unknown. */
+  async getSessionStartedAt(sessionId: string, userId: string): Promise<Date | null> {
+    const rows = await db.select({ startedAt: recordingSessions.startedAt })
+      .from(recordingSessions)
+      .where(and(eq(recordingSessions.id, sessionId), eq(recordingSessions.userId, userId)));
+    return rows[0]?.startedAt ?? null;
+  }
+
   // Mark stale sessions as interrupted (for cleanup task)
   async markStaleSessions(): Promise<number> {
     const staleThreshold = new Date(Date.now() - SESSION_EXPIRY_MS);
@@ -555,6 +577,309 @@ export class ChunkedUploadService {
     }
   }
 
+  /** Joins a session's chunks into one stored recording and preserves the consent clip. */
+  private async assembleChunks(
+    sessionId: string,
+    sessionMeta: typeof recordingSessions.$inferSelect,
+  ): Promise<
+    | {
+        ok: true;
+        dbPath: string;
+        extension: string;
+        chunkCount: number;
+        totalBytes: number;
+        durationSeconds: number;
+        hasConsent: boolean;
+        consentSegmentPath?: string;
+        consentDurationSeconds?: number;
+      }
+    | { ok: false; message: string }
+  > {
+    // Try to get chunks from in-memory session first
+    let activeSession = activeSessions.get(sessionId);
+    let chunks: Buffer[] = [];
+    
+    if (activeSession && activeSession.chunks.size > 0) {
+      // We have chunks in memory - use them
+      const sortedChunkNumbers = Array.from(activeSession.chunks.keys()).sort((a, b) => a - b);
+      for (const chunkNum of sortedChunkNumbers) {
+        const chunk = activeSession.chunks.get(chunkNum);
+        if (chunk) {
+          chunks.push(chunk);
+        }
+      }
+      console.log(`[ChunkedUpload] Found ${chunks.length} chunks in memory for session ${sessionId}`);
+    }
+    
+    // If no in-memory chunks, try to recover from durable storage
+    if (chunks.length === 0) {
+      console.log(`[ChunkedUpload] No in-memory chunks, attempting recovery from durable storage for session ${sessionId}`);
+      
+      try {
+        // List actual chunks from storage (authoritative source)
+        const storedChunks = await this.objectStorage.listChunks(sessionId);
+        
+        if (storedChunks.length === 0) {
+          console.log(`[ChunkedUpload] No chunks found in durable storage for session ${sessionId}`);
+        } else {
+          // Verify contiguous chunk indices (0, 1, 2, ..., N-1)
+          const maxIndex = storedChunks[storedChunks.length - 1].index;
+          const missingIndices: number[] = [];
+          
+          for (let i = 0; i <= maxIndex; i++) {
+            if (!storedChunks.some(c => c.index === i)) {
+              missingIndices.push(i);
+            }
+          }
+          
+          if (missingIndices.length > 0) {
+            console.warn(`[ChunkedUpload] Missing chunk indices for session ${sessionId}: ${missingIndices.join(', ')}`);
+            return {
+              ok: false,
+              message: `Missing audio chunks (${missingIndices.length} gaps detected). Some audio data may still be uploading. Please try again in a moment.`,
+            };
+          }
+          
+          // Retrieve chunks in order
+          for (const chunkInfo of storedChunks) {
+            try {
+              const chunkData = await this.objectStorage.getFile(chunkInfo.key);
+              if (chunkData) {
+                chunks.push(chunkData);
+              }
+            } catch (e) {
+              console.warn(`[ChunkedUpload] Could not retrieve chunk ${chunkInfo.index} from storage:`, e);
+              return {
+                ok: false,
+                message: `Failed to retrieve chunk ${chunkInfo.index}. Please try again.`,
+              };
+            }
+          }
+          console.log(`[ChunkedUpload] Retrieved ${chunks.length} chunks from durable storage for session ${sessionId}`);
+        }
+      } catch (error) {
+        console.error(`[ChunkedUpload] Failed to retrieve chunks from storage:`, error);
+      }
+    }
+
+    if (chunks.length === 0) {
+      // DON'T mark as recovered - keep session active so user can retry after chunks arrive
+      // Update lastActivityAt to prevent premature cleanup
+      await db.update(recordingSessions)
+        .set({
+          lastActivityAt: new Date(),
+        })
+        .where(eq(recordingSessions.id, sessionId));
+
+      return {
+        ok: false,
+        message: "No audio chunks found yet. Please wait a moment for data to sync and try again.",
+      };
+    }
+
+    const combinedAudio = Buffer.concat(chunks);
+    const totalBytes = combinedAudio.length;
+    const durationSeconds = chunks.length * CHUNK_INTERVAL_SECONDS;
+    const hasConsent = sessionMeta.consentChunkNumber !== null || sessionMeta.consentElapsedSeconds != null;
+
+    console.log(`[ChunkedUpload] Assembling session ${sessionId}: ${chunks.length} chunks, ${totalBytes} bytes, ~${durationSeconds}s`);
+
+    // Upload recovered audio into the private object path (7-day product retention),
+    // not the short-lived recovered/ lifecycle prefix.
+    const objectInfo = this.objectStorage.createPrivateObjectId();
+    const extension = sessionMeta.mimeType.includes('webm') ? '.webm' : 
+                     sessionMeta.mimeType.includes('mp4') ? '.mp4' :
+                     sessionMeta.mimeType.includes('ogg') ? '.ogg' : '.webm';
+    
+    const fileKey = `${objectInfo.key}${extension}`;
+    await this.objectStorage.uploadFile(fileKey, combinedAudio, sessionMeta.mimeType);
+    const dbPath = `${objectInfo.dbPath}${extension}`;
+
+    let consentSegmentPath: string | undefined;
+    let consentDurationSeconds: number | undefined;
+    if (hasConsent && chunks.length > 0) {
+      try {
+        const consentChunkCount = sessionMeta.consentChunkNumber ?? FALLBACK_CONSENT_CHUNKS;
+        const chunksToPreserve = Math.min(consentChunkCount + 1, chunks.length);
+        const consentAudio = Buffer.concat(chunks.slice(0, chunksToPreserve));
+        const preserved = await preserveConsentSegmentFromBuffer({
+          audioBuffer: consentAudio,
+          mimeType: sessionMeta.mimeType,
+          consentDurationSeconds:
+            sessionMeta.consentElapsedSeconds ?? chunksToPreserve * CHUNK_INTERVAL_SECONDS,
+        });
+        consentSegmentPath = preserved.consentSegmentPath;
+        consentDurationSeconds = preserved.consentDurationSeconds;
+        console.log(`[ChunkedUpload] Consent segment preserved: ${consentSegmentPath}`);
+      } catch (error) {
+        console.error(`[ChunkedUpload] Failed to preserve recovered consent segment:`, error);
+      }
+    }
+
+    return {
+      ok: true,
+      dbPath,
+      extension,
+      chunkCount: chunks.length,
+      totalBytes,
+      durationSeconds,
+      hasConsent,
+      consentSegmentPath,
+      consentDurationSeconds,
+    };
+  }
+
+  /**
+   * Keep a stopped recording on the server, unfiled, so it can be filed on a matter later.
+   * It stays out of the recovery prompt and is deleted if not filed in time.
+   */
+  async parkSession(sessionId: string, userId: string): Promise<boolean> {
+    const rows = await db.select({ status: recordingSessions.status })
+      .from(recordingSessions)
+      .where(and(eq(recordingSessions.id, sessionId), eq(recordingSessions.userId, userId)));
+    const status = rows[0]?.status;
+    if (status !== "active" && status !== "interrupted" && status !== PARKED_STATUS) return false;
+    await db.update(recordingSessions)
+      .set({ status: PARKED_STATUS, lastActivityAt: new Date() })
+      .where(and(eq(recordingSessions.id, sessionId), eq(recordingSessions.userId, userId)));
+    activeSessions.delete(sessionId);
+    return true;
+  }
+
+  /** Recordings this person chose to file later, oldest first. Expired ones are deleted first. */
+  async getParkedSessions(userId: string): Promise<ParkedRecording[]> {
+    await this.deleteExpiredParkedSessions(userId);
+    const rows = await db.select()
+      .from(recordingSessions)
+      .where(and(eq(recordingSessions.userId, userId), eq(recordingSessions.status, PARKED_STATUS)));
+    return rows
+      .map((row) => ({
+        id: row.id,
+        startedAt: row.startedAt,
+        durationSeconds: row.chunksReceived * CHUNK_INTERVAL_SECONDS,
+        hasConsent: row.consentChunkNumber !== null || row.consentElapsedSeconds != null,
+        expiresAt: parkedExpiry(row.startedAt),
+      }))
+      .sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime());
+  }
+
+  async getParkedSession(sessionId: string, userId: string): Promise<ParkedRecording | null> {
+    const parked = await this.getParkedSessions(userId);
+    return parked.find((p) => p.id === sessionId) ?? null;
+  }
+
+  /**
+   * Assemble a parked recording onto the matter it was filed to. The caller links the session.
+   * The audio keeps the time recording began.
+   */
+  async fileParkedSession(
+    sessionId: string,
+    userId: string,
+    target: { caseId: string },
+  ): Promise<
+    | { ok: true; audioRecordingId: string; filePath: string; consentSegmentPath?: string; startedAt: Date; durationSeconds: number }
+    | { ok: false; message: string }
+  > {
+    const rows = await db.select()
+      .from(recordingSessions)
+      .where(and(eq(recordingSessions.id, sessionId), eq(recordingSessions.userId, userId)));
+    const sessionMeta = rows[0];
+    if (!sessionMeta || sessionMeta.status !== PARKED_STATUS) {
+      return { ok: false, message: "This recording is no longer waiting to be filed." };
+    }
+    if (parkedExpiry(sessionMeta.startedAt).getTime() <= Date.now()) {
+      return { ok: false, message: "This recording passed its 7-day limit and can no longer be filed." };
+    }
+
+    const assembled = await this.assembleChunks(sessionId, sessionMeta);
+    if (!assembled.ok) return { ok: false, message: assembled.message };
+
+    const audioRecord = await storage.createAudioRecording({
+      caseId: target.caseId,
+      filePath: assembled.dbPath,
+      mimeType: sessionMeta.mimeType,
+      duration: assembled.durationSeconds,
+      // Same 7 days from recording as every other recording, counted from when it began.
+      expiresAt: parkedExpiry(sessionMeta.startedAt),
+      recordedAt: sessionMeta.startedAt,
+    });
+    if (assembled.consentSegmentPath) {
+      await storage.updateAudioRecording(audioRecord.id, {
+        consentSegmentPath: assembled.consentSegmentPath,
+        consentDurationSeconds: assembled.consentDurationSeconds,
+      });
+    }
+
+    await db.update(recordingSessions)
+      .set({
+        status: "completed",
+        completedAt: new Date(),
+        caseId: target.caseId,
+        chunksReceived: assembled.chunkCount,
+        totalBytes: assembled.totalBytes,
+      })
+      .where(eq(recordingSessions.id, sessionId));
+
+    this.objectStorage.deleteChunks(sessionId, assembled.extension, assembled.chunkCount).catch((e) => {
+      console.warn(`[ChunkedUpload] Failed to clean up chunks for filed session ${sessionId}:`, e);
+    });
+
+    return {
+      ok: true,
+      audioRecordingId: audioRecord.id,
+      filePath: assembled.dbPath,
+      consentSegmentPath: assembled.consentSegmentPath,
+      startedAt: sessionMeta.startedAt,
+      durationSeconds: assembled.durationSeconds,
+    };
+  }
+
+  /** Delete a parked recording, audio included. */
+  async discardParkedSession(sessionId: string, userId: string): Promise<boolean> {
+    const rows = await db.select()
+      .from(recordingSessions)
+      .where(and(eq(recordingSessions.id, sessionId), eq(recordingSessions.userId, userId)));
+    const row = rows[0];
+    if (!row || row.status !== PARKED_STATUS) return false;
+    await this.deleteParkedChunks(row);
+    await db.update(recordingSessions)
+      .set({ status: "cancelled" })
+      .where(eq(recordingSessions.id, sessionId));
+    return true;
+  }
+
+  private async deleteExpiredParkedSessions(userId: string): Promise<void> {
+    const cutoff = new Date(Date.now() - PARKED_RETENTION_MS);
+    const expired = await db.select()
+      .from(recordingSessions)
+      .where(and(
+        eq(recordingSessions.userId, userId),
+        eq(recordingSessions.status, PARKED_STATUS),
+        lt(recordingSessions.startedAt, cutoff),
+      ));
+    for (const row of expired) {
+      try {
+        await this.deleteParkedChunks(row);
+        await db.update(recordingSessions)
+          .set({ status: "cancelled" })
+          .where(eq(recordingSessions.id, row.id));
+        console.log(`[ChunkedUpload] Deleted parked recording ${row.id} after its 7-day limit`);
+      } catch (error) {
+        console.error(`[ChunkedUpload] Could not delete expired parked recording ${row.id}:`, error);
+      }
+    }
+  }
+
+  private async deleteParkedChunks(row: typeof recordingSessions.$inferSelect): Promise<void> {
+    const stored = await this.objectStorage.listChunks(row.id);
+    if (stored.length === 0) return;
+    const extension = row.mimeType.includes("webm") ? ".webm"
+      : row.mimeType.includes("mp4") ? ".mp4"
+      : row.mimeType.includes("ogg") ? ".ogg" : ".webm";
+    const maxIndex = stored[stored.length - 1].index;
+    await this.objectStorage.deleteChunks(row.id, extension, maxIndex + 1);
+  }
+
   // Recover an interrupted session - assemble chunks and create a case
   async recoverSession(sessionId: string, userId: string): Promise<{
     success: boolean;
@@ -590,126 +915,9 @@ export class ChunkedUploadService {
         return { success: false, message: "Session was cancelled" };
       }
 
-      // Try to get chunks from in-memory session first
-      let activeSession = activeSessions.get(sessionId);
-      let chunks: Buffer[] = [];
-      
-      if (activeSession && activeSession.chunks.size > 0) {
-        // We have chunks in memory - use them
-        const sortedChunkNumbers = Array.from(activeSession.chunks.keys()).sort((a, b) => a - b);
-        for (const chunkNum of sortedChunkNumbers) {
-          const chunk = activeSession.chunks.get(chunkNum);
-          if (chunk) {
-            chunks.push(chunk);
-          }
-        }
-        console.log(`[ChunkedUpload] Found ${chunks.length} chunks in memory for session ${sessionId}`);
-      }
-      
-      // If no in-memory chunks, try to recover from durable storage
-      if (chunks.length === 0) {
-        console.log(`[ChunkedUpload] No in-memory chunks, attempting recovery from durable storage for session ${sessionId}`);
-        
-        try {
-          // List actual chunks from storage (authoritative source)
-          const storedChunks = await this.objectStorage.listChunks(sessionId);
-          
-          if (storedChunks.length === 0) {
-            console.log(`[ChunkedUpload] No chunks found in durable storage for session ${sessionId}`);
-          } else {
-            // Verify contiguous chunk indices (0, 1, 2, ..., N-1)
-            const maxIndex = storedChunks[storedChunks.length - 1].index;
-            const missingIndices: number[] = [];
-            
-            for (let i = 0; i <= maxIndex; i++) {
-              if (!storedChunks.some(c => c.index === i)) {
-                missingIndices.push(i);
-              }
-            }
-            
-            if (missingIndices.length > 0) {
-              console.warn(`[ChunkedUpload] Missing chunk indices for session ${sessionId}: ${missingIndices.join(', ')}`);
-              return {
-                success: false,
-                message: `Missing audio chunks (${missingIndices.length} gaps detected). Some audio data may still be uploading. Please try again in a moment.`,
-              };
-            }
-            
-            // Retrieve chunks in order
-            for (const chunkInfo of storedChunks) {
-              try {
-                const chunkData = await this.objectStorage.getFile(chunkInfo.key);
-                if (chunkData) {
-                  chunks.push(chunkData);
-                }
-              } catch (e) {
-                console.warn(`[ChunkedUpload] Could not retrieve chunk ${chunkInfo.index} from storage:`, e);
-                return {
-                  success: false,
-                  message: `Failed to retrieve chunk ${chunkInfo.index}. Please try again.`,
-                };
-              }
-            }
-            console.log(`[ChunkedUpload] Retrieved ${chunks.length} chunks from durable storage for session ${sessionId}`);
-          }
-        } catch (error) {
-          console.error(`[ChunkedUpload] Failed to retrieve chunks from storage:`, error);
-        }
-      }
-
-      if (chunks.length === 0) {
-        // DON'T mark as recovered - keep session active so user can retry after chunks arrive
-        // Update lastActivityAt to prevent premature cleanup
-        await db.update(recordingSessions)
-          .set({
-            lastActivityAt: new Date(),
-          })
-          .where(eq(recordingSessions.id, sessionId));
-
-        return { 
-          success: false, 
-          message: "No audio chunks found yet. Please wait a moment for data to sync and try again." 
-        };
-      }
-
-      const combinedAudio = Buffer.concat(chunks);
-      const totalBytes = combinedAudio.length;
-      const durationSeconds = chunks.length * CHUNK_INTERVAL_SECONDS;
-      const hasConsent = sessionMeta.consentChunkNumber !== null || sessionMeta.consentElapsedSeconds != null;
-
-      console.log(`[ChunkedUpload] Recovering session ${sessionId}: ${chunks.length} chunks, ${totalBytes} bytes, ~${durationSeconds}s`);
-
-      // Upload recovered audio into the private object path (7-day product retention),
-      // not the short-lived recovered/ lifecycle prefix.
-      const objectInfo = this.objectStorage.createPrivateObjectId();
-      const extension = sessionMeta.mimeType.includes('webm') ? '.webm' : 
-                       sessionMeta.mimeType.includes('mp4') ? '.mp4' :
-                       sessionMeta.mimeType.includes('ogg') ? '.ogg' : '.webm';
-      
-      const fileKey = `${objectInfo.key}${extension}`;
-      await this.objectStorage.uploadFile(fileKey, combinedAudio, sessionMeta.mimeType);
-      const dbPath = `${objectInfo.dbPath}${extension}`;
-
-      let consentSegmentPath: string | undefined;
-      let consentDurationSeconds: number | undefined;
-      if (hasConsent && chunks.length > 0) {
-        try {
-          const consentChunkCount = sessionMeta.consentChunkNumber ?? FALLBACK_CONSENT_CHUNKS;
-          const chunksToPreserve = Math.min(consentChunkCount + 1, chunks.length);
-          const consentAudio = Buffer.concat(chunks.slice(0, chunksToPreserve));
-          const preserved = await preserveConsentSegmentFromBuffer({
-            audioBuffer: consentAudio,
-            mimeType: sessionMeta.mimeType,
-            consentDurationSeconds:
-              sessionMeta.consentElapsedSeconds ?? chunksToPreserve * CHUNK_INTERVAL_SECONDS,
-          });
-          consentSegmentPath = preserved.consentSegmentPath;
-          consentDurationSeconds = preserved.consentDurationSeconds;
-          console.log(`[ChunkedUpload] Recovered consent segment preserved: ${consentSegmentPath}`);
-        } catch (error) {
-          console.error(`[ChunkedUpload] Failed to preserve recovered consent segment:`, error);
-        }
-      }
+      const assembled = await this.assembleChunks(sessionId, sessionMeta);
+      if (!assembled.ok) return { success: false, message: assembled.message };
+      const { dbPath, extension, chunkCount, totalBytes, durationSeconds, hasConsent, consentSegmentPath, consentDurationSeconds } = assembled;
 
       // Create a draft case for this recovered recording
       const caseData = await storage.createCase({
@@ -755,7 +963,7 @@ export class ChunkedUploadService {
           status: "recovered",
           recoveredAt: new Date(),
           caseId: caseData.id,
-          chunksReceived: chunks.length,
+          chunksReceived: chunkCount,
           totalBytes,
         })
         .where(eq(recordingSessions.id, sessionId));
@@ -764,7 +972,7 @@ export class ChunkedUploadService {
       activeSessions.delete(sessionId);
       
       // Clean up chunk files from durable storage (async, non-blocking)
-      this.objectStorage.deleteChunks(sessionId, extension, chunks.length).catch(e => {
+      this.objectStorage.deleteChunks(sessionId, extension, chunkCount).catch(e => {
         console.warn(`[ChunkedUpload] Failed to clean up chunks for session ${sessionId}:`, e);
       });
 

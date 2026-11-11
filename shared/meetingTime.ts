@@ -36,3 +36,28 @@ export function earliestMeetingTime(
   if (valid.length === 0) return undefined;
   return new Date(Math.min(...valid.map((d) => d.getTime())));
 }
+
+/** A recording start more than this far ahead of the server clock is not trusted. */
+const FUTURE_TOLERANCE_MS = 5 * 60 * 1000;
+
+/**
+ * The start a session should carry once we know when its recording began.
+ * Sessions are numbered by start, so a recording filed days after the meeting
+ * must take the meeting's time, not the filing time. Only ever moves a session
+ * earlier, never later, and ignores a start that is in the future.
+ * Returns null when the session's current start should stay.
+ */
+export function sessionStartFromRecording(
+  currentStart: Date | string | null | undefined,
+  recordingStart: Date | string | null | undefined,
+  now: Date = new Date(),
+): Date | null {
+  if (recordingStart == null) return null;
+  const recording = new Date(recordingStart);
+  if (Number.isNaN(recording.getTime())) return null;
+  if (recording.getTime() > now.getTime() + FUTURE_TOLERANCE_MS) return null;
+  if (currentStart == null) return recording;
+  const current = new Date(currentStart);
+  if (Number.isNaN(current.getTime())) return recording;
+  return recording.getTime() < current.getTime() ? recording : null;
+}

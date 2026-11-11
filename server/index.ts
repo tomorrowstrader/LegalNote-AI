@@ -11,6 +11,7 @@ import { ensureSystemUser } from "./systemUser";
 import { initializeWorkers } from "./workers";
 import { migrateClientsFromCases } from "./clientMigration";
 import { backfillSessions } from "./sessionMigration";
+import { dateSessionsFromRecordings } from "./sessionStartFromRecordingMigration";
 import { migrateReasoningGapPlaceholders } from "./reasoningGapMigration";
 import { migrateVerificationWarningsToJsonb } from "./verificationWarningsMigration";
 import { clearScheduledMeetingGuessedRecipients } from "./clearScheduledMeetingRecipientsMigration";
@@ -267,6 +268,9 @@ app.use((req, res, next) => {
 
   // Backfill meeting sessions for existing cases (idempotent)
   await backfillSessions();
+
+  // Number sessions by when their meetings happened, not when they were filed (idempotent)
+  await dateSessionsFromRecordings();
 
   // Replace any legacy visible placeholder text with HTML comment markers (idempotent)
   await migrateReasoningGapPlaceholders();

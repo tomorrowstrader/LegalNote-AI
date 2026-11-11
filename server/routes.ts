@@ -5319,6 +5319,22 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         },
       });
 
+      // Date the session from when recording began, not when it was filed.
+      try {
+        const { alignSessionStartToRecording } = await import("./services/alignSessionStart");
+        await alignSessionStartToRecording(storage, {
+          sessionId: audioRecording.meetingSessionId,
+          audioRecordingId,
+          recordingStart: await chunkedUploadService.getSessionStartedAt(sessionId, userId),
+          source: "chunked_upload",
+          userId,
+          caseId: audioRecording.caseId,
+          req,
+        });
+      } catch (alignErr) {
+        console.error("[ChunkedUpload] Could not date the session from the recording:", alignErr);
+      }
+
       const holdResult = await applyObjectLegalHoldForNewRecording({
         caseId: audioRecording.caseId,
         audioRecordingId: audioRecordingId,
@@ -5561,6 +5577,80 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
       });
       if (!result.ok) return res.status(result.status).json({ message: result.message });
       res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // "File later": keep a stopped Quick Record on the server, unfiled, to be filed on a matter later.
+  app.post("/api/audio/chunk-session/:sessionId/park", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { sessionId } = req.params;
+      const parked = await chunkedUploadService.parkSession(sessionId, userId);
+      if (!parked) return res.status(404).json({ message: "This recording could not be found to file later." });
+      await logAuditEvent(userId, "recording_parked_for_filing", {
+        metadata: { sessionId },
+        req,
+      });
+      res.json({ success: true });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/audio/parked-recordings", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      res.json(await chunkedUploadService.getParkedSessions(userId));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/audio/parked-recordings/:sessionId/file", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { fileParkedRecording } = await import("./services/fileParkedRecording");
+      const { recordConsentEvent } = await import("./services/recordConsentEvent");
+      const result = await fileParkedRecording(
+        {
+          storage,
+          getParked: (id, uid) => chunkedUploadService.getParkedSession(id, uid),
+          assemble: (id, uid, target) => chunkedUploadService.fileParkedSession(id, uid, target),
+          recordConsent: recordConsentEvent,
+          applyObjectHold: (params) => applyObjectLegalHoldForNewRecording(params),
+        },
+        {
+          recordingSessionId: req.params.sessionId,
+          targetCaseId: req.body?.targetCaseId,
+          recordingType: req.body?.recordingType,
+          practiceArea: req.body?.practiceArea,
+          consentConfirmed: req.body?.consentConfirmed,
+          userId,
+          practiceAreas: PRACTICE_AREAS,
+          req,
+        },
+      );
+      if (!result.ok) return res.status(result.status).json({ message: result.message });
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.delete("/api/audio/parked-recordings/:sessionId", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { sessionId } = req.params;
+      const discarded = await chunkedUploadService.discardParkedSession(sessionId, userId);
+      if (!discarded) return res.status(404).json({ message: "This recording is no longer waiting to be filed." });
+      await logAuditEvent(userId, "parked_recording_deleted", {
+        metadata: { sessionId },
+        severity: "warning",
+        req,
+      });
+      res.json({ success: true });
     } catch (error) {
       next(error);
     }
@@ -12047,6 +12137,11 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
           durationSeconds: importData.durationSeconds || undefined,
         });
         createdSessionId = newSession.id;
+        // Number it by when the meeting happened, even before processing runs.
+        const { resolveBotMeetingStart } = await import('./services/botRecordingSession');
+        await storage.updateMeetingSession(newSession.id, {
+          startedAt: await resolveBotMeetingStart(storage, importData),
+        });
       } catch (sessionErr) {
         console.error('[Assign] Failed to create meeting session:', sessionErr);
         return res.status(500).json({ message: "Could not add this recording as a session. Nothing was assigned - please try again." });

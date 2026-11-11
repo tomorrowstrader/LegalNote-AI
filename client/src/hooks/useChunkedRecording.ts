@@ -45,6 +45,8 @@ interface UseChunkedRecordingReturn {
   cancelRecording: () => void;
   markConsentConfirmed: () => Promise<{ success: boolean; consentChunk: number; elapsedSeconds: number } | null>;
   finalizeAndUpload: (audioRecordingId: string) => Promise<{ success: boolean; totalChunks: number; totalBytes: number }>;
+  /** Keep the uploaded recording on the server, unfiled, to be filed on a matter later. */
+  parkForLater: () => Promise<void>;
   /** Ensure a cloud chunk session exists and flush local pending chunks. */
   ensureCloudSynced: () => Promise<boolean>;
   mimeType: string;
@@ -657,6 +659,41 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
     }
   }, [duration]);
 
+  const parkForLater = useCallback(async (): Promise<void> => {
+    const synced = await ensureCloudSynced();
+    if (!synced || !chunkSessionRef.current) {
+      throw new Error("You're offline. Reconnect, then choose File later again. The recording is safe on this device.");
+    }
+    if (pendingChunksRef.current.size > 0 && networkOnlineRef.current) {
+      await retryPendingChunksRef.current?.();
+    }
+    if (pendingChunksRef.current.size > 0) {
+      throw new Error("Part of the recording is still uploading. Wait a moment, then try again.");
+    }
+
+    const sessionId = chunkSessionRef.current.sessionId;
+    await apiRequest("POST", `/api/audio/chunk-session/${sessionId}/park`, { duration });
+
+    clearLocalSession();
+    chunkSessionRef.current = null;
+    setChunkSessionId(null);
+    setIsLocalOnly(false);
+    setLastSyncTime(null);
+    setIsUploading(false);
+
+    const localId = localBackupSessionIdRef.current;
+    localBackupSessionIdRef.current = null;
+    setLocalBackupSessionId(null);
+    try {
+      if (localId) {
+        await indexedDBBackup.markSessionCompleted(localId);
+        await indexedDBBackup.clearSession(localId);
+      }
+    } catch (e) {
+      console.warn("[IndexedDB] Failed to clean up local session:", e);
+    }
+  }, [duration, clearLocalSession, ensureCloudSynced]);
+
   const finalizeAndUpload = useCallback(
     async (
       audioRecordingId: string,
@@ -744,6 +781,7 @@ export function useChunkedRecording(options: UseChunkedRecordingOptions = {}): U
     cancelRecording,
     markConsentConfirmed,
     finalizeAndUpload,
+    parkForLater,
     ensureCloudSynced,
     mimeType: audioFormatRef.current.mimeType,
     chunkSessionId,

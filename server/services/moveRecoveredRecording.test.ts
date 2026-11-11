@@ -47,6 +47,7 @@ function setup(options: {
     consentSegmentPath: "/objects/consent.webm",
     deletedAt: null,
     expiresAt: new Date("2026-11-15T08:42:00Z"),
+    recordedAt: new Date("2026-11-08T08:42:00Z"),
   };
   const audit: any[] = [];
 
@@ -216,5 +217,21 @@ describe("getRecoveredMoveStatus", () => {
   it("explains why a recovered recording cannot move", async () => {
     const { deps } = setup({ consentLogs: 1 });
     expect(await getRecoveredMoveStatus(deps, "src", USER)).toMatchObject({ recovered: true, block: "has_consent" });
+  });
+
+  it("dates a newly created session from when the recording began, not when it was moved", async () => {
+    const { deps, sessions } = setup({ sessions: 0 });
+    const result = await move(deps);
+
+    expect(result).toMatchObject({ ok: true, sessionId: "sess-new" });
+    expect(sessions.get("sess-new").startedAt).toEqual(new Date("2026-11-08T08:42:00Z"));
+  });
+
+  it("moves an existing session back to the recording's start when it was dated later", async () => {
+    const { deps, sessions } = setup();
+    sessions.get("sess-0").startedAt = new Date("2026-11-09T09:59:00Z");
+    await move(deps);
+
+    expect(sessions.get("sess-0").startedAt).toEqual(new Date("2026-11-08T08:42:00Z"));
   });
 });

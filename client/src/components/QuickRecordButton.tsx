@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Mic, Square, FileText, AlertTriangle, BatteryLow } from "lucide-react";
+import { Mic, Square, FileText, AlertTriangle, BatteryLow, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import RecordingControlCenter, {
   ControlCenterActionButton,
@@ -1363,6 +1363,39 @@ export default function QuickRecordButton() {
     await saveCase();
   };
 
+  const [isParking, setIsParking] = useState(false);
+  const canFileLater = useChunkedUpload && !isProcessing;
+
+  /** Set the recording aside, on the server, to be filed from the dashboard later. */
+  const fileLater = async () => {
+    if (!canFileLater || isParking) return;
+    setIsParking(true);
+    try {
+      await chunkedRecording.parkForLater();
+      clearRecordingSession();
+      recordingTargetCaseIdRef.current = null;
+      pendingOfflineSaveRef.current = null;
+      setShowMetadataModal(false);
+      setRecordingDuration(0);
+      audioBlobRef.current = null;
+      setConsentGiven(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/audio/parked-recordings"] });
+      toast({
+        title: "Saved to file later",
+        description: "It is waiting on your dashboard. It keeps the date it was recorded, so it takes its place among the matter's sessions in meeting order. Recordings are deleted 7 days after they were made.",
+        duration: 8000,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Could not set it aside",
+        description: error?.message || "The recording is still here. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsParking(false);
+    }
+  };
+
   const saveTextNotes = async (data: { caseTitle: string; clientName: string; matterRef: string; notes: string }) => {
     if (!user?.id) {
       toast({
@@ -1540,7 +1573,14 @@ export default function QuickRecordButton() {
         />
       )}
 
-      <Dialog open={showMetadataModal} onOpenChange={(open) => { if (open) setShowMetadataModal(true); }}>
+      <Dialog
+        open={showMetadataModal}
+        onOpenChange={(open) => {
+          if (open) setShowMetadataModal(true);
+          // Closing never loses the recording: it is kept to file later.
+          else void fileLater();
+        }}
+      >
         <DialogContent
           data-testid="dialog-metadata"
           className="sm:max-w-md overflow-visible"
@@ -1554,7 +1594,7 @@ export default function QuickRecordButton() {
               <DialogHeader>
                 <DialogTitle>File this recording</DialogTitle>
                 <DialogDescription>
-                  The recording stays here until it is filed. Processing starts once the matter and practice area are set.
+                  Processing starts once the matter and practice area are set. Not ready? Choose File later and it waits on your dashboard.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
@@ -1692,7 +1732,17 @@ export default function QuickRecordButton() {
                   </div>
                 )}
               </div>
-              <div className="flex justify-end">
+              <div className="flex justify-between gap-2">
+                {canFileLater ? (
+                  <Button
+                    variant="ghost"
+                    onClick={() => void fileLater()}
+                    disabled={isParking}
+                    data-testid="button-file-later"
+                  >
+                    {isParking ? <Loader2 className="w-4 h-4 animate-spin" /> : "File later"}
+                  </Button>
+                ) : <span />}
                 <Button
                   onClick={fileRecording}
                   disabled={

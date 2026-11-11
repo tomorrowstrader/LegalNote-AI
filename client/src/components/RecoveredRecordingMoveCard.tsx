@@ -1,19 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { format } from "date-fns";
 import { ArrowRightLeft, Loader2 } from "lucide-react";
-import type { Case, PracticeArea } from "@shared/schema";
-import { PRACTICE_AREAS, PRACTICE_AREA_LABELS, RECORDING_TYPE_LABELS } from "@shared/schema";
-import { consentScriptFor, isClientMatterKind } from "@shared/matterKinds";
-import { consentScriptWording } from "@shared/consent";
-import {
-  defaultRecordingTypeForMatterKind,
-  recordingTypesForMatterKind,
-} from "@shared/recordingTypes";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Dialog,
   DialogContent,
@@ -22,13 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { MatterFilingFields, useMatterFilingForm } from "@/components/MatterFilingFields";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -60,49 +44,16 @@ export function RecoveredRecordingMoveCard({ caseId }: { caseId: string }) {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [open, setOpen] = useState(false);
-  const [targetId, setTargetId] = useState("");
-  const [recordingType, setRecordingType] = useState("");
-  const [practiceArea, setPracticeArea] = useState<PracticeArea | "">("");
-  const [consent, setConsent] = useState<"yes" | "no" | "">("");
 
   const { data: status } = useQuery<RecoveredMoveStatus>({
     queryKey: [`/api/cases/${caseId}/recovered-recording`],
   });
-  const { data: cases = [] } = useQuery<Case[]>({
-    queryKey: ["/api/cases"],
-    enabled: !!status?.recovered,
-  });
-
-  const choices = useMemo(
-    () => cases.filter((item) => item.id !== caseId && !item.archived),
-    [cases, caseId],
-  );
-  const target = choices.find((item) => item.id === targetId);
-  const typeOptions = target ? recordingTypesForMatterKind(target.matterKind) : [];
-  const needsPracticeArea = !!target && isClientMatterKind(target.matterKind) && !target.practiceArea;
-
-  useEffect(() => {
-    if (!target) return;
-    setRecordingType((prev) =>
-      recordingTypesForMatterKind(target.matterKind).includes(prev)
-        ? prev
-        : defaultRecordingTypeForMatterKind(target.matterKind),
-    );
-  }, [target?.id]);
-
-  const script = target && recordingType
-    ? consentScriptFor(target.matterKind, !!target.hasExternalAttendees, recordingType)
-    : null;
-  const wording = script ? consentScriptWording(script) : null;
+  const form = useMatterFilingForm({ enabled: !!status?.recovered, excludeCaseId: caseId });
+  const target = form.target;
 
   const moveMutation = useMutation({
     mutationFn: () =>
-      apiRequest<MoveResult>("POST", `/api/cases/${caseId}/move-recovered-recording`, {
-        targetCaseId: targetId,
-        recordingType,
-        practiceArea: needsPracticeArea ? practiceArea : undefined,
-        consentConfirmed: consent === "yes",
-      }),
+      apiRequest<MoveResult>("POST", `/api/cases/${caseId}/move-recovered-recording`, form.payload()),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ predicate: (query) => String(query.queryKey[0] ?? "").startsWith("/api/") });
       setOpen(false);
@@ -129,7 +80,7 @@ export function RecoveredRecordingMoveCard({ caseId }: { caseId: string }) {
   if (!status?.recovered) return null;
 
   const expires = status.expiresAt ? new Date(status.expiresAt) : null;
-  const canMove = !!target && !!recordingType && !!consent && (!needsPracticeArea || !!practiceArea);
+  const canMove = form.ready;
 
   return (
     <div className="p-5 bg-card rounded-md border border-accent/50" data-testid="recovered-recording-card">
@@ -162,80 +113,7 @@ export function RecoveredRecordingMoveCard({ caseId }: { caseId: string }) {
           </DialogHeader>
 
           <div className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="move-target-matter">Matter</Label>
-              <Select value={targetId || undefined} onValueChange={setTargetId}>
-                <SelectTrigger id="move-target-matter" data-testid="select-move-target">
-                  <SelectValue placeholder="Choose the matter" />
-                </SelectTrigger>
-                <SelectContent>
-                  {choices.map((item) => (
-                    <SelectItem key={item.id} value={item.id} className="whitespace-normal">
-                      {item.title}{item.clientName ? ` · ${item.clientName}` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {target && (
-              <div className="space-y-1.5">
-                <Label htmlFor="move-recording-type">Meeting type</Label>
-                <Select value={recordingType || undefined} onValueChange={setRecordingType}>
-                  <SelectTrigger id="move-recording-type" data-testid="select-move-type">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {typeOptions.map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {RECORDING_TYPE_LABELS[type as keyof typeof RECORDING_TYPE_LABELS] ?? type}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            {needsPracticeArea && (
-              <div className="space-y-1.5">
-                <Label htmlFor="move-practice-area">Practice area</Label>
-                <Select value={practiceArea || undefined} onValueChange={(value) => setPracticeArea(value as PracticeArea)}>
-                  <SelectTrigger id="move-practice-area" data-testid="select-move-practice-area">
-                    <SelectValue placeholder="This matter needs a practice area" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PRACTICE_AREAS.map((area) => (
-                      <SelectItem key={area} value={area}>{PRACTICE_AREA_LABELS[area]}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            {target && (
-              <div className="space-y-2">
-                <Label>Consent</Label>
-                <RadioGroup value={consent} onValueChange={(value) => setConsent(value as "yes" | "no")} className="gap-2">
-                  <div className="flex items-start gap-2">
-                    <RadioGroupItem value="yes" id="move-consent-yes" data-testid="radio-move-consent-yes" />
-                    <Label htmlFor="move-consent-yes" className="font-normal leading-snug cursor-pointer">
-                      Everyone agreed to the recording when it started
-                    </Label>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <RadioGroupItem value="no" id="move-consent-no" data-testid="radio-move-consent-no" />
-                    <Label htmlFor="move-consent-no" className="font-normal leading-snug cursor-pointer">
-                      Consent was not confirmed. I will record it on the matter later
-                    </Label>
-                  </div>
-                </RadioGroup>
-                {consent === "yes" && wording && (
-                  <p className="text-xs text-muted-foreground">
-                    This seals your confirmation of the {script === "participant" ? "participant notice" : "client consent"} wording against this recording on the matter. It cannot be changed afterwards.
-                  </p>
-                )}
-              </div>
-            )}
+            <MatterFilingFields form={form} idPrefix="move" />
 
             {status.litigationHold && target && !target.litigationHold && (
               <p className="text-xs text-muted-foreground">
