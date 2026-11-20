@@ -3,16 +3,19 @@ import { Button } from "@/components/ui/button";
 import { Clock, Loader2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { TimeEntry } from "@shared/schema";
+import { RECORDING_TYPE_LABELS, type TimeEntry } from "@shared/schema";
+import { sessionIdentityLabel, type SessionLabelInput } from "@shared/sessionDocuments";
 
 const SIX_MINUTE_UNIT = 6;
 
 type DraftTimeEntryBannerProps = {
   caseId: string;
   entries: TimeEntry[];
+  /** The matter's sessions, so each draft names the session it came from. */
+  sessions?: SessionLabelInput[];
 };
 
-export function DraftTimeEntryBanner({ caseId, entries }: DraftTimeEntryBannerProps) {
+export function DraftTimeEntryBanner({ caseId, entries, sessions = [] }: DraftTimeEntryBannerProps) {
   const { toast } = useToast();
   const drafts = entries.filter((e) => e.status === "draft");
 
@@ -52,7 +55,7 @@ export function DraftTimeEntryBanner({ caseId, entries }: DraftTimeEntryBannerPr
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium">Time ready to confirm</p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Draft time from your last session - confirm to add it to the matter ledger.
+            Draft time from a session - confirm to add it to the matter ledger.
           </p>
         </div>
       </div>
@@ -68,6 +71,10 @@ export function DraftTimeEntryBanner({ caseId, entries }: DraftTimeEntryBannerPr
             >
               <span className="text-muted-foreground truncate max-w-[60%]">
                 {entry.description || "Meeting time"}
+                {(() => {
+                  const label = sessionIdentityLabel(entry.meetingSessionId, sessions, RECORDING_TYPE_LABELS as Record<string, string>);
+                  return label ? <span className="block text-xs" data-testid={`text-draft-time-session-${entry.id}`}>{label}</span> : null;
+                })()}
               </span>
               <span className="font-medium tabular-nums">
                 {h > 0 ? `${h}h ` : ""}

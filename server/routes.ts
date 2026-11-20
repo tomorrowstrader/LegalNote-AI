@@ -6541,7 +6541,24 @@ Return JSON: {"scores":{"authenticity":N,"voiceConsistency":N,"linkedinBestPract
         return res.status(403).json({ message: "Not authorized" });
       }
       
-      let transcript = await storage.getTranscriptByCase(caseId, userId);
+      // With ?sessionId=, only that session's transcript is returned, never another session's.
+      // An older transcript with no session is still shown on a matter with a single session.
+      const requestedSessionId = typeof req.query.sessionId === "string" ? req.query.sessionId : null;
+      let transcript;
+      if (requestedSessionId) {
+        const session = await storage.getMeetingSession(requestedSessionId);
+        if (!session || session.caseId !== caseId) {
+          return res.status(404).json({ message: "No transcript found" });
+        }
+        transcript = await storage.getTranscriptBySession(requestedSessionId);
+        if (!transcript) {
+          const latest = await storage.getTranscriptByCase(caseId, userId);
+          const sessions = await storage.getMeetingSessionsByCase(caseId, userId);
+          if (latest && !latest.meetingSessionId && sessions.length <= 1) transcript = latest;
+        }
+      } else {
+        transcript = await storage.getTranscriptByCase(caseId, userId);
+      }
       if (!transcript) {
         return res.status(404).json({ message: "No transcript found" });
       }
@@ -7949,6 +7966,10 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       const caseData = await storage.getCase(caseId, userId);
       if (!caseData) {
         return res.status(403).json({ message: "Not authorized" });
+      }
+      // A care letter sets out terms of engagement with a client, so only a client matter has one.
+      if (!isClientMatterKind(caseData.matterKind)) {
+        return res.status(400).json({ message: "A client care letter is only produced on a client matter." });
       }
 
       const validatedBody = clientCareLetterSchema.parse(req.body);

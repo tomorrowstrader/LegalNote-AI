@@ -41,6 +41,8 @@ const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
 
 /** A stopped recording kept on the server until it is filed on a matter. */
 export const PARKED_STATUS = "awaiting_filing";
+/** A recovered recording that has been moved onto the matter it belongs to. */
+export const MOVED_STATUS = "moved_to_matter";
 /** Recordings are kept 7 days from when they began, filed or not. */
 const PARKED_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 const parkedExpiry = (startedAt: Date) => new Date(startedAt.getTime() + PARKED_RETENTION_MS);
@@ -130,7 +132,8 @@ export class ChunkedUploadService {
     if (
       meta.status === "completed" ||
       meta.status === "cancelled" ||
-      meta.status === "recovered"
+      meta.status === "recovered" ||
+      meta.status === MOVED_STATUS
     ) {
       throw new Error("Session already finalized");
     }
@@ -1156,10 +1159,13 @@ export class ChunkedUploadService {
     return rows[0] ?? null;
   }
 
-  /** Point a recovered recording session at the matter it was moved to. */
+  /**
+   * Point a recovered recording session at the matter it was moved to. It is marked as
+   * moved so that matter is not then treated as a recovered case itself.
+   */
   async relinkRecoveredSession(sessionId: string, caseId: string): Promise<void> {
     await db.update(recordingSessions)
-      .set({ caseId })
+      .set({ caseId, status: MOVED_STATUS })
       .where(eq(recordingSessions.id, sessionId));
   }
 

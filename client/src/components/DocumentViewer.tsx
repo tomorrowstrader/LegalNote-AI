@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileDown, FileSearch, FileText, CheckCircle, Lock, Unlock, AlertCircle, Edit, Save, CloudUpload, Shield, ZoomIn, ZoomOut, Maximize2, Minimize2, Printer, MessageSquare, MessageSquarePlus, Check, Eye, EyeOff, X, GitCompareArrows, ChevronDown, ChevronUp, Mail, MailCheck, BookOpen, Pencil, AlertTriangle, PenLine, Share2, Quote, Play, MoreHorizontal, Clock, ArrowUp } from "lucide-react";
+import { FileDown, FileSearch, FileText, CheckCircle, Lock, Unlock, AlertCircle, Edit, Save, CloudUpload, Shield, ZoomIn, ZoomOut, Maximize2, Minimize2, Printer, MessageSquare, MessageSquarePlus, Check, Eye, EyeOff, X, GitCompareArrows, ChevronDown, ChevronUp, Mail, MailCheck, BookOpen, Pencil, AlertTriangle, PenLine, Share2, Quote, Play, MoreHorizontal, Clock, ArrowUp, Loader2, RefreshCw } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -31,6 +31,8 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import type { FirmProfile, DocumentComment } from "@shared/schema";
 import { RECORDING_TYPE_LABELS, type RecordingType } from "@shared/schema";
 import { isClientMatterKind } from "@shared/matterKinds";
+import { documentBelongsToOtherSession, documentForSession, sessionIdentityLabel } from "@shared/sessionDocuments";
+import { INTERNAL_RECORDING_TYPES } from "@shared/recordingTypes";
 import DownloadModal from "@/components/DownloadModal";
 import PrintModal from "@/components/PrintModal";
 import ShareLinkModal from "@/components/ShareLinkModal";
@@ -596,6 +598,9 @@ interface DocumentViewerProps {
   initialTimestamp?: number;
   sessions?: SessionInfo[];
   focusSessionId?: string | null;
+  /** Starts processing one session (shown when the session on screen has no documents). */
+  onProcessSession?: (sessionId: string) => void;
+  processSessionPending?: boolean;
   hasAmlFlag?: boolean;
   litigationHold?: boolean;
   /** Opens time recording from the post-adoption done state. */
@@ -1943,6 +1948,8 @@ export default function DocumentViewer({
   initialTimestamp,
   sessions,
   focusSessionId,
+  onProcessSession,
+  processSessionPending,
   hasAmlFlag,
   litigationHold,
   onLogTime,
@@ -3173,21 +3180,23 @@ export default function DocumentViewer({
     };
   }, [editingDocId, editContent, autoSaveDocument, DRAFT_STORAGE_KEY]);
 
-  // When focusSessionId is set, prefer the document tied to that session; fall back to latest
-  const findDoc = (type: Document['type']) => {
-    if (focusSessionId) {
-      return documents.find(d => d.type === type && d.meetingSessionId === focusSessionId)
-        ?? documents.find(d => d.type === type);
-    }
-    return documents.find(d => d.type === type);
-  };
+  // A session only ever shows its own documents, never another session's under its label.
+  const findDoc = (type: Document['type']) =>
+    documentForSession(documents, type, { focusSessionId, sessionCount: sessions?.length ?? 0 });
 
   const attendanceNote = findDoc('attendance_note') ?? findDoc('meeting_notes');
   const isMeetingNotes = !findDoc('attendance_note') && !!findDoc('meeting_notes');
   // Pipeline persists as client_letter; older rows and some paths use summary
   const summary = isClientMatter ? (findDoc('summary') ?? findDoc('client_letter')) : undefined;
   const transcriptDoc = findDoc('transcript');
-  const clientCareLetter = isClientMatter ? findDoc('client_care_letter') : undefined;
+  // The session on screen (or the only one). Internal meetings and file notes show only their
+  // own documents: no client letter, and not the matter's client care letter either.
+  const viewedSession = focusSessionId
+    ? sessions?.find((s) => s.id === focusSessionId)
+    : sessions?.length === 1 ? sessions[0] : undefined;
+  const viewedSessionIsInternal =
+    !!viewedSession && (INTERNAL_RECORDING_TYPES as readonly string[]).includes(viewedSession.recordingType);
+  const clientCareLetter = isClientMatter && !viewedSessionIsInternal ? findDoc('client_care_letter') : undefined;
 
   adoptionDocsRef.current = { attendanceNote, summary, clientCareLetter };
 
@@ -3247,6 +3256,7 @@ export default function DocumentViewer({
 
   const requestAdoptDocument = useCallback((document: Document) => {
     if (document.status === "approved") return;
+    if (documentBelongsToOtherSession(document, focusSessionId)) return;
     const docGaps = parseReasoningGaps(
       gapContentByDocIdRef.current[document.id] ?? document.content,
     );
@@ -3259,7 +3269,7 @@ export default function DocumentViewer({
         reasoningGapsReviewed: wasReviewed,
       });
     }
-  }, [approveMutation]);
+  }, [approveMutation, focusSessionId]);
 
   const handleReviewShortcut = useCallback(
     (action: DocumentReviewShortcutAction) => {
@@ -3379,11 +3389,11 @@ export default function DocumentViewer({
     }
   }, [documents, caseId, isDemoMode]);
 
+  // Taken from the document itself, so it always names the session the document came from.
   const getSessionLabel = (doc: Document | undefined): string | null => {
-    if (!doc?.meetingSessionId || !sessions || sessions.length === 0) return null;
-    const session = sessions.find(s => s.id === doc.meetingSessionId);
-    if (!session) return null;
-    return session.sessionTitle || RECORDING_TYPE_LABELS[session.recordingType as RecordingType] || session.recordingType;
+    if (!doc || !sessions || sessions.length === 0) return null;
+    if (!doc.meetingSessionId) return sessions.length > 1 ? "Matter document" : null;
+    return sessionIdentityLabel(doc.meetingSessionId, sessions, RECORDING_TYPE_LABELS as Record<string, string>);
   };
 
   const attendanceNoteSessionLabel = getSessionLabel(attendanceNote);
@@ -3405,6 +3415,14 @@ export default function DocumentViewer({
       RECORDING_TYPE_LABELS[focusedSession.recordingType as RecordingType] ||
       focusedSession.recordingType
     : null;
+  // A session with nothing produced yet shows only its own notice: no empty document tabs
+  // that would suggest a note type or a client letter it may never have.
+  const sessionAwaitingDocuments = !!(focusSessionId && focusedSession && !attendanceNote && !summary);
+  const hideDocumentTabs = sessionAwaitingDocuments && !transcriptContent.trim();
+  // Internal meetings and file notes never produce a client letter, so their view has no
+  // Client Letter tab (they show meeting notes, not an attendance note).
+  const showClientLetterTab = isClientMatter && !viewedSessionIsInternal;
+  const documentTabCount = 2 + (showClientLetterTab ? 1 : 0) + (isClientMatter && clientCareLetter ? 1 : 0);
   const focusedSessionDate = focusedSession?.startedAt
     ? new Date(focusedSession.startedAt).toLocaleDateString("en-GB", {
         day: "numeric",
@@ -3476,6 +3494,14 @@ export default function DocumentViewer({
     const handleApproveClick = () => {
       requestAdoptDocument(document);
     };
+    // Backstop: never adopt a document from a session other than the one on screen.
+    const fromOtherSession = documentBelongsToOtherSession(document, focusSessionId);
+    const ownSessionNumber =
+      document.meetingSessionId && (sessions?.length ?? 0) > 1
+        ? [...(sessions || [])]
+            .sort((a, b) => new Date(a.startedAt ?? 0).getTime() - new Date(b.startedAt ?? 0).getTime())
+            .findIndex((s) => s.id === document.meetingSessionId) + 1
+        : 0;
 
     return (
       <div className="flex flex-col items-end gap-2">
@@ -3589,15 +3615,23 @@ export default function DocumentViewer({
                     size="sm"
                     variant="default"
                     onClick={handleApproveClick}
-                    disabled={isApproving || isEditing}
+                    disabled={isApproving || isEditing || fromOtherSession}
                     className="gap-1.5 font-medium shadow-sm h-auto min-h-8 py-1.5 whitespace-normal text-left"
                     data-testid="button-approve-document"
                   >
                     <CheckCircle className="w-3.5 h-3.5 shrink-0" />
-                    {useShortAdoptLabel ? "I Adopt" : "I have reviewed and adopt this note"}
+                    {useShortAdoptLabel
+                      ? (ownSessionNumber > 0 ? `I Adopt (session ${ownSessionNumber})` : "I Adopt")
+                      : (ownSessionNumber > 0
+                          ? `I have reviewed and adopt this note (session ${ownSessionNumber})`
+                          : "I have reviewed and adopt this note")}
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Adopt this document (Ctrl+Enter)</TooltipContent>
+                <TooltipContent>
+                  {fromOtherSession
+                    ? "This document belongs to a different session. Open that session to adopt it."
+                    : "Adopt this document (Ctrl+Enter)"}
+                </TooltipContent>
               </Tooltip>
             </>
           )}
@@ -4169,11 +4203,12 @@ export default function DocumentViewer({
               )}
             </div>
           )}
-          <TabsList className={`grid w-full h-auto rounded-xl ${
-            isClientMatter
-              ? (clientCareLetter ? 'grid-cols-4' : 'grid-cols-3')
-              : 'grid-cols-2'
-          }`}>
+          <TabsList className={cn(
+            "grid w-full h-auto rounded-xl",
+            documentTabCount === 4 ? 'grid-cols-4' : documentTabCount === 3 ? 'grid-cols-3' : 'grid-cols-2',
+            // Last, so it wins over the tab bar's own display class.
+            hideDocumentTabs && "hidden",
+          )}>
             <TabsTrigger value="attendance" data-testid="tab-attendance" disabled={!attendanceNote} className="gap-1.5 text-xs sm:text-sm px-2 py-2.5 h-auto rounded-lg">
               <ReviewStatusDot
                 status={getDocumentReviewStatus(attendanceNote, {
@@ -4194,7 +4229,7 @@ export default function DocumentViewer({
                 </>
               )}
             </TabsTrigger>
-            {isClientMatter && (
+            {showClientLetterTab && (
             <TabsTrigger value="summary" data-testid="tab-summary" className="gap-1.5 text-xs sm:text-sm px-2 py-2.5 h-auto rounded-lg">
               <ReviewStatusDot
                 status={getDocumentReviewStatus(summary, {
@@ -4227,7 +4262,36 @@ export default function DocumentViewer({
           </div>
         </div>
 
-        <TabsContent value="attendance" className="mt-6">
+        {sessionAwaitingDocuments && focusedSession && (
+          <Card className="mt-6 border-dashed" data-testid="card-session-not-processed">
+            <CardContent className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 py-6">
+              <div>
+                <p className="font-semibold text-foreground">
+                  {sessionIdentityLabel(focusedSession.id, sessions || [], RECORDING_TYPE_LABELS as Record<string, string>)}
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {focusedSession.status === "processing"
+                    ? "This session is being processed. Its documents appear here when they are ready."
+                    : "This session has not been processed yet, so it has no documents of its own. Other sessions' documents are under those sessions."}
+                </p>
+              </div>
+              {onProcessSession && focusedSession.status !== "processing" && (
+                <Button
+                  size="sm"
+                  className="gap-1.5 shrink-0"
+                  onClick={() => onProcessSession(focusedSession.id)}
+                  disabled={processSessionPending}
+                  data-testid="button-process-session"
+                >
+                  {processSessionPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                  Process this session
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        <TabsContent value="attendance" className={cn("mt-6", hideDocumentTabs && "hidden")}>
           {attendanceNote?.status === 'draft' && pendingAdoption.length === 0 && !dismissedReviewBanners.has('attendance') && (
             <div className="mb-4 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700 rounded-md" data-testid="banner-review-required-attendance">
               <div className="flex items-start gap-3">
@@ -4483,7 +4547,7 @@ export default function DocumentViewer({
           </div>
         </TabsContent>
 
-        <TabsContent value="summary" className="mt-6">
+        <TabsContent value="summary" className={cn("mt-6", hideDocumentTabs && "hidden")}>
           {summary?.status === 'draft' && pendingAdoption.length === 0 && !dismissedReviewBanners.has('summary') && (
             <div className="mb-4 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700 rounded-md" data-testid="banner-review-required-summary">
               <div className="flex items-start gap-3">
@@ -4757,7 +4821,7 @@ export default function DocumentViewer({
           </div>
         </TabsContent>
 
-        <TabsContent value="transcript" className="mt-6">
+        <TabsContent value="transcript" className={cn("mt-6", hideDocumentTabs && "hidden")}>
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -4856,7 +4920,7 @@ export default function DocumentViewer({
         </TabsContent>
 
         {clientCareLetter && (
-          <TabsContent value="care_letter" className="mt-6">
+          <TabsContent value="care_letter" className={cn("mt-6", hideDocumentTabs && "hidden")}>
             {clientCareLetter.status === 'draft' && pendingAdoption.length === 0 && !dismissedReviewBanners.has('care_letter') && (
               <div className="mb-4 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700 rounded-md" data-testid="banner-review-required-care-letter">
                 <div className="flex items-start gap-3">

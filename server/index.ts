@@ -35,6 +35,8 @@ import { WebhookHandlers } from "./webhookHandlers";
 import "./envValidation"; // Validate environment on startup
 import { assertSealTriggersInstalled } from "./sealTriggerAssertion";
 import { assertLegalMasterHashes } from "./services/legalDocumentLoader";
+import { assertNotLiveDatabaseOutsideProduction } from "./liveDatabaseGuard";
+import { markMovedRecoveredRecordings } from "./recoveredMoveStatusMigration";
 
 // Development-only fallback when AUDIT_SIGNING_KEY is unset (production gate is in envValidation).
 if (!process.env.AUDIT_SIGNING_KEY && process.env.NODE_ENV !== "production") {
@@ -43,6 +45,9 @@ if (!process.env.AUDIT_SIGNING_KEY && process.env.NODE_ENV !== "production") {
     "[AUDIT] AUDIT_SIGNING_KEY not set - generated ephemeral dev key for this process.",
   );
 }
+
+// A local server must never run against the live database. Checked before anything else touches it.
+await assertNotLiveDatabaseOutsideProduction();
 
 const app = express();
 
@@ -271,6 +276,9 @@ app.use((req, res, next) => {
 
   // Number sessions by when their meetings happened, not when they were filed (idempotent)
   await dateSessionsFromRecordings();
+
+  // Matters that received a moved recording stop showing the recovered card.
+  await markMovedRecoveredRecordings();
 
   // Replace any legacy visible placeholder text with HTML comment markers (idempotent)
   await migrateReasoningGapPlaceholders();

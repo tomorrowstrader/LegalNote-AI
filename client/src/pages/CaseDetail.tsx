@@ -652,16 +652,6 @@ export default function CaseDetail() {
     !!caseData &&
     ['review_required', 'completed', 'processing', 'failed'].includes(caseData.status);
 
-  const { data: transcript } = useQuery<{
-    id: string; caseId: string; content: string;
-    utterances?: SpeakerUtterance[]; speakerCount?: number;
-    redactions?: Redaction[]; createdAt: string;
-    origin?: "external_upload" | "audio_transcription";
-    originalFilename?: string | null;
-  }>({
-    queryKey: [`/api/cases/${caseId}/transcript`],
-    enabled: shouldLoadCaseContent,
-  });
 
   const { data: documents = [], isFetched: documentsFetched, isFetching: documentsFetching } = useQuery<Array<{
     id: string; caseId: string; type: string;
@@ -725,6 +715,25 @@ export default function CaseDetail() {
       (a, b) => new Date(b.startedAt ?? 0).getTime() - new Date(a.startedAt ?? 0).getTime(),
     )[0]?.id ||
     null;
+  // Each session shows its own transcript, never another session's. The key keeps the
+  // matter prefix so existing invalidations still refresh it.
+  const { data: transcript } = useQuery<{
+    id: string; caseId: string; content: string; meetingSessionId?: string | null;
+    utterances?: SpeakerUtterance[]; speakerCount?: number;
+    redactions?: Redaction[]; createdAt: string;
+    origin?: "external_upload" | "audio_transcription";
+    originalFilename?: string | null;
+  } | null>({
+    queryKey: [`/api/cases/${caseId}/transcript`, viewedSessionId ?? "latest"],
+    enabled: shouldLoadCaseContent,
+    queryFn: async () => {
+      const query = viewedSessionId ? `?sessionId=${encodeURIComponent(viewedSessionId)}` : "";
+      const res = await fetch(`/api/cases/${caseId}/transcript${query}`, { credentials: "include" });
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error(`${res.status}: ${(await res.text()) || res.statusText}`);
+      return res.json();
+    },
+  });
   const audioEnabled = !!caseId && (caseData?.sourceType === 'audio' || caseData?.sourceType === 'dictation');
   const { data: viewedSessionAudio, isLoading: viewedSessionAudioLoading } = useQuery<AudioRecording | null>({
     queryKey: [`/api/audio/by-session/${viewedSessionId}`],
@@ -1029,6 +1038,19 @@ export default function CaseDetail() {
     },
     onError: (error: any) => {
       toast({ title: "Could not update the matter", description: error.message || "Try again.", variant: "destructive" });
+    },
+  });
+
+  // Processes one session, for a session added to a matter that was already processed.
+  const processSessionMutation = useMutation({
+    mutationFn: async (sessionId: string) => apiRequest("POST", `/api/cases/${caseId}/process`, { sessionId }),
+    onSuccess: () => {
+      toast({ title: "Processing started", description: "This session's documents are being produced.", duration: 6000 });
+      markCaseAsProcessing("Queued for processing...");
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/sessions`] });
+    },
+    onError: (error: any) => {
+      toast({ title: "Processing failed", description: getApiErrorMessage(error, "Failed to process this session. Please try again."), variant: "destructive", duration: 6000 });
     },
   });
 
@@ -1589,6 +1611,30 @@ export default function CaseDetail() {
               Handover Case
             </DropdownMenuItem>
           )}
+          {isClientMatterKind(caseData?.matterKind) && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setShowConflictCheckDialog(true)} data-testid="action-record-conflict-check">
+                <Shield className="w-4 h-4 mr-2" />
+                {caseData.conflictCheckCompleted ? "Conflict check (completed)" : "Record conflict check"}
+              </DropdownMenuItem>
+              {caseData.clientCareLetterId ? (
+                <DropdownMenuItem
+                  onClick={() => setShowSendCareLetterDialog(true)}
+                  disabled={!!caseData.clientCareLetterSentAt}
+                  data-testid="action-send-care-letter"
+                >
+                  <Send className="w-4 h-4 mr-2" />
+                  {caseData.clientCareLetterSentAt ? "Client care letter sent" : "Send client care letter"}
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem onClick={() => setShowCareLetterModal(true)} data-testid="action-generate-care-letter">
+                  <FileText className="w-4 h-4 mr-2" />
+                  Generate client care letter
+                </DropdownMenuItem>
+              )}
+            </>
+          )}
           {sraReadinessVisible && isClientMatterKind(caseData?.matterKind) && (
             <>
               <DropdownMenuSeparator />
@@ -2088,7 +2134,7 @@ export default function CaseDetail() {
             </div>
           )}
 
-          <DraftTimeEntryBanner caseId={caseId!} entries={timeEntries} />
+          <DraftTimeEntryBanner caseId={caseId!} entries={timeEntries} sessions={meetingSessions} />
 
           {caseData.sourceType === 'audio' && <RecoveredRecordingMoveCard caseId={caseId!} />}
 
@@ -2472,6 +2518,8 @@ export default function CaseDetail() {
                   initialTab={urlTab !== 'compliance' ? (urlTab || undefined) : undefined}
                   initialTimestamp={urlTimestamp ? parseInt(urlTimestamp, 10) : undefined}
                   focusSessionId={activeSessionId || undefined}
+                  onProcessSession={(sessionId) => processSessionMutation.mutate(sessionId)}
+                  processSessionPending={processSessionMutation.isPending}
                   hasAmlFlag={amlComplianceVisible && !!caseData.riskLevel && ['high', 'medium'].includes(caseData.riskLevel as string)}
                   litigationHold={caseData.litigationHold}
                   onLogTime={() => setShowTimeRecordingModal(true)}
@@ -2877,69 +2925,7 @@ export default function CaseDetail() {
                   : "Set practice area"}
               </Badge>
             )}
-            {isClientMatter && (
-            <div className="flex items-center gap-1.5">
-              {(() => {
-                const ccCriterion = sraReadiness?.criteria?.find((c) => c.key === "conflict_check");
-                const ccStatus = ccCriterion?.status ?? (caseData.conflictCheckCompleted ? "green" : "amber");
-                return (
-                  <Badge
-                    variant="secondary"
-                    className={cn(
-                      "no-default-hover-elevate no-default-active-elevate",
-                      ccStatus === "green"
-                        ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-                        : ccStatus === "amber"
-                        ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
-                        : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
-                    )}
-                    data-testid="badge-conflict-check"
-                  >
-                    <Shield className="w-3 h-3 mr-1" />
-                    {ccStatus === "green" ? "Conflict Check Completed" : ccStatus === "amber" ? "Conflict Managed" : "Conflict Check Pending"}
-                  </Badge>
-                );
-              })()}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowConflictCheckDialog(true)}
-                className="gap-1 text-xs"
-                data-testid="button-record-conflict-check"
-              >
-                <Shield className="w-3 h-3" />
-                Record Conflict Check
-              </Button>
-            </div>
-            )}
-            {isClientMatter && (caseData.clientCareLetterId ? (
-              <>
-                <Badge
-                  variant="secondary"
-                  className={cn(
-                    "no-default-hover-elevate no-default-active-elevate",
-                    caseData.clientCareLetterSentAt
-                      ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-                      : "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
-                  )}
-                  data-testid="badge-client-care-letter"
-                >
-                  <FileText className="w-3 h-3 mr-1" />
-                  {caseData.clientCareLetterSentAt ? "Client Care Letter Sent" : "Client Care Letter Ready"}
-                </Badge>
-                {!caseData.clientCareLetterSentAt && (
-                  <Button variant="outline" size="sm" onClick={() => setShowSendCareLetterDialog(true)} className="gap-1" data-testid="button-send-care-letter">
-                    <Send className="w-3 h-3" />
-                    Send to Client
-                  </Button>
-                )}
-              </>
-            ) : (
-              <Button variant="outline" size="sm" onClick={() => setShowCareLetterModal(true)} className="gap-1" data-testid="button-generate-care-letter">
-                <FileText className="w-3 h-3" />
-                Generate Client Care Letter
-              </Button>
-            ))}
+            {/* Conflict check and client care letter actions are in the Case Actions menu. */}
             <div className="flex items-center gap-3 text-xs text-muted-foreground ml-auto">
               <span className="flex items-center gap-1">
                 <Calendar className="w-3.5 h-3.5" />
