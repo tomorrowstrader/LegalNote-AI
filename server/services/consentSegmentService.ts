@@ -4,6 +4,7 @@ import { promises as fs } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { ObjectStorageService } from "../objectStorage";
+import { ffmpegBinary } from "./audioCutting";
 
 const objectStorage = new ObjectStorageService();
 
@@ -56,7 +57,7 @@ export async function extractConsentAudioPrefix(params: {
 
     await new Promise<void>((resolve, reject) => {
       const proc = spawn(
-        "ffmpeg",
+        ffmpegBinary(),
         ["-hide_banner", "-loglevel", "error", "-y", "-i", inPath, "-t", String(seconds), "-c", "copy", outPath],
         { stdio: "ignore" },
       );

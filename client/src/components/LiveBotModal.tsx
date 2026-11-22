@@ -59,6 +59,9 @@ import {
   formatWaitRemaining,
 } from "@shared/liveBotLifecycle";
 import { useLiveBotSessionOptional } from "@/contexts/LiveBotSessionContext";
+import { alertLegalNoteAdmitted, askForMeetingAlerts } from "@/lib/meetingAlerts";
+import { PipPortal, useConsentPip } from "@/components/ConsentPip";
+import { InMeetingConsentPanel } from "@/components/InMeetingConsentPanel";
 import { flushLiveBotNotesOnAssign, liveBotDraftKey } from "@/lib/meetingNotesDraft";
 import {
   discardReservedMeetingNotesPopout,
@@ -106,6 +109,8 @@ interface LiveBotModalProps {
   allocateLater?: boolean;
   /** Meeting type chosen on the upcoming meeting, if any. */
   recordingType?: string | null;
+  /** The dashboard meeting this was opened from: links the bot so the card can follow it. */
+  scheduledMeetingId?: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -202,9 +207,12 @@ export function LiveBotModal({
   suggestedClientName,
   allocateLater = false,
   recordingType: presetRecordingType,
+  scheduledMeetingId,
   open,
   onOpenChange,
 }: LiveBotModalProps) {
+  const consentPip = useConsentPip();
+  const [consentScriptStarted, setConsentScriptStarted] = useState(false);
   const { toast } = useToast();
   const liveBotSession = useLiveBotSessionOptional();
   const [step, setStep] = useState<Step>(
@@ -572,6 +580,7 @@ export function LiveBotModal({
           consentMode,
           // Sealed with the same wording the solicitor is shown.
           consentScript: useParticipantConsentScript ? "participant" : "client",
+          ...(scheduledMeetingId ? { scheduledMeetingId } : {}),
         }
       );
     },
@@ -741,8 +750,18 @@ export function LiveBotModal({
     // Reserve the notes companion in this click gesture - async deploy would otherwise be blocked.
     discardReservedMeetingNotesPopout(reservedNotesPopoutRef.current);
     reservedNotesPopoutRef.current = reserveMeetingNotesPopout();
+    // Ask now (needs this click) so the "LegalNote is in" alert can show later.
+    void askForMeetingAlerts();
     deployMutation.mutate();
   };
+
+  const scriptStartMutation = useMutation({
+    mutationFn: async () => {
+      if (!importId) throw new Error("No import ID");
+      return apiRequest("POST", `/api/recall/import/${importId}/consent-script-started`);
+    },
+    onSettled: () => setConsentScriptStarted(true),
+  });
 
   // Prefill from upcoming-meeting / scheduled join so solicitor must still press Send to Call
   useEffect(() => {
@@ -872,6 +891,25 @@ export function LiveBotModal({
   // Prefer server-returned consentMode from poll; fall back to local selection pre-deploy
   const effectiveConsentMode = (botPoll?.consentMode as ConsentMode | undefined) ?? consentMode;
   const showInMeetingConsentCard = effectiveConsentMode === "in_meeting" && isRecording && !consentObtained && !consentDeclined;
+
+  // The solicitor is looking at the meeting, not this tab: tell them LegalNote is in.
+  useEffect(() => {
+    if (showInMeetingConsentCard && importId) {
+      alertLegalNoteAdmitted({ importId, participantNotice: useParticipantConsentScript });
+    }
+  }, [showInMeetingConsentCard, importId, useParticipantConsentScript]);
+
+  // The small on-top window only holds the consent step; close it once that's done.
+  useEffect(() => {
+    if (showInMeetingConsentCard || !consentPip.pipWindow) return;
+    const id = window.setTimeout(consentPip.close, 4000);
+    return () => window.clearTimeout(id);
+  }, [showInMeetingConsentCard, consentPip.pipWindow, consentPip.close]);
+
+  // A new bot starts with the script not yet read.
+  useEffect(() => {
+    setConsentScriptStarted(false);
+  }, [importId]);
 
   const isSelectCaseStep = step === "select_case";
   const hasScrollableCases = rankedCases.length > 4;
@@ -1484,15 +1522,64 @@ export function LiveBotModal({
             </div>
 
             {/* In-meeting consent script card */}
-            {showInMeetingConsentCard && (
+            {showInMeetingConsentCard && importId && consentPip.pipWindow && (
+              <>
+                <PipPortal pipWindow={consentPip.pipWindow}>
+                  <InMeetingConsentPanel importId={importId} caseId={selectedCaseId ?? caseId} compact pipMode />
+                </PipPortal>
+                <div className="flex items-center justify-between gap-2 p-3 border border-amber-500/50 bg-amber-500/5 rounded-md">
+                  <p className="text-xs text-muted-foreground">The consent card is on top of your meeting window.</p>
+                  <Button size="sm" variant="outline" onClick={consentPip.close} data-testid="button-consent-pip-close">
+                    Bring it back here
+                  </Button>
+                </div>
+              </>
+            )}
+            {showInMeetingConsentCard && !consentPip.pipWindow && !consentScriptStarted && (
               <div className="border-2 border-amber-500/50 bg-amber-500/5 rounded-md p-4 space-y-3" data-testid="card-in-meeting-consent">
-                <div className="flex items-center gap-2">
-                  <Shield className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                  <p className="text-sm font-semibold text-amber-700 dark:text-amber-300">
-                    {useParticipantConsentScript
-                      ? "Read participant notice to attendees now"
-                      : "Read consent script to client now"}
-                  </p>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                    <p className="text-sm font-semibold text-amber-700 dark:text-amber-300">
+                      LegalNote is in. {useParticipantConsentScript ? "Give the participant notice" : "Ask for consent"} first.
+                    </p>
+                  </div>
+                  {consentPip.supported && (
+                    <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => void consentPip.open()} data-testid="button-consent-pip-open">
+                      Keep on top of meeting
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Press this as you start reading, so LegalNote knows where consent begins.
+                </p>
+                <Button
+                  className="w-full"
+                  disabled={scriptStartMutation.isPending}
+                  onClick={() => scriptStartMutation.mutate()}
+                  data-testid="button-start-consent-script"
+                >
+                  {scriptStartMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  {useParticipantConsentScript ? "Start participant notice" : "Start consent script"}
+                </Button>
+              </div>
+            )}
+            {showInMeetingConsentCard && !consentPip.pipWindow && consentScriptStarted && (
+              <div className="border-2 border-amber-500/50 bg-amber-500/5 rounded-md p-4 space-y-3" data-testid="card-in-meeting-consent">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                    <p className="text-sm font-semibold text-amber-700 dark:text-amber-300">
+                      {useParticipantConsentScript
+                        ? "Read participant notice to attendees now"
+                        : "Read consent script to client now"}
+                    </p>
+                  </div>
+                  {consentPip.supported && (
+                    <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => void consentPip.open()} data-testid="button-consent-pip-open">
+                      Keep on top of meeting
+                    </Button>
+                  )}
                 </div>
                 <div className="bg-background rounded-md p-3 border border-border">
                   <p className="text-xs font-medium text-muted-foreground mb-1.5">

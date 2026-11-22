@@ -699,6 +699,18 @@ export const meetingImports = pgTable("meeting_imports", {
   recallCostUSD: text("recall_cost_usd"), // Cost for this recording from Recall.ai (stored as text for precision)
   createdAt: timestamp("created_at").notNull().defaultNow(),
   importedAt: timestamp("imported_at"), // When recording was successfully imported
+  /** The dashboard meeting this bot was sent to, when it came from a meeting card. */
+  scheduledMeetingId: varchar("scheduled_meeting_id"),
+  /** Set on a bot sent back into the same meeting: the earlier part it continues. */
+  continuesImportId: varchar("continues_import_id"),
+  /** When Recall says this bot's recording began (server clock reference for consent times). */
+  recordingStartedAt: timestamp("recording_started_at"),
+  /** Server time the solicitor pressed "Start consent script". Audio before it is not kept. */
+  consentScriptStartedAt: timestamp("consent_script_started_at"),
+  /** Server time the solicitor confirmed consent. Preferred over the browser's elapsed count. */
+  consentConfirmedAt: timestamp("consent_confirmed_at"),
+  /** The bot left before the scheduled end: hold processing so a rejoin joins the same note. */
+  holdForRejoinUntil: timestamp("hold_for_rejoin_until"),
 });
 
 /** Fee-earner uploaded/pasted transcripts for derivation (no audio / AssemblyAI). */

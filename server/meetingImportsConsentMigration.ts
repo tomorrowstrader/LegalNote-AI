@@ -17,7 +17,13 @@ export async function ensureMeetingImportsConsentColumns(): Promise<void> {
           'consent_mode',
           'consent_elapsed_seconds',
           'pre_consent_email_id',
-          'recall_cost_usd'
+          'recall_cost_usd',
+          'scheduled_meeting_id',
+          'continues_import_id',
+          'recording_started_at',
+          'consent_script_started_at',
+          'consent_confirmed_at',
+          'hold_for_rejoin_until'
         )
     `);
 
@@ -57,6 +63,19 @@ export async function ensureMeetingImportsConsentColumns(): Promise<void> {
         ALTER TABLE meeting_imports
         ADD COLUMN recall_cost_usd text
       `);
+    }
+
+    // Rejoin, consent timing and script-start fields (meeting bot workflow).
+    const added: Array<[string, ReturnType<typeof sql>]> = [
+      ["scheduled_meeting_id", sql`ALTER TABLE meeting_imports ADD COLUMN scheduled_meeting_id varchar`],
+      ["continues_import_id", sql`ALTER TABLE meeting_imports ADD COLUMN continues_import_id varchar`],
+      ["recording_started_at", sql`ALTER TABLE meeting_imports ADD COLUMN recording_started_at timestamp`],
+      ["consent_script_started_at", sql`ALTER TABLE meeting_imports ADD COLUMN consent_script_started_at timestamp`],
+      ["consent_confirmed_at", sql`ALTER TABLE meeting_imports ADD COLUMN consent_confirmed_at timestamp`],
+      ["hold_for_rejoin_until", sql`ALTER TABLE meeting_imports ADD COLUMN hold_for_rejoin_until timestamp`],
+    ];
+    for (const [column, statement] of added) {
+      if (!existing.has(column)) await db.execute(statement);
     }
 
     await db.execute(sql`

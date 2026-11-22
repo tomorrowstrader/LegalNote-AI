@@ -66,6 +66,8 @@ import {
 } from "@shared/meetingAttendees";
 import { Checkbox } from "@/components/ui/checkbox";
 import { InMeetingConsentPanel } from "@/components/InMeetingConsentPanel";
+import { MeetingBotLiveStatus } from "@/components/MeetingBotLiveStatus";
+import { isInMeetingLiveWindow } from "@shared/meetingBotRejoin";
 import { getSafeHttpsMeetingUrl } from "@/lib/meetingUrl";
 import { toTitleCase } from "@/lib/utils";
 import { LiveBotModal } from "@/components/LiveBotModal";
@@ -101,10 +103,6 @@ const caseStatusIconColor = (status: string) => {
   }
 };
 
-/** Keep meetings visible this long after start for late logins (must match server). */
-const LATE_JOIN_GRACE_MS = 15 * 60 * 1000;
-/** Show Join now from this long before scheduled start. */
-const EARLY_JOIN_MS = 5 * 60 * 1000;
 
 type MeetingTimeTab = "today" | "tomorrow" | "next7" | "later";
 
@@ -115,18 +113,17 @@ const MEETING_TABS: { value: MeetingTimeTab; label: string }[] = [
   { value: "later", label: "Later" },
 ];
 
-/** After scheduled start, within the late-join grace window. */
+/** From the scheduled start until 15 minutes after the scheduled end (must match server). */
 function isMeetingInProgress(meeting: ScheduledMeeting, now = Date.now()): boolean {
   if (meeting.status !== "scheduled") return false;
   const start = new Date(meeting.startTime).getTime();
-  return start <= now && now < start + LATE_JOIN_GRACE_MS;
+  return start <= now && isInMeetingLiveWindow(meeting, now);
 }
 
-/** Join now cue: from 5 minutes before start through the 15-minute post-start grace. */
+/** Join now cue: from 5 minutes before the start until 15 minutes after the scheduled end. */
 function isInJoinNowWindow(meeting: ScheduledMeeting, now = Date.now()): boolean {
   if (meeting.status !== "scheduled") return false;
-  const start = new Date(meeting.startTime).getTime();
-  return start - EARLY_JOIN_MS <= now && now < start + LATE_JOIN_GRACE_MS;
+  return isInMeetingLiveWindow(meeting, now);
 }
 
 function useNowTick(intervalMs = 15000) {
@@ -887,6 +884,8 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
   const startTime = new Date(meeting.startTime);
   const inProgress = isMeetingInProgress(meeting, now);
   const joinNow = isInJoinNowWindow(meeting, now);
+  // Includes a meeting marked complete when LegalNote left early, so it can go back in.
+  const liveWindow = isInMeetingLiveWindow(meeting, now);
   const isMeetingSoon =
     !joinNow && !isPast(startTime) && startTime.getTime() - now < 30 * 60 * 1000;
   const isActive = meeting.status === 'scheduled';
@@ -1063,12 +1062,17 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
               </p>
             )}
 
-            {meeting.autoRecordEnabled && meeting.meetingImportId && (joinNow || inProgress) && (
-              <InMeetingConsentPanel
-                importId={meeting.meetingImportId}
-                caseId={meeting.caseId}
-                compact
-              />
+            {/* LegalNote's status and the consent step stay on the card for the whole meeting. */}
+            {meeting.meetingImportId && liveWindow && (
+              <>
+                <MeetingBotLiveStatus meeting={meeting} />
+                <InMeetingConsentPanel
+                  key={meeting.meetingImportId}
+                  importId={meeting.meetingImportId}
+                  caseId={meeting.caseId}
+                  compact
+                />
+              </>
             )}
             
             {meeting.cancellationReason && meeting.status === 'cancelled' && (
@@ -1314,6 +1318,7 @@ function MeetingCard({ meeting, onUpdate }: { meeting: ScheduledMeeting; onUpdat
         caseId={allocateLater ? null : meeting.caseId}
         caseTitle={allocateLater ? undefined : (linkedCase?.title || meeting.title)}
         recordingType={allocateLater ? null : meeting.recordingType}
+        scheduledMeetingId={meeting.id}
         initialMeetingUrl={liveBotLaunchUrl || safeJoinUrl}
         suggestedClientName={meeting.clientName || linkedCase?.clientName || undefined}
         allocateLater={allocateLater}

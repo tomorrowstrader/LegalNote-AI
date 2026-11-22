@@ -110,6 +110,7 @@ import {
   type VerificationWarning,
 } from "@shared/verificationWarnings";
 import { allAdoptionDocsApproved } from "@shared/documentAdoption";
+import { DEFAULT_MEETING_LENGTH_MS, LIVE_WINDOW_TAIL_MS } from "@shared/meetingBotRejoin";
 
 // Enhanced search result with granular match information
 export interface SearchMatch {
@@ -724,6 +725,8 @@ export interface IStorage {
   createMeetingImport(importData: InsertMeetingImport): Promise<MeetingImport>;
   getMeetingImport(id: string): Promise<MeetingImport | undefined>;
   getMeetingImportByBotId(botId: string): Promise<MeetingImport | undefined>;
+  /** The bot sent back into the same meeting after this one, if any (newest first). */
+  getMeetingImportContinuations(importId: string): Promise<MeetingImport[]>;
   getMeetingImportsByUser(userId: string): Promise<MeetingImport[]>;
   getMeetingImportsByCase(caseId: string, userId: string): Promise<MeetingImport[]>;
   getLiveMeetingImports(): Promise<MeetingImport[]>;
@@ -2665,6 +2668,10 @@ export class MemStorage implements IStorage {
 
   async getMeetingImportByBotId(_botId: string): Promise<MeetingImport | undefined> {
     return undefined;
+  }
+
+  async getMeetingImportContinuations(_importId: string): Promise<MeetingImport[]> {
+    return [];
   }
   
   async getMeetingImportsByUser(_userId: string): Promise<MeetingImport[]> {
@@ -6099,6 +6106,14 @@ export class DbStorage implements IStorage {
       .limit(1);
     return result[0];
   }
+
+  async getMeetingImportContinuations(importId: string): Promise<MeetingImport[]> {
+    return await db
+      .select()
+      .from(meetingImports)
+      .where(eq(meetingImports.continuesImportId, importId))
+      .orderBy(desc(meetingImports.createdAt));
+  }
   
   async getMeetingImportsByUser(userId: string): Promise<MeetingImport[]> {
     return await db
@@ -6337,21 +6352,26 @@ export class DbStorage implements IStorage {
   
   async getUpcomingScheduledMeetings(userId: string, daysAhead: number = 7): Promise<ScheduledMeeting[]> {
     const now = new Date();
-    // Keep meetings visible for 15 minutes after start so late-joining solicitors can still open them.
-    const LATE_JOIN_GRACE_MS = 15 * 60 * 1000;
-    const windowStart = new Date(now.getTime() - LATE_JOIN_GRACE_MS);
+    // Keep a meeting on the dashboard until 15 minutes after its scheduled end (or an
+    // hour after the start when there is no end), so the solicitor can always see
+    // LegalNote's status and send it back in. A meeting marked completed because the
+    // bot left early stays too: the bot may need to go back in.
+    const tailMs = LIVE_WINDOW_TAIL_MS;
+    const defaultLengthMs = DEFAULT_MEETING_LENGTH_MS;
     const futureDate = new Date();
     futureDate.setDate(futureDate.getDate() + daysAhead);
-    
+    const windowEnd = sql`COALESCE(${scheduledMeetings.endTime}, ${scheduledMeetings.startTime} + make_interval(secs => ${defaultLengthMs / 1000})) + make_interval(secs => ${tailMs / 1000})`;
+
     return await db
       .select()
       .from(scheduledMeetings)
       .where(
         and(
           eq(scheduledMeetings.userId, userId),
-          eq(scheduledMeetings.status, 'scheduled'),
-          gte(scheduledMeetings.startTime, windowStart),
-          lte(scheduledMeetings.startTime, futureDate)
+          inArray(scheduledMeetings.status, ['scheduled', 'completed']),
+          lte(scheduledMeetings.startTime, futureDate),
+          // Stored timestamps are UTC without a zone; compare like with like.
+          sql`${windowEnd} >= (${now.toISOString()}::timestamptz AT TIME ZONE 'UTC')`,
         )
       )
       .orderBy(scheduledMeetings.startTime);

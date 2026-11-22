@@ -1,6 +1,7 @@
 import { storage } from '../storage';
 import type { MeetingImport, RecallConnection } from '@shared/schema';
 import {
+  EVERYONE_LEFT_TIMEOUT_SEC,
   NOONE_JOINED_TIMEOUT_SEC,
   WAITING_ROOM_TIMEOUT_SEC,
 } from '@shared/liveBotLifecycle';
@@ -210,7 +211,7 @@ export class RecallService {
         automatic_leave: {
           waiting_room_timeout: WAITING_ROOM_TIMEOUT_SEC,
           noone_joined_timeout: NOONE_JOINED_TIMEOUT_SEC,
-          everyone_left_timeout: { timeout: 60, activate_after: null },
+          everyone_left_timeout: { timeout: EVERYONE_LEFT_TIMEOUT_SEC, activate_after: null },
         },
       }),
     });

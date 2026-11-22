@@ -12322,6 +12322,37 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
     }
   });
 
+  // The solicitor is about to read the consent script. Audio before this moment
+  // (small talk) is not kept; the consent clip starts here. First press counts.
+  app.post("/api/recall/import/:importId/consent-script-started", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const importData = await storage.getMeetingImport(req.params.importId);
+      if (!importData || importData.userId !== userId) {
+        return res.status(404).json({ message: "Import not found" });
+      }
+      if (importData.consentConfirmed) {
+        return res.json({ consentScriptStartedAt: importData.consentScriptStartedAt, alreadyConsented: true });
+      }
+      if (importData.consentScriptStartedAt) {
+        return res.json({ consentScriptStartedAt: importData.consentScriptStartedAt });
+      }
+      const startedAt = new Date();
+      await storage.updateMeetingImport(importData.id, { consentScriptStartedAt: startedAt });
+      await storage.createAuditLog({
+        eventType: "consent_script_started",
+        userId,
+        caseId: importData.caseId || undefined,
+        ipAddress: req.ip || req.socket?.remoteAddress,
+        metadata: { importId: importData.id, botId: importData.recallBotId, startedAt: startedAt.toISOString() },
+        severity: "info",
+      });
+      res.json({ consentScriptStartedAt: startedAt });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Update consent status - requires audit log entry for GDPR compliance
   app.patch("/api/recall/import/:importId/consent", isAuthenticated, async (req: any, res, next) => {
     try {
@@ -12437,6 +12468,9 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       
       await storage.updateMeetingImport(importData.id, { 
         consentConfirmed: true,
+        // Server time of the press: measured against Recall's recording start when the
+        // consent clip is cut, instead of trusting a browser timer.
+        ...(consentSource === 'in_meeting_live_panel' ? { consentConfirmedAt: new Date() } : {}),
         preConsentEmailId: preConsentEmailId || undefined,
         ...(typeof elapsedSeconds === "number" && elapsedSeconds >= 0
           ? { consentElapsedSeconds: Math.round(elapsedSeconds) }
@@ -12639,8 +12673,27 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
     try {
       const { recallService } = await import("./services/recallService");
       const userId = req.user.claims.sub;
-      const { meetingUrl, caseId, consentMode, consentScript } = req.body;
+      const { meetingUrl, caseId, consentMode, consentScript, scheduledMeetingId } = req.body;
       const resolvedConsentMode = consentMode === 'in_meeting' ? 'in_meeting' : 'pre_confirmed';
+
+      // Sent from a dashboard meeting card: link the bot to that meeting so the card
+      // shows its status and can send it back in. A bot sent after an earlier one left
+      // continues the same meeting (one note; consent already given carries over).
+      let linkedMeeting: Awaited<ReturnType<typeof storage.getScheduledMeeting>> | undefined;
+      let continues: Awaited<ReturnType<typeof storage.getMeetingImport>> | undefined;
+      if (typeof scheduledMeetingId === 'string' && scheduledMeetingId) {
+        const meeting = await storage.getScheduledMeeting(scheduledMeetingId);
+        if (meeting && meeting.userId === userId) {
+          linkedMeeting = meeting;
+          const { meetingSchedulerService } = await import("./services/meetingSchedulerService");
+          const previous = meeting.meetingImportId ? await storage.getMeetingImport(meeting.meetingImportId) : undefined;
+          if (previous) {
+            const blocked = meetingSchedulerService.previousPartBlocksSend(previous);
+            if (blocked) return res.status(409).json({ message: blocked });
+            if (meetingSchedulerService.isContinuablePart(previous)) continues = previous;
+          }
+        }
+      }
       // The script shown to the solicitor; the sealed consent uses the same wording.
       const resolvedConsentScript = isConsentScript(consentScript) ? consentScript : 'client';
 
@@ -12678,18 +12731,47 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       }
 
       // Create an import record to track this live session
+      const consentCarried = continues?.consentConfirmed === true;
       const meetingImport = await storage.createMeetingImport({
         userId,
-        caseId: caseId || undefined,
+        caseId: continues?.caseId || caseId || undefined,
         recallBotId: bot.id,
         meetingPlatform: platform,
         meetingUrl,
+        meetingTitle: linkedMeeting?.title,
         status: 'live',
         botStatus: recallService.getBotStatusCode(bot) || 'joining_call',
-        consentConfirmed: false,
+        consentConfirmed: consentCarried,
         consentMode: resolvedConsentMode,
-        consentScript: resolvedConsentScript,
+        consentScript: (continues?.consentScript as typeof resolvedConsentScript | null | undefined) || resolvedConsentScript,
+        scheduledMeetingId: linkedMeeting?.id,
+        continuesImportId: continues?.id,
       });
+
+      if (linkedMeeting) {
+        await storage.updateScheduledMeeting(linkedMeeting.id, {
+          recallBotId: bot.id,
+          botStatus: 'joining',
+          meetingImportId: meetingImport.id,
+          ...(linkedMeeting.status === 'completed' ? { status: 'scheduled' } : {}),
+        });
+      }
+      if (continues) {
+        await storage.createAuditLog({
+          eventType: 'live_bot_rejoined',
+          userId,
+          caseId: continues.caseId || caseId || undefined,
+          ipAddress: req.ip || req.socket?.remoteAddress,
+          metadata: {
+            meetingId: linkedMeeting?.id,
+            botId: bot.id,
+            importId: meetingImport.id,
+            continuesImportId: continues.id,
+            consentCarriedOver: consentCarried,
+          },
+          severity: 'info',
+        });
+      }
 
       await storage.createAuditLog({
         eventType: 'live_bot_deployed',
@@ -12700,7 +12782,14 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
         severity: 'info',
       });
 
-      res.json({ importId: meetingImport.id, botId: bot.id, platform, status: recallService.getBotStatusCode(bot) });
+      res.json({
+        importId: meetingImport.id,
+        botId: bot.id,
+        platform,
+        status: recallService.getBotStatusCode(bot),
+        rejoin: !!continues,
+        consentCarriedOver: consentCarried,
+      });
     } catch (error) {
       next(error);
     }
@@ -14777,6 +14866,47 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
     }
   });
   
+  // LegalNote left early and was being held for a possible rejoin; the solicitor
+  // says the meeting is over, so make the note from what was recorded now.
+  app.post("/api/scheduled-meetings/:id/make-note-now", isAuthenticated, async (req: any, res, next) => {
+    try {
+      const userId = req.user.claims.sub;
+      const meeting = await storage.getScheduledMeeting(req.params.id);
+      if (!meeting || meeting.userId !== userId) {
+        return res.status(404).json({ message: "Meeting not found" });
+      }
+      const imp = meeting.meetingImportId ? await storage.getMeetingImport(meeting.meetingImportId) : undefined;
+      if (!imp || imp.userId !== userId) {
+        return res.status(400).json({ message: "There is no recording for this meeting yet." });
+      }
+      const ended = ['done', 'recording_done', 'call_ended'].includes(imp.botStatus || '');
+      if (imp.status !== 'live' || !ended) {
+        return res.status(409).json({ message: "LegalNote is still in the meeting. Use Stop to end the recording." });
+      }
+      await storage.updateMeetingImport(imp.id, { holdForRejoinUntil: new Date() });
+      await storage.updateScheduledMeeting(meeting.id, { status: 'completed' });
+      await storage.createAuditLog({
+        eventType: 'meeting_rejoin_hold_released',
+        userId,
+        caseId: imp.caseId || undefined,
+        ipAddress: req.ip || req.socket?.remoteAddress,
+        metadata: { meetingId: meeting.id, importId: imp.id },
+        severity: 'info',
+      });
+      // Only once Recall has the recording ready; otherwise the 5-minute check picks it up.
+      if (imp.botStatus === 'done' || imp.botStatus === 'recording_done') {
+        const { processBotRecording } = await import("./services/recallProcessing");
+        const fresh = await storage.getMeetingImport(imp.id);
+        processBotRecording(fresh || imp).catch((err: Error) => {
+          console.error('[make-note-now] processBotRecording error:', err.message);
+        });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Manually deploy bot for a meeting
   app.post("/api/scheduled-meetings/:id/deploy-bot", isAuthenticated, async (req, res, next) => {
     try {
@@ -14797,12 +14927,18 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       }
 
       const { meetingSchedulerService } = await import("./services/meetingSchedulerService");
-      const success = await meetingSchedulerService.deployBotForMeeting(meeting);
-      
-      if (success) {
-        res.json({ success: true, message: "Bot deployed" });
+      const result = await meetingSchedulerService.sendBotFromCard(meeting);
+
+      if (result.success) {
+        res.json({
+          success: true,
+          rejoin: !!result.rejoin,
+          importId: result.importId,
+          botId: result.botId,
+          message: result.rejoin ? "LegalNote is going back into the meeting" : "LegalNote is joining the meeting",
+        });
       } else {
-        res.status(500).json({ success: false, message: "Failed to deploy bot" });
+        res.status(409).json({ success: false, message: result.reason || "LegalNote could not be sent to the meeting." });
       }
     } catch (error) {
       next(error);

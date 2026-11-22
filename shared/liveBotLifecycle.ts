@@ -16,8 +16,17 @@ export const BOT_DEPLOY_GRACE_AFTER_START_MINUTES = 10;
 /** Seconds LegalNote waits in a waiting room before auto-leaving (Recall). */
 export const WAITING_ROOM_TIMEOUT_SEC = 900;
 
-/** Seconds LegalNote waits alone in-call before auto-leaving (Recall). */
-export const NOONE_JOINED_TIMEOUT_SEC = 300;
+/**
+ * Seconds LegalNote waits alone in-call before auto-leaving (Recall).
+ * Matches the waiting-room wait: guests on someone else's meeting often join late.
+ */
+export const NOONE_JOINED_TIMEOUT_SEC = 900;
+
+/**
+ * Seconds LegalNote stays after everyone else has left (Recall). Long enough that
+ * a participant dropping and reconnecting does not end the recording.
+ */
+export const EVERYONE_LEFT_TIMEOUT_SEC = 300;
 
 /** Scheduled auto-record: eligible to (re)deploy bot within this window. */
 export function isWithinBotDeployWindow(startTime: Date, now: Date = new Date()): boolean {
@@ -159,7 +168,7 @@ export function isStoppableBotStatus(botStatus: string | null | undefined): bool
 
 /**
  * Auto-leave deadline (seconds from deploy) for the current wait state.
- * Waiting room → 10 min; alone in call → 5 min; otherwise null.
+ * Waiting room or alone in the call → 15 min; otherwise null.
  */
 export function autoLeaveDeadlineSeconds(botStatus: string | null | undefined): number | null {
   if (botStatus === "in_waiting_room" || botStatus === "joining_call" || botStatus === "joining") {

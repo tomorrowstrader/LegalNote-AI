@@ -18,6 +18,13 @@ import {
   isConsentDeclinedImportMessage,
 } from '@shared/liveBotLifecycle';
 import type { MeetingImport } from '@shared/schema';
+import {
+  combineRecordingParts,
+  consentCutPoints,
+  holdForRejoinUntil,
+  type RecordingPart,
+} from '@shared/meetingBotRejoin';
+import { joinMp3s, trimMp3Start } from './audioCutting';
 
 /**
  * Delete Recall's copy once ours is proven identical. Never throws: a failure here must
@@ -322,6 +329,218 @@ async function getRecordingUrl(botId: string): Promise<{ url: string; durationSe
 }
 
 /**
+ * Whether this bot's recording should be made into a note now.
+ * - A later bot sent back into the same meeting makes the note for all parts.
+ * - A bot from a meeting card that left before the scheduled end (removed,
+ *   dropped) waits until 15 minutes after the end, so a rejoin joins the same note.
+ *   The cron re-checks live imports every 5 minutes.
+ */
+export async function rejoinGate(imp: MeetingImport): Promise<'wait' | 'go' | 'declined'> {
+  const later = await storage.getMeetingImportContinuations(imp.id);
+  // The client declined when LegalNote went back in: that withdraws consent for the meeting.
+  if (later.some((p) => isConsentDeclinedImport(p))) return 'declined';
+  const laterStillCounts = later.some(
+    (p) => !(p.status === 'failed' || p.status === 'discarded' || isUserCancelledImport(p)),
+  );
+  if (laterStillCounts) return 'wait';
+
+  if (!imp.scheduledMeetingId) return 'go';
+  if (imp.holdForRejoinUntil) {
+    return new Date(imp.holdForRejoinUntil).getTime() > Date.now() ? 'wait' : 'go';
+  }
+
+  let subCode: string | undefined;
+  try {
+    subCode = recallService.getBotSubCode(await recallService.getBot(imp.recallBotId)) || undefined;
+  } catch (err: any) {
+    console.warn(`[RecallProcessing] Could not read why bot ${imp.recallBotId} left:`, err.message);
+  }
+  const meeting = await storage.getScheduledMeeting(imp.scheduledMeetingId);
+  const hold = holdForRejoinUntil({ meeting, subCode });
+  // A past time marks "checked, no hold" so the decision is made once.
+  await storage.updateMeetingImport(imp.id, { holdForRejoinUntil: hold ?? new Date() });
+  if (hold) {
+    await storage.createAuditLog({
+      eventType: 'meeting_recording_held_for_rejoin',
+      userId: imp.userId,
+      caseId: imp.caseId || undefined,
+      ipAddress: 'server-process',
+      metadata: { importId: imp.id, botId: imp.recallBotId, subCode: subCode || null, holdUntil: hold.toISOString() },
+      severity: 'info',
+    });
+    console.log(`[RecallProcessing] Import ${imp.id} held for a possible rejoin until ${hold.toISOString()}`);
+    return 'wait';
+  }
+  return 'go';
+}
+
+/** The parts of one meeting, first bot first, ending with `tail`. */
+async function meetingParts(tail: MeetingImport): Promise<MeetingImport[]> {
+  const parts: MeetingImport[] = [tail];
+  let cursor = tail;
+  while (cursor.continuesImportId && parts.length < 20) {
+    const prev = await storage.getMeetingImport(cursor.continuesImportId);
+    if (!prev || prev.userId !== tail.userId) break;
+    parts.unshift(prev);
+    cursor = prev;
+  }
+  return parts;
+}
+
+export type PreparedMeetingAudio = {
+  buffer: Buffer;
+  durationSeconds?: number;
+  recordingStartedAt?: Date;
+  recordingId?: string;
+  /** Seconds from the start of `buffer` to just after consent, for the consent clip. */
+  consentClipSeconds: number | null;
+  /** Seconds of small talk dropped before the consent script. */
+  trimmedSeconds: number;
+  partIds: string[];
+};
+
+/**
+ * Fetch every part of the meeting, join them, and drop the audio before the
+ * consent script when it was marked. Each part's copy is stored before Recall's
+ * is deleted. Returns null when the last part has no recording.
+ */
+export async function prepareMeetingAudio(tail: MeetingImport): Promise<PreparedMeetingAudio | null> {
+  const parts = await meetingParts(tail);
+  const storageService = new ObjectStorageService();
+  const buffers: Buffer[] = [];
+  const timing: RecordingPart[] = [];
+  const usedIds: string[] = [];
+  let tailRecordingId: string | undefined;
+
+  for (const part of parts) {
+    const isTail = part.id === tail.id;
+    let buffer: Buffer | null = null;
+    let durationSeconds = part.durationSeconds ?? undefined;
+    let startedAt = part.recordingStartedAt ? new Date(part.recordingStartedAt) : undefined;
+
+    if (!isTail && part.audioStoragePath) {
+      try {
+        buffer = await storageService.getFile(part.audioStoragePath);
+      } catch (err: any) {
+        console.warn(`[RecallProcessing] Stored part ${part.id} unreadable, fetching again:`, err.message);
+      }
+    }
+    if (!buffer) {
+      const recording = part.recallBotId ? await getRecordingUrl(part.recallBotId) : null;
+      if (!recording?.url) {
+        if (isTail) return null;
+        console.warn(`[RecallProcessing] Earlier part ${part.id} has no recording - joining without it`);
+        continue;
+      }
+      const resp = await fetch(recording.url, { signal: AbortSignal.timeout(120000) });
+      if (!resp.ok) throw new Error(`Download failed: ${resp.status}`);
+      buffer = Buffer.from(await resp.arrayBuffer());
+      durationSeconds = recording.durationSeconds ?? durationSeconds;
+      startedAt = recording.startedAt ?? startedAt;
+      if (isTail) tailRecordingId = recording.recordingId;
+
+      const partPath = `.private/imports/${part.id}/part.mp3`;
+      await storageService.uploadFile(partPath, buffer, 'audio/mpeg');
+      await storage.updateMeetingImport(part.id, {
+        recallRecordingId: recording.recordingId,
+        ...(durationSeconds ? { durationSeconds } : {}),
+        ...(startedAt ? { recordingStartedAt: startedAt } : {}),
+        // Earlier parts keep their own file so a retry need not fetch again.
+        ...(!isTail ? { audioStoragePath: partPath } : {}),
+      });
+      await removeRecallMediaAfterStorage({
+        importId: part.id,
+        botId: part.recallBotId,
+        userId: part.userId,
+        caseId: part.caseId || undefined,
+        audioPath: partPath,
+        audioBuffer: buffer,
+      });
+    }
+
+    buffers.push(buffer);
+    usedIds.push(part.id);
+    timing.push({
+      durationSeconds,
+      recordingStartedAt: startedAt,
+      consentConfirmedAt: part.consentConfirmedAt,
+      consentElapsedSeconds: part.consentElapsedSeconds,
+      consentScriptStartedAt: part.consentScriptStartedAt,
+    });
+  }
+
+  const joined = await joinMp3s(buffers);
+  const timeline = combineRecordingParts(timing);
+  let cut = consentCutPoints(timeline);
+  let buffer = joined.buffer;
+  let trimmedSeconds = 0;
+
+  if (cut.trimStartSecond > 0) {
+    const trimmed = await trimMp3Start(buffer, cut.trimStartSecond);
+    if (trimmed) {
+      buffer = trimmed;
+      trimmedSeconds = cut.trimStartSecond;
+    } else {
+      // Keep the whole recording rather than lose the meeting; say so in the audit trail.
+      cut = consentCutPoints({ consentSecond: timeline.consentSecond, scriptStartSecond: null });
+      await storage.createAuditLog({
+        eventType: 'pre_script_audio_not_removed',
+        userId: tail.userId,
+        caseId: tail.caseId || undefined,
+        ipAddress: 'server-process',
+        metadata: { importId: tail.id, scriptStartSecond: timeline.scriptStartSecond, reason: 'audio_trim_unavailable' },
+        severity: 'warning',
+      });
+    }
+  }
+
+  if (usedIds.length > 1) {
+    await storage.createAuditLog({
+      eventType: 'meeting_recording_parts_joined',
+      userId: tail.userId,
+      caseId: tail.caseId || undefined,
+      ipAddress: 'server-process',
+      metadata: {
+        importId: tail.id,
+        partImportIds: usedIds,
+        partOffsetsSeconds: timeline.partOffsets,
+        joinMethod: joined.method,
+      },
+      severity: 'info',
+    });
+  }
+  if (trimmedSeconds > 0) {
+    await storage.createAuditLog({
+      eventType: 'pre_script_audio_removed',
+      userId: tail.userId,
+      caseId: tail.caseId || undefined,
+      ipAddress: 'server-process',
+      metadata: { importId: tail.id, secondsRemoved: trimmedSeconds },
+      severity: 'info',
+    });
+  }
+
+  const firstStart = timing.find((t) => t.recordingStartedAt)?.recordingStartedAt;
+  return {
+    buffer,
+    durationSeconds: timeline.totalSeconds !== null ? Math.max(1, timeline.totalSeconds - trimmedSeconds) : undefined,
+    recordingStartedAt: firstStart ? new Date(firstStart) : undefined,
+    recordingId: tailRecordingId,
+    consentClipSeconds: cut.consentClipSeconds,
+    trimmedSeconds,
+    partIds: usedIds,
+  };
+}
+
+/** Earlier parts are now inside the last part's recording; take them off the live list. */
+async function markEarlierPartsJoined(prepared: PreparedMeetingAudio, tailId: string): Promise<void> {
+  for (const id of prepared.partIds) {
+    if (id === tailId) continue;
+    await storage.updateMeetingImport(id, { status: 'completed' });
+  }
+}
+
+/**
  * Process a completed bot recording: download, store, and trigger transcription + doc generation.
  * Safe to call multiple times - guarded by import status check.
  */
@@ -346,13 +565,35 @@ export async function processBotRecording(
     console.warn(`[RecallProcessing] Import ${importId} has no botId - skipping`);
     return;
   }
+
+  // Already joined into a later part's recording.
+  if (importRecord.status === 'completed') return;
+  const gate = await rejoinGate(importRecord);
+  if (gate === 'wait') return;
+  if (gate === 'declined') {
+    await storage.updateMeetingImport(importId, {
+      status: 'failed',
+      botStatus: 'left_consent_declined',
+      errorMessage: CONSENT_DECLINED_LIVE_BOT_MESSAGE,
+    });
+    return;
+  }
+
   if (!caseId) {
     // No case linked yet - store the recording and await assignment
     console.log(`[RecallProcessing] Import ${importId} has no caseId - storing recording and awaiting assignment`);
     await storage.updateMeetingImport(importId, { status: 'pending' });
 
-    const recording = await getRecordingUrl(botId);
-    if (!recording?.url) {
+    // All parts of the meeting, joined, with small talk before the consent script removed.
+    let prepared: PreparedMeetingAudio | null;
+    try {
+      prepared = await prepareMeetingAudio(importRecord);
+    } catch (err: any) {
+      console.error(`[RecallProcessing] Download error for unlinked import ${importId}:`, err.message);
+      await storage.updateMeetingImport(importId, { status: 'failed', errorMessage: `Recording download failed: ${err.message}` });
+      return;
+    }
+    if (!prepared) {
       console.error(`[RecallProcessing] No recording URL for bot ${botId} (unlinked import)`);
       const abandon = await markAbandonedIfNeverRecorded(importRecord);
       await storage.updateMeetingImport(importId, {
@@ -364,28 +605,18 @@ export async function processBotRecording(
       return;
     }
 
-    // Update metadata
-    const metaUpdate: Partial<MeetingImport> = { recallRecordingId: recording.recordingId, importedAt: new Date() };
-    if (recording.startedAt && !importRecord.meetingStartTime) metaUpdate.meetingStartTime = recording.startedAt;
-    if (recording.durationSeconds) {
-      metaUpdate.durationSeconds = recording.durationSeconds;
-      const hours = recording.durationSeconds / 3600;
+    const metaUpdate: Partial<MeetingImport> = { recallRecordingId: prepared.recordingId, importedAt: new Date() };
+    if (prepared.recordingStartedAt && !importRecord.meetingStartTime) metaUpdate.meetingStartTime = prepared.recordingStartedAt;
+    if (prepared.durationSeconds) {
+      metaUpdate.durationSeconds = prepared.durationSeconds;
+      const hours = prepared.durationSeconds / 3600;
       metaUpdate.recallCostUSD = ((0.70 + 0.15) * hours).toFixed(4);
     }
+    // The consent clip length is measured on the stored (joined, trimmed) audio.
+    if (prepared.consentClipSeconds !== null) metaUpdate.consentElapsedSeconds = prepared.consentClipSeconds;
     await storage.updateMeetingImport(importId, metaUpdate);
 
-    // Download and store the recording
-    let audioBuffer: Buffer;
-    try {
-      const resp = await fetch(recording.url, { signal: AbortSignal.timeout(120000) });
-      if (!resp.ok) throw new Error(`Download failed: ${resp.status}`);
-      audioBuffer = Buffer.from(await resp.arrayBuffer());
-    } catch (err: any) {
-      console.error(`[RecallProcessing] Download error for unlinked import ${importId}:`, err.message);
-      await storage.updateMeetingImport(importId, { status: 'failed', errorMessage: `Recording download failed: ${err.message}` });
-      return;
-    }
-
+    const audioBuffer = prepared.buffer;
     const audioPath = `.private/imports/${importId}/recording.mp3`;
     const mimeType = 'audio/mpeg';
     try {
@@ -402,6 +633,7 @@ export async function processBotRecording(
       status: 'awaiting_assignment',
       audioStoragePath: audioPath,
     });
+    await markEarlierPartsJoined(prepared, importId);
 
     await storage.createAuditLog({
       eventType: 'meeting_import_awaiting_assignment',
@@ -411,8 +643,6 @@ export async function processBotRecording(
       metadata: { importId, botId, source: 'recall_bot' },
       severity: 'info',
     });
-
-    await removeRecallMediaAfterStorage({ importId, botId, userId, audioPath, audioBuffer });
 
     console.log(`[RecallProcessing] Import ${importId} stored - awaiting matter assignment`);
     return;
@@ -436,6 +666,9 @@ export async function processBotRecording(
   let audioPath: string;
   let mimeType: string;
   let audioBufferForConsent: Buffer | null = null;
+  // Seconds from the start of the stored audio to just after consent.
+  let consentClipSeconds: number | null =
+    fresh.consentElapsedSeconds != null && fresh.consentElapsedSeconds >= 0 ? fresh.consentElapsedSeconds : null;
 
   // If the recording was previously stored (e.g. was awaiting_assignment), use that file
   // rather than trying to re-fetch from Recall (the URL may have expired)
@@ -452,9 +685,18 @@ export async function processBotRecording(
       }
     }
   } else {
-    // Fresh import - download from Recall
-    const recording = await getRecordingUrl(botId);
-    if (!recording?.url) {
+    // Fresh import - fetch every part of the meeting from Recall, joined, with the
+    // small talk before the consent script removed.
+    console.log(`[RecallProcessing] Downloading recording for import ${importId}`);
+    let prepared: PreparedMeetingAudio | null;
+    try {
+      prepared = await prepareMeetingAudio(fresh);
+    } catch (err: any) {
+      console.error(`[RecallProcessing] Download error for import ${importId}:`, err.message);
+      await storage.updateMeetingImport(importId, { status: 'failed', errorMessage: `Recording download failed: ${err.message}` });
+      return;
+    }
+    if (!prepared) {
       console.error(`[RecallProcessing] No recording URL for bot ${botId}`);
       const abandon = await markAbandonedIfNeverRecorded(fresh);
       await storage.updateMeetingImport(importId, {
@@ -466,33 +708,21 @@ export async function processBotRecording(
       return;
     }
 
-    // Update import with recording metadata
     const metaUpdate: Partial<MeetingImport> = {
-      recallRecordingId: recording.recordingId,
+      recallRecordingId: prepared.recordingId,
       importedAt: new Date(),
     };
-    if (recording.startedAt && !fresh.meetingStartTime) metaUpdate.meetingStartTime = recording.startedAt;
-    if (recording.durationSeconds) {
-      metaUpdate.durationSeconds = recording.durationSeconds;
-      const hours = recording.durationSeconds / 3600;
+    if (prepared.recordingStartedAt && !fresh.meetingStartTime) metaUpdate.meetingStartTime = prepared.recordingStartedAt;
+    if (prepared.durationSeconds) {
+      metaUpdate.durationSeconds = prepared.durationSeconds;
+      const hours = prepared.durationSeconds / 3600;
       metaUpdate.recallCostUSD = ((0.70 + 0.15) * hours).toFixed(4);
     }
+    if (prepared.consentClipSeconds !== null) metaUpdate.consentElapsedSeconds = prepared.consentClipSeconds;
     await storage.updateMeetingImport(importId, metaUpdate);
+    consentClipSeconds = prepared.consentClipSeconds;
 
-    // Download the recording
-    console.log(`[RecallProcessing] Downloading recording for import ${importId}`);
-    let audioBuffer: Buffer;
-    try {
-      const resp = await fetch(recording.url, { signal: AbortSignal.timeout(120000) });
-      if (!resp.ok) throw new Error(`Download failed: ${resp.status}`);
-      audioBuffer = Buffer.from(await resp.arrayBuffer());
-    } catch (err: any) {
-      console.error(`[RecallProcessing] Download error for import ${importId}:`, err.message);
-      await storage.updateMeetingImport(importId, { status: 'failed', errorMessage: `Recording download failed: ${err.message}` });
-      return;
-    }
-
-    // Store in object storage (audio-only)
+    const audioBuffer = prepared.buffer;
     mimeType = 'audio/mpeg';
     audioPath = `.private/imports/${importId}/recording.mp3`;
     try {
@@ -506,8 +736,8 @@ export async function processBotRecording(
     }
 
     await storage.updateMeetingImport(importId, { audioStoragePath: audioPath });
+    await markEarlierPartsJoined(prepared, importId);
     audioBufferForConsent = audioBuffer;
-    await removeRecallMediaAfterStorage({ importId, botId, userId, caseId, audioPath, audioBuffer });
   }
 
   // Reuse the existing audio_recordings row for this import's stored file if one
@@ -576,17 +806,17 @@ export async function processBotRecording(
 
   let consentSegmentPath: string | undefined;
   let consentDurationSeconds: number | undefined;
+  const consentNow = (await storage.getMeetingImport(importId)) ?? fresh;
   if (
-    fresh.consentConfirmed &&
-    fresh.consentElapsedSeconds != null &&
-    fresh.consentElapsedSeconds >= 0 &&
+    consentNow.consentConfirmed &&
+    consentClipSeconds != null &&
     audioBufferForConsent
   ) {
     try {
       const preserved = await preserveConsentSegmentFromFullAudio({
         audioBuffer: audioBufferForConsent,
         mimeType,
-        consentDurationSeconds: fresh.consentElapsedSeconds,
+        consentDurationSeconds: consentClipSeconds,
       });
       if (preserved) {
         consentSegmentPath = preserved.consentSegmentPath;

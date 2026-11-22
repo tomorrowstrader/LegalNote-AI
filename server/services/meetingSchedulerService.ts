@@ -8,11 +8,16 @@ import { senderLabelForUser } from '../clientFacingSender';
 import { ensureFreshOutlookToken } from '../oauth';
 import { randomBytes } from 'crypto';
 import {
+  CONSENT_DECLINED_BOT_MESSAGE,
   consentDeclinedBlocksBot,
   isAbandonedMeetingSubCode,
+  isConsentDeclinedImportMessage,
+  isUserCancelledImportMessage,
   isWithinBotDeployWindow,
   messageForAbandonedSubCode,
 } from '@shared/liveBotLifecycle';
+import { isInMeetingLiveWindow } from '@shared/meetingBotRejoin';
+import type { MeetingImport } from '@shared/schema';
 import { isReceivedCalendarMeeting, withCalendarOrganizer } from '@shared/meetingAttendees';
 import { consentScriptFor } from '@shared/matterKinds';
 import {
@@ -526,32 +531,92 @@ export class MeetingSchedulerService {
     });
   }
 
+  /** Automatic (cron) deploy. Returns whether a bot was sent. */
   async deployBotForMeeting(meeting: ScheduledMeeting): Promise<boolean> {
+    const result = await this.sendBot(meeting, { manual: false });
+    return result.success;
+  }
+
+  /**
+   * The solicitor pressed Send (or Send back in) on the meeting card. Works from
+   * 5 minutes before the start until 15 minutes after the scheduled end. A bot
+   * sent after an earlier one left continues the same meeting: one note, and
+   * consent already given in this meeting carries over.
+   */
+  async sendBotFromCard(
+    meeting: ScheduledMeeting,
+  ): Promise<{ success: boolean; reason?: string; importId?: string; botId?: string; rejoin?: boolean }> {
+    return this.sendBot(meeting, { manual: true });
+  }
+
+  /** Why the previous part of this meeting stops a new bot, or null if it doesn't. */
+  previousPartBlocksSend(previous: MeetingImport): string | null {
+    if (previous.botStatus === 'left_consent_declined' || isConsentDeclinedImportMessage(previous.errorMessage)) {
+      return 'The client declined recording earlier in this meeting, so LegalNote will not go back in.';
+    }
+    const activeStatuses = ['joining', 'joining_call', 'in_waiting_room', 'in_call_not_recording', 'in_call_recording'];
+    if (previous.status === 'live' && previous.botStatus && activeStatuses.includes(previous.botStatus)) {
+      return previous.botStatus === 'in_waiting_room'
+        ? 'LegalNote is already waiting to be admitted. Ask the host to let it in.'
+        : 'LegalNote is already in this meeting.';
+    }
+    return null;
+  }
+
+  /** The earlier part a new bot should continue: one that recorded and is not finished processing. */
+  isContinuablePart(previous: MeetingImport | undefined): previous is MeetingImport {
+    if (!previous) return false;
+    if (isUserCancelledImportMessage(previous.errorMessage)) return false;
+    if (previous.status === 'failed' || previous.status === 'completed' || previous.status === 'transcribing') return false;
+    // It recorded something: Recall gave a recording, or the bot reached the recording state.
+    return !!previous.recallRecordingId || previous.botStatus === 'in_call_recording'
+      || previous.botStatus === 'call_ended' || previous.botStatus === 'done' || previous.botStatus === 'recording_done';
+  }
+
+  private async sendBot(
+    meeting: ScheduledMeeting,
+    opts: { manual: boolean },
+  ): Promise<{ success: boolean; reason?: string; importId?: string; botId?: string; rejoin?: boolean }> {
     if (consentDeclinedBlocksBot(meeting.consentStatus)) {
       console.log(`[MEETING_SCHEDULER] Skipping bot deploy for meeting ${meeting.id} - recording declined by email`);
-      return false;
+      return { success: false, reason: CONSENT_DECLINED_BOT_MESSAGE };
     }
 
     if (!meeting.meetingUrl) {
       console.error(`[MEETING_SCHEDULER] No meeting URL for meeting ${meeting.id}`);
       await storage.updateScheduledMeeting(meeting.id, { botStatus: 'failed' });
       await this.notifyRecordingFailure(meeting, 'No meeting URL available for the bot to join');
-      return false;
+      return { success: false, reason: 'This meeting has no join link. Add it in Edit Meeting, then try again.' };
     }
 
-    if (!isWithinBotDeployWindow(new Date(meeting.startTime))) {
+    const inWindow = opts.manual
+      ? isInMeetingLiveWindow(meeting)
+      : isWithinBotDeployWindow(new Date(meeting.startTime));
+    if (!inWindow) {
       console.log(
         `[MEETING_SCHEDULER] Skipping bot deploy for meeting ${meeting.id} — outside deploy window`,
       );
-      return false;
+      return {
+        success: false,
+        reason: 'LegalNote can join from 5 minutes before the start until 15 minutes after the scheduled end.',
+      };
     }
 
     if (!recallService.isConfigured()) {
       console.error(`[MEETING_SCHEDULER] Recall.ai not configured`);
       await storage.updateScheduledMeeting(meeting.id, { botStatus: 'failed' });
       await this.notifyRecordingFailure(meeting, 'Recording service is not configured');
-      return false;
+      return { success: false, reason: 'The recording service is not available right now. Please take your own notes.' };
     }
+
+    const previous = meeting.meetingImportId
+      ? await storage.getMeetingImport(meeting.meetingImportId)
+      : undefined;
+    if (previous) {
+      const blocked = this.previousPartBlocksSend(previous);
+      if (blocked) return { success: false, reason: blocked };
+    }
+    const continues = opts.manual && this.isContinuablePart(previous) ? previous : undefined;
 
     const isRetry = !!meeting.recallBotId && meeting.botStatus === 'failed';
 
@@ -579,25 +644,48 @@ export class MeetingSchedulerService {
       }
 
       // Verbal-primary: live import with in_meeting consent (same chain as LiveBot).
+      // A rejoin keeps the earlier part's matter and script, and the consent already given.
+      const consentCarried = continues?.consentConfirmed === true;
       const meetingImport = await storage.createMeetingImport({
         userId: meeting.userId,
-        caseId: meeting.caseId || undefined,
+        caseId: continues?.caseId || meeting.caseId || undefined,
         recallBotId: bot.id,
         meetingPlatform: platform || 'teams',
         meetingUrl: meeting.meetingUrl,
         meetingTitle: meeting.title,
         status: 'live',
         botStatus: recallService.getBotStatusCode(bot) || 'joining',
-        consentConfirmed: false,
+        consentConfirmed: consentCarried,
         consentMode: 'in_meeting',
-        consentScript,
+        consentScript: (continues?.consentScript as 'client' | 'participant' | null | undefined) || consentScript,
+        scheduledMeetingId: meeting.id,
+        continuesImportId: continues?.id,
       });
 
       await storage.updateScheduledMeeting(meeting.id, {
         recallBotId: bot.id,
         botStatus: 'joining',
         meetingImportId: meetingImport.id,
+        // A meeting marked complete when the bot left is live again.
+        ...(meeting.status === 'completed' ? { status: 'scheduled' } : {}),
       });
+
+      if (continues) {
+        await storage.createAuditLog({
+          eventType: 'live_bot_rejoined',
+          userId: meeting.userId,
+          caseId: continues.caseId || meeting.caseId || undefined,
+          ipAddress: 'server-process',
+          metadata: {
+            meetingId: meeting.id,
+            botId: bot.id,
+            importId: meetingImport.id,
+            continuesImportId: continues.id,
+            consentCarriedOver: consentCarried,
+          },
+          severity: 'info',
+        });
+      }
 
       await storage.createAuditLog({
         eventType: 'live_bot_deployed',
@@ -615,9 +703,9 @@ export class MeetingSchedulerService {
       });
 
       console.log(
-        `[MEETING_SCHEDULER] Deployed bot ${bot.id} for meeting ${meeting.id}${isRetry ? ' (retry)' : ''} — verbal consent mode`,
+        `[MEETING_SCHEDULER] Deployed bot ${bot.id} for meeting ${meeting.id}${isRetry ? ' (retry)' : ''}${continues ? ' (rejoin)' : ''} — verbal consent mode`,
       );
-      return true;
+      return { success: true, importId: meetingImport.id, botId: bot.id, rejoin: !!continues };
     } catch (error) {
       console.error(`[MEETING_SCHEDULER] Failed to deploy bot:`, error);
       await storage.updateScheduledMeeting(meeting.id, { botStatus: 'failed' });
@@ -625,7 +713,7 @@ export class MeetingSchedulerService {
         meeting,
         error instanceof Error ? error.message : 'Bot deployment failed',
       );
-      return false;
+      return { success: false, reason: 'LegalNote could not be sent to the meeting. Please try again in a moment.' };
     }
   }
 
@@ -706,6 +794,8 @@ export class MeetingSchedulerService {
           botStatus = 'in_call';
           break;
         case 'in_waiting_room':
+          botStatus = 'waiting';
+          break;
         case 'in_call_not_recording':
           botStatus = 'in_call';
           break;
