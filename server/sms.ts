@@ -1,4 +1,5 @@
 import twilio from 'twilio';
+import { stagingBlocksSms } from './stagingGuard';
 
 function getTwilioAccountSid(): string | undefined {
   return process.env.TWILIO_ACCOUNT_SID?.trim() || undefined;
@@ -122,6 +123,11 @@ export async function sendSmsMessage(
   phoneNumber: string,
   body: string,
 ): Promise<{ success: boolean; messageSid?: string; error?: string }> {
+  if (stagingBlocksSms()) {
+    console.warn('[SMS] Staging: SMS held back, nothing was sent');
+    return { success: true, messageSid: 'staging-suppressed' };
+  }
+
   const twilioClient = getTwilioClient();
   const twilioPhoneNumber = getTwilioPhoneNumber();
   const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID?.trim();

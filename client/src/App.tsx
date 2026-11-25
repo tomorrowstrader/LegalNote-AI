@@ -58,6 +58,7 @@ import SubProcessorsPage from "@/pages/SubProcessorsPage";
 import DpaPage from "@/pages/DpaPage";
 import DpaCompletePage from "@/pages/DpaCompletePage";
 import DpaPreviewPage from "@/pages/DpaPreviewPage";
+import { StagingBanner } from "@/components/StagingBanner";
 import DpaConfirmPage from "@/pages/DpaConfirmPage";
 import AcceptanceCertificatePage from "@/pages/AcceptanceCertificatePage";
 import EvaluationSetupPage from "@/pages/EvaluationSetupPage";
@@ -396,6 +397,7 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <MobileViewportSync />
+          <StagingBanner />
           <AuthenticatedApp />
           <Toaster />
         </TooltipProvider>

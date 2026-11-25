@@ -189,6 +189,7 @@ import { compileSraReportPdf } from "./services/sraReportPdf";
 import { logPersonnelMatterAccess } from "./personnelAccessAudit";
 import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, getConnectedProviders, createMeetingCalendarEvent, createOutlookMeetingCalendarEvent, deleteOutlookCalendarEvent } from "./calendar";
 import { sendVerificationCode, generateVerificationCode, formatUKPhoneNumber, isValidUKPhoneNumber, phoneLastFour } from "./sms";
+import { stagingBlocksSms } from "./stagingGuard";
 import { validateNewTranscriptRedaction } from "./transcriptRedaction";
 import {
   createGoogleOAuthClient,
@@ -15774,7 +15775,7 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       if (!phone) return res.status(400).json({ message: "phone required" });
       console.log('[DEMO] Consent SMS request received');
       const smsBody = `${solicitorName} at ${firmName || "the firm"} is requesting your consent to record your upcoming meeting. Reply YES to consent. Sent via LegalNote.`;
-      if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER) {
+      if (!stagingBlocksSms() && process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER) {
         try {
           const twilio = require('twilio')(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
           await twilio.messages.create({

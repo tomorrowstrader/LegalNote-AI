@@ -36,6 +36,7 @@ import "./envValidation"; // Validate environment on startup
 import { assertSealTriggersInstalled } from "./sealTriggerAssertion";
 import { assertLegalMasterHashes } from "./services/legalDocumentLoader";
 import { assertNotLiveDatabaseOutsideProduction } from "./liveDatabaseGuard";
+import { assertStagingIsolation, isStaging } from "./stagingGuard";
 import { markMovedRecoveredRecordings } from "./recoveredMoveStatusMigration";
 
 // Development-only fallback when AUDIT_SIGNING_KEY is unset (production gate is in envValidation).
@@ -48,11 +49,24 @@ if (!process.env.AUDIT_SIGNING_KEY && process.env.NODE_ENV !== "production") {
 
 // A local server must never run against the live database. Checked before anything else touches it.
 await assertNotLiveDatabaseOutsideProduction();
+// Staging runs as production, so it has its own guard: it must prove it is not pointed at live.
+await assertStagingIsolation();
 
 const app = express();
 
 // Security headers and CORS (must be first)
 configureSecurityHeaders(app);
+
+// Staging: keep it out of search engines, and tell the app to show its STAGING banner.
+if (isStaging()) {
+  app.use((_req, res, next) => {
+    res.setHeader("X-Robots-Tag", "noindex, nofollow");
+    next();
+  });
+}
+app.get("/api/environment", (_req, res) => {
+  res.json({ environment: isStaging() ? "staging" : "live" });
+});
 
 // Initialize Stripe schema and sync data
 async function initStripe() {

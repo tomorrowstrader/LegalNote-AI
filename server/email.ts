@@ -5,6 +5,7 @@ import { clientFacingSender } from '@shared/professionalIdentity';
 import { formatEvaluationCalendarDate } from '@shared/evaluationAccess';
 import type { FirmRiskDigest } from './storage';
 import type { SupportTicket } from '@shared/schema';
+import { stagingAllowedRecipients } from './stagingGuard';
 
 type EmailProvider = 'resend' | 'ses';
 
@@ -35,8 +36,17 @@ interface SendEmailParams {
 async function sendEmail(
   params: SendEmailParams
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
-  const to = Array.isArray(params.to) ? params.to : [params.to];
+  const requested = Array.isArray(params.to) ? params.to : [params.to];
   const { from, subject, html, replyTo, headers } = params;
+
+  // Staging kill switch: testers must never email a real person.
+  const { allowed: to, suppressed } = stagingAllowedRecipients(requested);
+  if (suppressed.length > 0) {
+    console.warn(`[EMAIL] Staging: held back ${suppressed.length} recipient(s) not on STAGING_EMAIL_ALLOWLIST (subject: "${subject}")`);
+  }
+  if (to.length === 0) {
+    return { success: true, messageId: 'staging-suppressed' };
+  }
   const attachments = params.attachments || [];
 
   if (html && !html.includes('legalnote-wordmark-white.png')) {
