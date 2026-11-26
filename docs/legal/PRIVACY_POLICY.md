@@ -1,6 +1,6 @@
 # LegalNote Privacy Policy
 
-**Last Updated:** July 2026  
+**Last Updated:** November 2026  
 **Company:** LegalNote Technologies Ltd (registered in England and Wales, No. 16788981; ICO Reg. ZC176177)  
 **Registered Address:** 71–75 Shelton Street, Covent Garden, London WC2H 9JQ  
 **Status:** Requires legal counsel review before publication  
@@ -47,6 +47,14 @@ If you are a client of a law firm using LegalNote, please contact your solicitor
 - IP address, browser and device information, and security logs.
 - Cookies and similar technologies (see our Cookie Policy).
 
+### 3.4 People who book a call with us (LegalNote as controller)
+
+- **What we hold:** if you book a call at legalnote.ai/talk, your name, work email, firm (if you give it), your optional answer about how attendance notes are written in your firm, the time you chose, and which link brought you to the page.
+- **What we use it for:** arranging the call, sending you the calendar invitation and a confirmation, and following up with you about LegalNote afterwards. You can ask us to stop at any time.
+- **Where it is held:** in LegalNote's own systems, and the invitation in our Microsoft 365 calendar. We never ask for client or matter details when you book.
+- **Recording the call:** LegalNote asks to join the call and take a note, using the same consent email and in-call consent step our customers use. You can decline, and the call goes ahead without it. If you agree, the call is recorded, transcribed and turned into a note for our own records, by the same services and in the same EU regions listed in section 5. The audio is deleted within 7 days, the transcript and note are kept for up to 24 months after the call, and the record of your consent decision is kept as consent evidence (see section 6). We ask you not to mention clients or matters on the call; if any client details are mentioned, we delete them.
+- **Backup booking page:** if our own booking is unavailable and you use the backup page instead, Cal.com, Inc. in the United States handles that booking for us, under its data processing terms and its Data Privacy Framework certification.
+
 ## 4. How we use personal data, and the legal basis
 
 For the account, billing and website data for which LegalNote is the controller, our legal bases under the UK GDPR are as follows:
@@ -57,6 +65,7 @@ For the account, billing and website data for which LegalNote is the controller,
 | Authenticate users (Google or Microsoft OAuth and session) | Contract performance, Art. 6(1)(b) |
 | Billing and subscription administration | Contract performance, Art. 6(1)(b) |
 | Service communications (account, security, product notices) | Legitimate interests, Art. 6(1)(f) |
+| Arranging a call you book with us, and following up about LegalNote | Legitimate interests, Art. 6(1)(f) |
 | Marketing, where applicable | Consent, Art. 6(1)(a) |
 
 For client and matter data, LegalNote acts as processor. We process that data only on the documented instructions of your firm under Article 28 of the UK GDPR. Your firm, as controller, determines the lawful basis under Article 6 (and, where special category or criminal offence data is involved, the condition under Articles 9 and 10 and the Data Protection Act 2018). We do not determine the purposes of processing matter data, and we do not rely on a legal basis of our own for it.
@@ -113,6 +122,8 @@ We do not claim that all personal data never leaves the UK or EU. Privileged aud
 | Share links | Deleted 7 days after expiry | Retention cleanup job |
 | Consent and audit records | Up to 6 years, for regulatory and defence purposes | Firms should confirm operational retention with LegalNote |
 | Account and billing data | While the account is active, then as needed for legal and accounting obligations | |
+| Call bookings made at legalnote.ai/talk | 24 months after the call | Deleted automatically by the retention cleanup job |
+| Transcripts and notes of calls booked at legalnote.ai/talk | Up to 24 months after the call | Audio follows the 7-day rule above |
 
 Firms remain responsible for professional retention obligations that exceed platform defaults.
 

@@ -68,6 +68,24 @@ export async function ensureMeetingBookingTables(): Promise<void> {
       ON scheduled_meetings (guest_claim_token)
     `);
 
+    // Discovery calls booked on legalnote.ai/talk reuse this table.
+    await db.execute(sql`
+      ALTER TABLE meeting_booking_proposals
+      ADD COLUMN IF NOT EXISTS booking_kind text NOT NULL DEFAULT 'proposal',
+      ADD COLUMN IF NOT EXISTS booked_starts_at timestamp,
+      ADD COLUMN IF NOT EXISTS guest_firm text,
+      ADD COLUMN IF NOT EXISTS intake_answer text,
+      ADD COLUMN IF NOT EXISTS source text,
+      ADD COLUMN IF NOT EXISTS calendar_event_id text
+    `);
+
+    // One discovery call per organiser per start time, so two visitors can't take the same slot.
+    await db.execute(sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS meeting_booking_proposals_discovery_slot_unique
+      ON meeting_booking_proposals (user_id, booked_starts_at)
+      WHERE booking_kind = 'discovery' AND status = 'booked'
+    `);
+
     console.log("[MEETING_BOOKING] Tables ready");
   } catch (error) {
     console.error("[MEETING_BOOKING] Failed to ensure tables:", error);

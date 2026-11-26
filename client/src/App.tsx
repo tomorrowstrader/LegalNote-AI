@@ -78,6 +78,8 @@ import AccessPending from "@/pages/AccessPending";
 import ScrollToTop from "@/components/ScrollToTop";
 import { ErrorBoundary, PageErrorBoundary } from "@/components/ErrorBoundary";
 import PublicDemo from "@/pages/PublicDemo";
+import TalkPage from "@/pages/talk/TalkPage";
+import BookedPage from "@/pages/talk/BookedPage";
 import DemoGenerator from "@/pages/DemoGenerator";
 import MeetingNotesPopout from "@/pages/MeetingNotesPopout";
 import { isFeatureVisible } from "@/lib/features";
@@ -177,6 +179,8 @@ function Router() {
       <Route path="/demo-generation" component={() => <RedirectTo to="/demo-generator" />} />
       <Route path="/share/:linkId" component={ShareLinkView} />
       <Route path="/book/:token" component={BookMeetingPage} />
+      <Route path="/talk" component={TalkPage} />
+      <Route path="/booked" component={BookedPage} />
       <Route path="/join/:token" component={JoinMeetingPage} />
       <Route path="/acknowledge/:token" component={AcknowledgePage} />
       {publicComplianceBadgeVisible && <Route path="/badge/:slug" component={ComplianceBadge} />}
@@ -284,10 +288,11 @@ function AuthenticatedAppContent() {
     setRestartTourTrigger(prev => prev + 1);
   };
 
-  const isPublicDemoRoute = location.startsWith("/demo/");
+  // The public showroom and the booking pages show no app chrome, even when signed in.
+  const isChromelessPublicRoute = location.startsWith("/demo/") || location === "/talk" || location === "/booked";
   const isNotesPopout = isMeetingNotesPopoutRoute(location);
   const isOAuthPopup = isCalendarOAuthPopupWindow();
-  const hideAppChrome = isPublicDemoRoute || isNotesPopout || isFocusMode || isOAuthPopup;
+  const hideAppChrome = isChromelessPublicRoute || isNotesPopout || isFocusMode || isOAuthPopup;
   const recoveryBlocking = showRecoveryModal || showVideoBotRecovery;
   const showAppChrome = !isLoading && hasAppAccess && !hideAppChrome;
 
@@ -360,19 +365,19 @@ function AuthenticatedAppContent() {
       {showAppChrome && (
         <UpcomingMeetingPrompt blocked={recoveryBlocking} />
       )}
-      {!isLoading && hasAppAccess && !isPublicDemoRoute && !isNotesPopout && (
+      {!isLoading && hasAppAccess && !isChromelessPublicRoute && !isNotesPopout && (
         <RecordingRecoveryModal
           open={showRecoveryModal}
           onOpenChange={setShowRecoveryModal}
         />
       )}
-      {!isLoading && hasAppAccess && !isPublicDemoRoute && !isNotesPopout && (
+      {!isLoading && hasAppAccess && !isChromelessPublicRoute && !isNotesPopout && (
         <VideoBotRecoveryModal
           open={showVideoBotRecovery}
           onOpenChange={setShowVideoBotRecovery}
         />
       )}
-      {!isLoading && hasAppAccess && !isPublicDemoRoute && !isNotesPopout && <LiveBotSessionIndicator />}
+      {!isLoading && hasAppAccess && !isChromelessPublicRoute && !isNotesPopout && <LiveBotSessionIndicator />}
       {showAppChrome && <VoiceCommandTrigger />}
     </div>
   );

@@ -24,7 +24,7 @@ import { useDemoFlow } from "@/demo/useDemoFlow";
 import { DemoProblemIntro } from "@/demo/DemoProblemIntro";
 import ShareLinkModal from "@/components/ShareLinkModal";
 
-const CALENDLY_URL = "https://calendly.com/legalnote/demo";
+import { openBookACall } from "@/lib/bookACall";
 
 export const DemoModeContext = createContext<{
   isDemoMode: boolean;
@@ -546,7 +546,7 @@ function DemoInner({ practiceArea, caseTitle, revealCaseInCache, name, firmName 
   }, [advanceTo, scheduleNavAutoAdvance]);
 
   const handleTourComplete = useCallback(() => {
-    window.open(CALENDLY_URL, "_blank");
+    openBookACall("showroom");
   }, []);
 
   const isProcessing = flowState === "processing";

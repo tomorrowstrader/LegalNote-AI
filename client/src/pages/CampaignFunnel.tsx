@@ -17,8 +17,7 @@ import { FunnelProductFrame, type ScenarioStep } from "@/components/funnel/Funne
 import { FunnelMiniCalculator } from "@/components/funnel/FunnelMiniCalculator";
 import { useFunnelScroll, getCampaignSource } from "@/components/funnel/useFunnelScroll";
 import { cn } from "@/lib/utils";
-
-const CALENDLY_URL = "https://calendly.com/legalnote/demo";
+import { openBookACall } from "@/lib/bookACall";
 
 const FUNNEL_SECTIONS = [
   { id: "funnel-hero", label: "Start" },
@@ -141,7 +140,7 @@ export default function CampaignFunnel() {
   const currentScenario = SCENARIO_STEPS[scenarioIndex];
 
   const openCalendly = () => {
-    window.open(CALENDLY_URL, "_blank", "noopener,noreferrer");
+    openBookACall("start");
   };
 
   const openEvaluation = (source: string) => {

@@ -264,6 +264,16 @@ export async function runGlobalDataRetentionCleanup(): Promise<void> {
 
     const audioFiles = await cleanupExpiredAudioRecordings();
 
+    try {
+      const { purgeOldDiscoveryBookings } = await import('./discoveryBookingService');
+      const discoveryDeleted = await purgeOldDiscoveryBookings();
+      if (discoveryDeleted > 0) {
+        console.log('[DATA-RETENTION] Deleted discovery call bookings older than 24 months:', discoveryDeleted);
+      }
+    } catch (error) {
+      console.error('[DATA-RETENTION] Discovery booking cleanup failed:', error);
+    }
+
     const allUsers = await storage.getAllUsers();
     console.log(`[DATA-RETENTION] Processing ${allUsers.length} user(s) for share links and consent logs`);
 

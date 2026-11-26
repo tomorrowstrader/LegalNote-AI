@@ -3581,3 +3581,82 @@ export async function sendBoutiqueInvoiceRequestEmail(params: {
 }
 
 
+
+function formatDiscoveryTime(startsAt: Date, endsAt?: Date): string {
+  const day = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/London',
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(startsAt);
+  const time = (d: Date) =>
+    new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(d);
+  return endsAt ? `${day}, ${time(startsAt)} to ${time(endsAt)} UK time` : `${day}, ${time(startsAt)} UK time`;
+}
+
+/** To the visitor who booked a discovery call on legalnote.ai/talk. */
+export async function sendDiscoveryBookingConfirmationEmail(params: {
+  to: string;
+  name: string;
+  startsAt: Date;
+  endsAt: Date;
+  platform: string;
+}): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const firstName = escapeHtml(params.name.trim().split(/\s+/)[0] || params.name);
+  const when = escapeHtml(formatDiscoveryTime(params.startsAt, params.endsAt));
+  const bodyHtml = `
+    <h2>Thank you, ${firstName}. You're booked in.</h2>
+    <div class="meta"><strong>${when}</strong><br/>${escapeHtml(params.platform)}, 20 minutes</div>
+    <p>A calendar invitation with the joining link is on its way from my diary. Please accept it so the call sits in yours.</p>
+    <p>You'll also get LegalNote's recording consent email, the same one your clients would receive, because LegalNote will ask to join and take a note of our call. Agree or decline as you prefer: the call goes ahead either way.</p>
+    <p>There's nothing to prepare. Please don't mention real clients or matters on the call. I'll show you the rest on a fictional matter.</p>
+    <p>If the time stops working, reply to this email or to the invitation and we'll find another.</p>
+    <p>Jazz Dennis<br/>Founder, LegalNote</p>
+  `;
+  const html = wrapLegalNoteBrandedEmail({
+    eyebrow: 'Discovery call',
+    bodyHtml,
+    footerNote: 'You are receiving this because you booked a call at legalnote.ai/talk. See legalnote.ai/privacy for how we use your details.',
+  });
+  return sendEmail({
+    from: 'Jazz at LegalNote <support@legalnote.ai>',
+    to: params.to,
+    replyTo: 'jazz.dennis@legalnote.ai',
+    subject: `Booked: LegalNote call, ${formatDiscoveryTime(params.startsAt)}`,
+    html,
+  });
+}
+
+/** To the organiser when someone books a discovery call. */
+export async function sendDiscoveryBookingOwnerNotification(params: {
+  to: string;
+  name: string;
+  email: string;
+  firm: string | null;
+  intakeAnswer: string | null;
+  source: string | null;
+  startsAt: Date;
+}): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const rows = [
+    ['When', formatDiscoveryTime(params.startsAt)],
+    ['Name', params.name],
+    ['Email', params.email],
+    ['Firm', params.firm || 'Not given'],
+    ['Notes today', params.intakeAnswer || 'Not given'],
+    ['Came from', params.source || 'Direct'],
+  ]
+    .map(([k, v]) => `<strong>${escapeHtml(k)}:</strong> ${escapeHtml(v)}`)
+    .join('<br/>');
+  const html = wrapLegalNoteBrandedEmail({
+    eyebrow: 'New discovery call',
+    bodyHtml: `<h2>${escapeHtml(params.name)} has booked a call</h2><div class="meta">${rows}</div><p>The invitation is in your calendar. Add them to HQ if they're not there yet.</p>`,
+    footerNote: 'Sent by legalnote.ai/talk.',
+  });
+  return sendEmail({
+    from: 'LegalNote <support@legalnote.ai>',
+    to: params.to,
+    subject: `New discovery call: ${params.name}${params.firm ? `, ${params.firm}` : ''}`,
+    html,
+  });
+}
