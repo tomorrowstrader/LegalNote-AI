@@ -3609,7 +3609,8 @@ export async function sendDiscoveryBookingConfirmationEmail(params: {
     <h2>Thank you, ${firstName}. You're booked in.</h2>
     <div class="meta"><strong>${when}</strong><br/>${escapeHtml(params.platform)}, 20 minutes</div>
     <p>A calendar invitation with the joining link is on its way from my diary. Please accept it so the call sits in yours.</p>
-    <p>There's nothing to prepare. I'll show you LegalNote working on a fictional matter, so please don't bring real client documents or details.</p>
+    <p>You'll also get LegalNote's recording consent email, the same one your clients would receive, because LegalNote will ask to join and take a note of our call. Agree or decline as you prefer: the call goes ahead either way.</p>
+    <p>There's nothing to prepare. Please don't mention real clients or matters on the call. I'll show you the rest on a fictional matter.</p>
     <p>If the time stops working, reply to this email or to the invitation and we'll find another.</p>
     <p>Jazz Dennis<br/>Founder, LegalNote</p>
   `;

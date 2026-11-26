@@ -165,7 +165,7 @@ export default function TalkPage() {
           <div className="lnb-tiles">
             {[
               ["01", "How notes are made in your firm", "Who writes them, when, and what happens when one is questioned months later."],
-              ["02", "A note being made", "I'll take you through a fictional matter in LegalNote, from the meeting to the filed attendance note and its record."],
+              ["02", "LegalNote in the room", "LegalNote joins our call, after the same consent email your clients would get. I'll then take you through a fictional matter, from the meeting to the filed attendance note."],
               ["03", "Whether it fits", "If it doesn't suit your firm, I'll say so. If it might, we'll talk about a governed evaluation."],
             ].map(([n, title, body]) => (
               <article key={n} className="lnb-paper lnb-tile">
@@ -295,6 +295,10 @@ export default function TalkPage() {
                   {submitting ? "Booking…" : "Book the call"}
                   <span className="lnb-orb" aria-hidden><ArrowRight size={18} strokeWidth={2} /></span>
                 </button>
+                <p className="lnb-sm" style={{ fontSize: 13 }}>
+                  LegalNote will ask to join and take a note of the call, so you'll get our consent email. Saying no is
+                  fine and the call still goes ahead.
+                </p>
                 <p className="lnb-sm" style={{ fontSize: 13 }}>
                   We'll use your details to arrange the call and to follow up with you about LegalNote, and keep them for
                   up to 24 months after the call. See our <a href="/privacy" style={{ textDecoration: "underline" }}>privacy policy</a>.

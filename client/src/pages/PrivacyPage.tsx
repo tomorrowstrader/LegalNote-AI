@@ -224,6 +224,20 @@ export default function PrivacyPage() {
                   ask for client or matter details when you book.
                 </li>
                 <li>
+                  <strong>Recording the call:</strong> LegalNote asks to join
+                  the call and take a note, using the same consent email and
+                  in-call consent step our customers use. You can decline, and
+                  the call goes ahead without it. If you agree, the call is
+                  recorded, transcribed and turned into a note for our own
+                  records, by the same services and in the same EU regions
+                  listed in section 5. The audio is deleted within 7 days, the
+                  transcript and note are kept for up to 24 months after the
+                  call, and the record of your consent decision is kept as
+                  consent evidence (see section 6). We ask you not to mention
+                  clients or matters on the call; if any client details are
+                  mentioned, we delete them.
+                </li>
+                <li>
                   <strong>Backup booking page:</strong> if our own booking is
                   unavailable and you use the backup page instead, Cal.com,
                   Inc. in the United States handles that booking for us, under
@@ -469,6 +483,11 @@ export default function PrivacyPage() {
                     "Call bookings made at legalnote.ai/talk",
                     "24 months after the call",
                     "Deleted automatically by the retention cleanup job",
+                  ],
+                  [
+                    "Transcripts and notes of calls booked at legalnote.ai/talk",
+                    "Up to 24 months after the call",
+                    "Audio follows the 7-day rule above",
                   ],
                 ]}
               />

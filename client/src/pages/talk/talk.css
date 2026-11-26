@@ -70,6 +70,7 @@
 
 /* Agenda tiles */
 .lnb-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+.lnb-tiles.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .lnb-tile { padding: 26px 24px; display: flex; flex-direction: column; gap: 10px; }
 .lnb-tile-n { font: 500 12px/1 var(--mono); color: var(--gold); letter-spacing: .1em; }
 
@@ -121,7 +122,7 @@ textarea.lnb-input { resize: vertical; min-height: 84px; }
   .lnb-hero { grid-template-columns: 1fr; }
   .lnb-host { max-width: 420px; }
   .lnb-host img { aspect-ratio: 4 / 3; object-position: 50% 18%; }
-  .lnb-tiles { grid-template-columns: 1fr; }
+  .lnb-tiles, .lnb-tiles.four { grid-template-columns: 1fr; }
   .lnb-book { grid-template-columns: 1fr; }
   .lnb-days { border-right: 0; border-bottom: 1px solid var(--hair-soft); }
 }

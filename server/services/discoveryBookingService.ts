@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { and, eq, gte, lt, sql } from "drizzle-orm";
-import { meetingBookingProposals, meetingBookingSlots, users } from "@shared/schema";
+import { meetingBookingProposals, meetingBookingSlots, scheduledMeetings, users } from "@shared/schema";
 import {
   DISCOVERY_BOOKING,
   DISCOVERY_FALLBACK_URL,
@@ -28,8 +28,11 @@ import {
  * The organiser is the LegalNote user whose email is in
  * DISCOVERY_BOOKING_OWNER_EMAIL. Times come from DISCOVERY_BOOKING rules minus
  * the busy times in every calendar they have connected. A booking creates a
- * Teams (or Meet) invite from their calendar. It never creates a scheduled
- * meeting, so the LegalNote bot never joins or records a discovery call.
+ * Teams (or Meet) invite from their calendar and a scheduled meeting with
+ * recording on, then sends the prospect LegalNote's real consent email, so they
+ * see the product working. The bot joins unless they decline, and a decline
+ * never cancels the call. The note is filed as a case discussion (no client
+ * letter) and stays with the organiser.
  *
  * Bookings are stored in meeting_booking_proposals (booking_kind "discovery")
  * and deleted 24 months after the call.
@@ -201,6 +204,7 @@ export async function bookDiscoveryCall(
   const eventTitle = `LegalNote discovery call: ${input.name}${firm ? `, ${firm}` : ""}`;
 
   let calendarEventId: string | undefined;
+  let scheduledMeetingId: string | undefined;
   try {
     const event = {
       title: eventTitle,
@@ -216,6 +220,31 @@ export async function bookDiscoveryCall(
         : await createMeetingCalendarEvent(owner.id, event, storage);
     if (!result.success || !result.eventId) throw new Error(result.error || "Calendar event not created");
     calendarEventId = result.eventId;
+    const meetingUrl = result.meetingUrl;
+    if (!meetingUrl) throw new Error("Calendar event was created without a join link");
+    const meetingPlatform = result.meetingPlatform ?? (provider === "outlook" ? "teams" : "meet");
+
+    // Same downstream path as any booked meeting: it shows in Upcoming Meetings and
+    // the bot joins at the start unless the prospect declines by email.
+    const meeting = await storage.createScheduledMeeting({
+      userId: owner.id,
+      calendarEventId,
+      calendarProvider: provider,
+      title: eventTitle,
+      description,
+      meetingUrl,
+      meetingPlatform,
+      startTime: startsAt,
+      endTime: endsAt,
+      attendees: [{ email: input.email, name: input.name }],
+      clientEmail: input.email,
+      clientName: input.name,
+      autoRecordEnabled: true,
+      recordingType: "internal_meeting",
+      consentStatus: "pending",
+      status: "scheduled",
+    });
+    scheduledMeetingId = meeting.id;
 
     const [slot] = await db
       .insert(meetingBookingSlots)
@@ -223,7 +252,7 @@ export async function bookDiscoveryCall(
       .returning({ id: meetingBookingSlots.id });
     await db
       .update(meetingBookingProposals)
-      .set({ selectedSlotId: slot.id, calendarEventId, updatedAt: new Date() })
+      .set({ selectedSlotId: slot.id, calendarEventId, scheduledMeetingId, updatedAt: new Date() })
       .where(eq(meetingBookingProposals.id, proposalId));
 
     cache = null;
@@ -239,6 +268,27 @@ export async function bookDiscoveryCall(
         if (!r.success) console.warn("[DISCOVERY_BOOKING] Confirmation email failed:", r.error);
       })
       .catch((e) => console.warn("[DISCOVERY_BOOKING] Confirmation email failed:", e));
+
+    // The real consent email, as a firm's client would get it. The prospect's own
+    // booking triggers it, so this is not the scheduler writing to attendees.
+    void (async () => {
+      try {
+        const { meetingSchedulerService } = await import("./meetingSchedulerService");
+        const sent = await meetingSchedulerService.sendConsentEmailForMeeting(meeting);
+        if (!sent) {
+          console.warn("[DISCOVERY_BOOKING] Consent email not sent for meeting", meeting.id);
+          return;
+        }
+        await storage.createAuditLog({
+          userId: owner.id,
+          eventType: "pre_consent_email_sent",
+          metadata: { meetingId: meeting.id, source: "discovery_booking" },
+          severity: "info",
+        });
+      } catch (e) {
+        console.warn("[DISCOVERY_BOOKING] Consent email failed:", e);
+      }
+    })();
 
     if (owner.email) {
       void sendDiscoveryBookingOwnerNotification({
@@ -258,7 +308,7 @@ export async function bookDiscoveryCall(
       await storage.createAuditLog({
         userId: owner.id,
         eventType: "discovery_call_booked",
-        metadata: { proposalId, startsAt: startsAt.toISOString(), source, provider },
+        metadata: { proposalId, meetingId: meeting.id, startsAt: startsAt.toISOString(), source, provider },
         severity: "info",
       });
     } catch (auditError) {
@@ -275,6 +325,13 @@ export async function bookDiscoveryCall(
       }
     } catch (cleanupError) {
       console.warn("[DISCOVERY_BOOKING] Calendar cleanup failed:", cleanupError);
+    }
+    if (scheduledMeetingId) {
+      await db
+        .update(meetingBookingProposals)
+        .set({ scheduledMeetingId: null })
+        .where(eq(meetingBookingProposals.id, proposalId));
+      await db.delete(scheduledMeetings).where(eq(scheduledMeetings.id, scheduledMeetingId));
     }
     await db.delete(meetingBookingProposals).where(eq(meetingBookingProposals.id, proposalId));
     throw httpError(502, "We couldn't confirm that time. Please try again, or use the backup booking page.");

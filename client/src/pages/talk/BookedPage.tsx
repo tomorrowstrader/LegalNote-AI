@@ -45,11 +45,12 @@ export default function BookedPage() {
 
         <div className="lnb-rule" aria-hidden><span /><i /><span /></div>
 
-        <section className="lnb-tiles">
+        <section className="lnb-tiles four">
           {[
             ["01", "Look out for the invitation", `A ${platform} invitation is on its way from my calendar, with a short confirmation email from LegalNote. Please accept it so the call sits in your diary.`],
-            ["02", "Nothing to prepare", "I'll show you LegalNote working on a fictional matter, so please don't bring real client documents or details."],
-            ["03", "Need a different time?", `Reply to the invitation or email ${JAZZ_EMAIL} and we'll find another.`],
+            ["02", "Then the consent email", "You'll also get LegalNote's recording consent email, exactly as your clients would. Agree or decline: the call goes ahead either way."],
+            ["03", "Nothing to prepare", "Please don't mention real clients or matters on the call. I'll show you the rest on a fictional matter."],
+            ["04", "Need a different time?", `Reply to the invitation or email ${JAZZ_EMAIL} and we'll find another.`],
           ].map(([n, title, body]) => (
             <article key={n} className="lnb-paper lnb-tile">
               <span className="lnb-tile-n">{n}</span>

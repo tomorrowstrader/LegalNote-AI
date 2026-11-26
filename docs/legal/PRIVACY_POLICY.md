@@ -52,6 +52,7 @@ If you are a client of a law firm using LegalNote, please contact your solicitor
 - **What we hold:** if you book a call at legalnote.ai/talk, your name, work email, firm (if you give it), your optional answer about how attendance notes are written in your firm, the time you chose, and which link brought you to the page.
 - **What we use it for:** arranging the call, sending you the calendar invitation and a confirmation, and following up with you about LegalNote afterwards. You can ask us to stop at any time.
 - **Where it is held:** in LegalNote's own systems, and the invitation in our Microsoft 365 calendar. We never ask for client or matter details when you book.
+- **Recording the call:** LegalNote asks to join the call and take a note, using the same consent email and in-call consent step our customers use. You can decline, and the call goes ahead without it. If you agree, the call is recorded, transcribed and turned into a note for our own records, by the same services and in the same EU regions listed in section 5. The audio is deleted within 7 days, the transcript and note are kept for up to 24 months after the call, and the record of your consent decision is kept as consent evidence (see section 6). We ask you not to mention clients or matters on the call; if any client details are mentioned, we delete them.
 - **Backup booking page:** if our own booking is unavailable and you use the backup page instead, Cal.com, Inc. in the United States handles that booking for us, under its data processing terms and its Data Privacy Framework certification.
 
 ## 4. How we use personal data, and the legal basis
@@ -122,6 +123,7 @@ We do not claim that all personal data never leaves the UK or EU. Privileged aud
 | Consent and audit records | Up to 6 years, for regulatory and defence purposes | Firms should confirm operational retention with LegalNote |
 | Account and billing data | While the account is active, then as needed for legal and accounting obligations | |
 | Call bookings made at legalnote.ai/talk | 24 months after the call | Deleted automatically by the retention cleanup job |
+| Transcripts and notes of calls booked at legalnote.ai/talk | Up to 24 months after the call | Audio follows the 7-day rule above |
 
 Firms remain responsible for professional retention obligations that exceed platform defaults.
 
