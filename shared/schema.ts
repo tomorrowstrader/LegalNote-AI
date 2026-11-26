@@ -875,6 +875,15 @@ export const meetingBookingProposals = pgTable("meeting_booking_proposals", {
   emailStatus: text("email_status").notNull().default("pending"), // pending, sent, failed
   respondedAt: timestamp("responded_at"),
   expiresAt: timestamp("expires_at").notNull(),
+  /** "proposal" (a solicitor's offered times) or "discovery" (a call booked on legalnote.ai/talk). */
+  bookingKind: text("booking_kind").notNull().default("proposal"),
+  /** Discovery calls only: the booked start, unique per organiser so a time can't be taken twice. */
+  bookedStartsAt: timestamp("booked_starts_at"),
+  /** Discovery calls only: the visitor's firm, their optional answer, and where the link came from. */
+  guestFirm: text("guest_firm"),
+  intakeAnswer: text("intake_answer"),
+  source: text("source"),
+  calendarEventId: text("calendar_event_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

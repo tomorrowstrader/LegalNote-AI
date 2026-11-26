@@ -25,6 +25,16 @@ export const generalApiLimiter = rateLimit({
   keyGenerator: userOrIpKey,
 });
 
+// Discovery call bookings on legalnote.ai/talk: 5 attempts per hour per IP.
+export const discoveryBookingLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  message: { message: "Too many booking attempts. Please try again later, or email jazz.dennis@legalnote.ai." },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req: any) => ipKeyGenerator(req.ip ?? "unknown"),
+});
+
 // Case creation rate limit: 50 cases per hour per user
 export const caseCreationLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour

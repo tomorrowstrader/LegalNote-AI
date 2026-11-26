@@ -5,6 +5,7 @@ import type { CalendarIntegration } from '@shared/schema';
 import { computeReminderSchedule } from './reminderScheduler';
 import { ensureFreshOutlookToken } from './oauth';
 import { formatGraphLocalDateTime } from './graphDateTime';
+import { zonedTimeToUtc } from '@shared/discoveryBooking';
 
 // Calendar integration types
 export interface CalendarEventData {
@@ -1197,4 +1198,103 @@ export async function getConnectedProviders(
       connectedAt: outlookIntegration?.accessToken === 'replit-managed' ? undefined : outlookIntegration?.connectedAt?.toISOString(),
     },
   };
+}
+
+/**
+ * Busy times in the organiser's connected calendars between `from` and `to`,
+ * for LegalNote's own discovery booking. Reads every calendar in a connected
+ * Outlook mailbox and the primary Google calendar. Events marked free or
+ * cancelled are ignored. Throws if a connected calendar can't be read, so the
+ * caller never offers a time it couldn't check.
+ */
+export async function getCalendarBusyIntervals(
+  userId: string,
+  storage: IStorage,
+  baseUrl: string,
+  from: Date,
+  to: Date,
+): Promise<{ busy: Array<{ start: Date; end: Date }>; providers: Array<'google' | 'outlook'> }> {
+  const connected = await getConnectedProviders(userId, storage);
+  const busy: Array<{ start: Date; end: Date }> = [];
+  const providers: Array<'google' | 'outlook'> = [];
+
+  if (connected.outlook.connected) {
+    const accessToken = await withTimeout(
+      ensureFreshOutlookToken(storage, userId, baseUrl),
+      10000,
+      'Outlook token refresh',
+    );
+    const graphClient = Client.initWithMiddleware({
+      authProvider: { getAccessToken: async () => accessToken },
+    });
+    const calendars = (await withTimeout(
+      graphClient.api('/me/calendars').select('id').top(50).get(),
+      10000,
+      'Outlook calendar list',
+    )) as { value?: Array<{ id: string }> };
+
+    for (const cal of calendars.value ?? []) {
+      let request = graphClient
+        .api(`/me/calendars/${encodeURIComponent(cal.id)}/calendarView`)
+        .query({ startDateTime: from.toISOString(), endDateTime: to.toISOString() })
+        .header('Prefer', 'outlook.timezone="UTC"')
+        .select('start,end,showAs,isCancelled')
+        .top(250);
+      let page = (await withTimeout(request.get(), 10000, 'Outlook calendar view')) as {
+        value?: Array<{ start?: { dateTime?: string }; end?: { dateTime?: string }; showAs?: string; isCancelled?: boolean }>;
+        '@odata.nextLink'?: string;
+      };
+      for (let guard = 0; guard < 10; guard++) {
+        for (const ev of page.value ?? []) {
+          if (ev.isCancelled || ev.showAs === 'free') continue;
+          if (!ev.start?.dateTime || !ev.end?.dateTime) continue;
+          busy.push({ start: new Date(`${ev.start.dateTime}Z`), end: new Date(`${ev.end.dateTime}Z`) });
+        }
+        const next = page['@odata.nextLink'];
+        if (!next) break;
+        request = graphClient.api(next).header('Prefer', 'outlook.timezone="UTC"');
+        page = await withTimeout(request.get(), 10000, 'Outlook calendar view');
+      }
+    }
+    providers.push('outlook');
+  }
+
+  if (connected.google.connected) {
+    const { token } = await getValidAccessToken(userId, storage);
+    const auth = new google.auth.OAuth2();
+    auth.setCredentials({ access_token: token });
+    const calendar = google.calendar({ version: 'v3', auth });
+    let pageToken: string | undefined;
+    for (let guard = 0; guard < 10; guard++) {
+      const res = await withTimeout(
+        calendar.events.list({
+          calendarId: 'primary',
+          timeMin: from.toISOString(),
+          timeMax: to.toISOString(),
+          singleEvents: true,
+          maxResults: 250,
+          pageToken,
+        }),
+        10000,
+        'Google calendar events',
+      );
+      for (const ev of res.data.items ?? []) {
+        if (ev.status === 'cancelled' || ev.transparency === 'transparent') continue;
+        // All-day events run from local midnight to local midnight.
+        const start = ev.start?.dateTime
+          ? new Date(ev.start.dateTime)
+          : ev.start?.date ? zonedTimeToUtc(ev.start.date, '00:00', 'Europe/London') : null;
+        const end = ev.end?.dateTime
+          ? new Date(ev.end.dateTime)
+          : ev.end?.date ? zonedTimeToUtc(ev.end.date, '00:00', 'Europe/London') : null;
+        if (!start || !end) continue;
+        busy.push({ start, end });
+      }
+      pageToken = res.data.nextPageToken ?? undefined;
+      if (!pageToken) break;
+    }
+    providers.push('google');
+  }
+
+  return { busy, providers };
 }

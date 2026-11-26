@@ -142,6 +142,7 @@ import {
   authUserIpLimiter,
   pollingLimiter,
   dpaSigningLimiter,
+  discoveryBookingLimiter,
 } from "./rateLimiting";
 import { logAuditEvent, auditMiddleware } from "./auditMiddleware";
 import { normalizeMeetingCastInput } from "@shared/meetingCast";
@@ -14105,6 +14106,51 @@ app.post("/api/cases/:id/transcript/redaction-amendment", isAuthenticated, async
       }
     },
   );
+
+  // --- LegalNote's own discovery-call booking (legalnote.ai/talk) ---
+  app.get("/api/public/discovery-call/availability", generalApiLimiter, async (req, res, next) => {
+    try {
+      const { getDiscoveryAvailability } = await import("./services/discoveryBookingService");
+      res.setHeader("Cache-Control", "no-store");
+      res.json(await getDiscoveryAvailability(getCanonicalBaseUrl(req)));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/public/discovery-call", discoveryBookingLimiter, async (req, res, next) => {
+    try {
+      const bodySchema = z.object({
+        startsAt: z.string().datetime(),
+        name: z.string().trim().min(2).max(120),
+        email: z.string().trim().toLowerCase().email().max(255),
+        firm: z.string().trim().max(160).optional().nullable(),
+        intakeAnswer: z.string().trim().max(600).optional().nullable(),
+        source: z.string().trim().max(60).regex(/^[a-z0-9_-]*$/i).optional().nullable(),
+        /** Honeypot: hidden from people, filled by bots. */
+        website: z.string().max(0).optional().nullable(),
+      });
+      const parsed = bodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Please choose a time and enter your name and a valid email address." });
+      }
+      const { bookDiscoveryCall } = await import("./services/discoveryBookingService");
+      const result = await bookDiscoveryCall({
+        startsAt: new Date(parsed.data.startsAt),
+        name: parsed.data.name,
+        email: parsed.data.email,
+        firm: parsed.data.firm,
+        intakeAnswer: parsed.data.intakeAnswer,
+        source: parsed.data.source,
+        baseUrl: getCanonicalBaseUrl(req),
+      });
+      res.json({ status: "booked", startsAt: result.startsAt, endsAt: result.endsAt, platform: result.platform });
+    } catch (error: any) {
+      if (error?.status) return res.status(error.status).json({ message: error.message });
+      console.error("[DISCOVERY_BOOKING] Error booking call:", error);
+      next(error);
+    }
+  });
 
   app.get("/api/book/:token", generalApiLimiter, async (req, res, next) => {
     try {

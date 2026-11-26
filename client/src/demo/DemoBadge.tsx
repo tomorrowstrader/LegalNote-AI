@@ -1,8 +1,7 @@
 import { createPortal } from "react-dom";
 import { CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
-
-const CALENDLY_URL = "https://calendly.com/legalnote/demo";
+import { bookACallLinkProps } from "@/lib/bookACall";
 
 export function DemoBadge() {
   return (
@@ -18,9 +17,7 @@ export function DemoBadge() {
             <p className="text-xs text-white/60">Book a 15-minute call to see LegalNote for your firm - no obligation.</p>
           </div>
           <a
-            href={CALENDLY_URL}
-            target="_blank"
-            rel="noopener noreferrer"
+            {...bookACallLinkProps("showroom")}
             data-testid="link-book-demo-call"
           >
             <Button
