@@ -263,12 +263,14 @@ export default function PrivacyPage() {
                 </li>
                 <li>
                   <strong>Where we get it:</strong> your firm's or company's own
-                  website, Companies House, the SRA register, professional
+                  website, Companies House, professional
                   directories and event listings, public professional profiles
                   we view ourselves, and introductions from people who know
                   you. We do not use scraping tools on LinkedIn. We sometimes
                   use AI research tools to find and check publicly available
-                  business details.
+                  business details. We may check a firm's status on the SRA
+                  register, but we don't use SRA data to choose who to
+                  contact.
                 </li>
                 <li>
                   <strong>What we use it for:</strong> inviting you to see
