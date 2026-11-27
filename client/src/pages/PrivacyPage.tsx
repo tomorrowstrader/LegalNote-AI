@@ -245,6 +245,60 @@ export default function PrivacyPage() {
                   certification.
                 </li>
               </ul>
+              <h3 className={legalH3Class}>
+                3.5 People we contact about LegalNote (LegalNote as controller)
+              </h3>
+              <ul className="list-disc pl-6 space-y-2">
+                <li>
+                  <strong>Who:</strong> solicitors, partners and managers at
+                  law firms, and people at IT providers and consultancies who
+                  might work with us. We contact you in your work role only.
+                </li>
+                <li>
+                  <strong>What we hold:</strong> your name, job title, firm or
+                  company, business email and phone number, a link to your
+                  public professional profile, where and when we found each
+                  detail, our contact history with you, and whether you have
+                  asked us not to contact you. Nothing about your private life.
+                </li>
+                <li>
+                  <strong>Where we get it:</strong> your firm's or company's own
+                  website, Companies House, professional
+                  directories and event listings, public professional profiles
+                  we view ourselves, and introductions from people who know
+                  you. We do not use scraping tools on LinkedIn. We sometimes
+                  use AI research tools to find and check publicly available
+                  business details. We may check a firm's status on the SRA
+                  register, but we don't use SRA data to choose who to
+                  contact.
+                </li>
+                <li>
+                  <strong>What we use it for:</strong> inviting you to see
+                  LegalNote or proposing that we work together, following up,
+                  and keeping a record of what was said. At a company or LLP we
+                  may email your business address. Sole practitioners and
+                  traditional partnerships we email only if you asked us to,
+                  agreed to it, or were introduced to us. We check phone
+                  numbers against the TPS and CTPS before any call.
+                </li>
+                <li>
+                  <strong>Where it is held:</strong> in LegalNote's internal
+                  systems, hosted on Railway (EU-West, Amsterdam) with the
+                  database on Neon (AWS London), and sign-in through Google.
+                </li>
+                <li>
+                  <strong>Telling you:</strong> our first message says who we
+                  are, what we hold, where we found your details and how to opt
+                  out. If we haven't contacted you within a month of finding
+                  your details, we delete them.
+                </li>
+                <li>
+                  <strong>Stopping:</strong> reply "stop" or email
+                  privacy@legalnote.ai and we stop straight away. We keep only
+                  your name, company and a note not to contact you, so that we
+                  never contact you again by mistake.
+                </li>
+              </ul>
             </section>
 
             <section>
@@ -282,8 +336,12 @@ export default function PrivacyPage() {
                     "Legitimate interests, Art. 6(1)(f)",
                   ],
                   [
-                    "Marketing, where applicable",
-                    "Consent, Art. 6(1)(a)",
+                    "Contacting people at law firms and IT providers about LegalNote or a partnership, and following up (section 3.5)",
+                    "Legitimate interests, Art. 6(1)(f)",
+                  ],
+                  [
+                    "Marketing emails to sole practitioners, traditional partnerships and other individuals, where the law requires consent",
+                    "Consent, Art. 6(1)(a), or the soft opt-in for existing customers",
                   ],
                 ]}
               />
@@ -489,6 +547,26 @@ export default function PrivacyPage() {
                     "Up to 24 months after the call",
                     "Audio follows the 7-day rule above",
                   ],
+                  [
+                    "People we contact about LegalNote (section 3.5), not yet contacted",
+                    "1 month from finding the details",
+                    "Deleted if we haven't made contact",
+                  ],
+                  [
+                    "People we contact about LegalNote, no reply",
+                    "12 months from our last contact",
+                    "Then deleted",
+                  ],
+                  [
+                    "People we contact about LegalNote who replied, met us or declined",
+                    "24 months from our last contact",
+                    "Then deleted; customers and partners move to their own records",
+                  ],
+                  [
+                    "People who asked us not to contact them",
+                    "Name, company and a do-not-contact note only",
+                    "Kept so that we can honour the request",
+                  ],
                 ]}
               />
               <p className="leading-relaxed mt-4">
@@ -521,6 +599,10 @@ export default function PrivacyPage() {
                   [
                     "Object",
                     "Object to processing based on legitimate interests",
+                  ],
+                  [
+                    "Object to marketing",
+                    "Ask us to stop contacting you about LegalNote at any time. We will, without exception",
                   ],
                   [
                     "Withdraw consent",

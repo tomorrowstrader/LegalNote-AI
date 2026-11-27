@@ -55,6 +55,16 @@ If you are a client of a law firm using LegalNote, please contact your solicitor
 - **Recording the call:** LegalNote asks to join the call and take a note, using the same consent email and in-call consent step our customers use. You can decline, and the call goes ahead without it. If you agree, the call is recorded, transcribed and turned into a note for our own records, by the same services and in the same EU regions listed in section 5. The audio is deleted within 7 days, the transcript and note are kept for up to 24 months after the call, and the record of your consent decision is kept as consent evidence (see section 6). We ask you not to mention clients or matters on the call; if any client details are mentioned, we delete them.
 - **Backup booking page:** if our own booking is unavailable and you use the backup page instead, Cal.com, Inc. in the United States handles that booking for us, under its data processing terms and its Data Privacy Framework certification.
 
+### 3.5 People we contact about LegalNote (LegalNote as controller)
+
+- **Who:** solicitors, partners and managers at law firms, and people at IT providers and consultancies who might work with us. We contact you in your work role only.
+- **What we hold:** your name, job title, firm or company, business email and phone number, a link to your public professional profile, where and when we found each detail, our contact history with you, and whether you have asked us not to contact you. Nothing about your private life.
+- **Where we get it:** your firm's or company's own website, Companies House, professional directories and event listings, public professional profiles we view ourselves, and introductions from people who know you. We may check a firm's status on the SRA register, but we don't use SRA data to choose who to contact. We do not use scraping tools on LinkedIn. We sometimes use AI research tools to find and check publicly available business details.
+- **What we use it for:** inviting you to see LegalNote or proposing that we work together, following up, and keeping a record of what was said. At a company or LLP we may email your business address. Sole practitioners and traditional partnerships we email only if you asked us to, agreed to it, or were introduced to us. We check phone numbers against the TPS and CTPS before any call.
+- **Where it is held:** in LegalNote's internal systems, hosted on Railway (EU-West, Amsterdam) with the database on Neon (AWS London), and sign-in through Google.
+- **Telling you:** our first message says who we are, what we hold, where we found your details and how to opt out. If we haven't contacted you within a month of finding your details, we delete them.
+- **Stopping:** reply "stop" or email privacy@legalnote.ai and we stop straight away. We keep only your name, company and a note not to contact you, so that we never contact you again by mistake.
+
 ## 4. How we use personal data, and the legal basis
 
 For the account, billing and website data for which LegalNote is the controller, our legal bases under the UK GDPR are as follows:
@@ -66,7 +76,8 @@ For the account, billing and website data for which LegalNote is the controller,
 | Billing and subscription administration | Contract performance, Art. 6(1)(b) |
 | Service communications (account, security, product notices) | Legitimate interests, Art. 6(1)(f) |
 | Arranging a call you book with us, and following up about LegalNote | Legitimate interests, Art. 6(1)(f) |
-| Marketing, where applicable | Consent, Art. 6(1)(a) |
+| Contacting people at law firms and IT providers about LegalNote or a partnership, and following up (section 3.5) | Legitimate interests, Art. 6(1)(f) |
+| Marketing emails to sole practitioners, traditional partnerships and other individuals, where the law requires consent | Consent, Art. 6(1)(a), or the soft opt-in for existing customers |
 
 For client and matter data, LegalNote acts as processor. We process that data only on the documented instructions of your firm under Article 28 of the UK GDPR. Your firm, as controller, determines the lawful basis under Article 6 (and, where special category or criminal offence data is involved, the condition under Articles 9 and 10 and the Data Protection Act 2018). We do not determine the purposes of processing matter data, and we do not rely on a legal basis of our own for it.
 
@@ -124,6 +135,10 @@ We do not claim that all personal data never leaves the UK or EU. Privileged aud
 | Account and billing data | While the account is active, then as needed for legal and accounting obligations | |
 | Call bookings made at legalnote.ai/talk | 24 months after the call | Deleted automatically by the retention cleanup job |
 | Transcripts and notes of calls booked at legalnote.ai/talk | Up to 24 months after the call | Audio follows the 7-day rule above |
+| People we contact about LegalNote (section 3.5), not yet contacted | 1 month from finding the details | Deleted if we haven't made contact |
+| People we contact about LegalNote, no reply | 12 months from our last contact | Then deleted |
+| People we contact about LegalNote who replied, met us or declined | 24 months from our last contact | Then deleted; customers and partners move to their own records |
+| People who asked us not to contact them | Name, company and a do-not-contact note only | Kept so that we can honour the request |
 
 Firms remain responsible for professional retention obligations that exceed platform defaults.
 
@@ -137,6 +152,7 @@ Firms remain responsible for professional retention obligations that exceed plat
 | Restriction | Limit processing in applicable circumstances |
 | Portability | Receive data in a portable format where applicable |
 | Object | Object to processing based on legitimate interests |
+| Object to marketing | Ask us to stop contacting you about LegalNote at any time. We will, without exception |
 | Withdraw consent | Where processing is based on consent |
 
 Account or website data: privacy@legalnote.ai. Client or matter data: contact your solicitor, who is the controller; LegalNote will assist them under the DPA. You may also complain to the ICO at [ico.org.uk/make-a-complaint](https://ico.org.uk/make-a-complaint).
