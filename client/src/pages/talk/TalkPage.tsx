@@ -142,7 +142,7 @@ export default function TalkPage() {
           </div>
 
           <aside className="lnb-wg lnb-host">
-            <img src="/images/jazz-dennis-talk.jpg" alt="Jazz Dennis" width={520} height={572} />
+            <img src="/images/jazz-dennis-portrait.jpg" alt="Jazz Dennis" width={936} height={1030} />
             <div className="lnb-host-name">
               <h2 className="lnb-disp lnb-h3">Jazz Dennis</h2>
               <span className="lnb-cap">Founder, LegalNote</span>
