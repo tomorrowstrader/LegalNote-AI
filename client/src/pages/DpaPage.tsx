@@ -158,9 +158,9 @@ export default function DpaPage() {
                 Sub-processors
               </Link>
               {" · "}
-              <Link href="/privacy" className={legalLinkClass}>
+              <a href="/privacy" className={legalLinkClass} target="_blank" rel="noopener noreferrer">
                 Privacy Policy
-              </Link>
+              </a>
             </p>
           </div>
 

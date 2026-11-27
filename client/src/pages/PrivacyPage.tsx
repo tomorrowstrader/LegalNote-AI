@@ -194,9 +194,9 @@ export default function PrivacyPage() {
                 </li>
                 <li>
                   Cookies and similar technologies (see our{" "}
-                  <Link href="/cookies" className={legalLinkClass}>
+                  <a href="/cookies" className={legalLinkClass} target="_blank" rel="noopener noreferrer">
                     Cookie Policy
-                  </Link>
+                  </a>
                   ).
                 </li>
               </ul>
@@ -658,9 +658,9 @@ export default function PrivacyPage() {
                 We use strictly necessary cookies for authentication and session
                 management, and a limited functional cookie for UI preferences.
                 We do not use analytics or advertising cookies. See our{" "}
-                <Link href="/cookies" className={legalLinkClass}>
+                <a href="/cookies" className={legalLinkClass} target="_blank" rel="noopener noreferrer">
                   Cookie Policy
-                </Link>{" "}
+                </a>{" "}
                 for details.
               </p>
             </section>

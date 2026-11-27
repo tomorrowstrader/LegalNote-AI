@@ -558,18 +558,18 @@ export default function Features() {
               © {new Date().getFullYear()} LegalNote Technologies Ltd. All rights reserved.
             </div>
             <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm">
-              <Link href="/privacy" className="text-white/50 hover:text-white transition-colors" data-testid="link-features-privacy">
+              <a href="/privacy" className="text-white/50 hover:text-white transition-colors" data-testid="link-features-privacy" target="_blank" rel="noopener noreferrer">
                 Privacy Policy
-              </Link>
-              <Link href="/terms" className="text-white/50 hover:text-white transition-colors" data-testid="link-features-terms">
+              </a>
+              <a href="/terms" className="text-white/50 hover:text-white transition-colors" data-testid="link-features-terms" target="_blank" rel="noopener noreferrer">
                 Terms of Service
-              </Link>
-              <Link href="/cookies" className="text-white/50 hover:text-white transition-colors" data-testid="link-features-cookies">
+              </a>
+              <a href="/cookies" className="text-white/50 hover:text-white transition-colors" data-testid="link-features-cookies" target="_blank" rel="noopener noreferrer">
                 Cookie Policy
-              </Link>
-              <Link href="/sub-processors" className="text-white/50 hover:text-white transition-colors" data-testid="link-features-subprocessors">
+              </a>
+              <a href="/sub-processors" className="text-white/50 hover:text-white transition-colors" data-testid="link-features-subprocessors" target="_blank" rel="noopener noreferrer">
                 Sub-processors
-              </Link>
+              </a>
             </div>
           </div>
         </div>

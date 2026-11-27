@@ -301,7 +301,7 @@ export default function TalkPage() {
                 </p>
                 <p className="lnb-sm" style={{ fontSize: 13 }}>
                   We'll use your details to arrange the call and to follow up with you about LegalNote, and keep them for
-                  up to 24 months after the call. See our <a href="/privacy" style={{ textDecoration: "underline" }}>privacy policy</a>.
+                  up to 24 months after the call. See our <a href="/privacy" style={{ textDecoration: "underline" }} target="_blank" rel="noopener noreferrer">privacy policy</a>.
                 </p>
               </form>
             </div>
@@ -312,7 +312,7 @@ export default function TalkPage() {
       <footer className="lnb-foot">
         <div className="lnb-in">
           <span>LegalNote Technologies Ltd, 71–75 Shelton Street, London WC2H 9JQ</span>
-          <span><a href="/privacy">Privacy</a> · <a href="/security">Security</a> · <a href={`mailto:${JAZZ_EMAIL}`}>{JAZZ_EMAIL}</a></span>
+          <span><a href="/privacy">Privacy</a> · <a href="/security">Security</a> · <a href={`mailto:${JAZZ_EMAIL}`} target="_blank" rel="noopener noreferrer">{JAZZ_EMAIL}</a></span>
         </div>
       </footer>
     </div>

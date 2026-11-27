@@ -233,15 +233,15 @@ export default function Login() {
           <div className="space-y-3 pt-4">
             <p className="text-xs text-muted-foreground text-center">
               By signing in, you agree to our{" "}
-              <a href="/terms" className="underline" data-testid="link-terms">
+              <a href="/terms" className="underline" data-testid="link-terms" target="_blank" rel="noopener noreferrer">
                 Terms of Service
               </a>
               ,{" "}
-              <a href="/privacy" className="underline" data-testid="link-privacy">
+              <a href="/privacy" className="underline" data-testid="link-privacy" target="_blank" rel="noopener noreferrer">
                 Privacy Policy
               </a>
               , and{" "}
-              <a href="/cookies" className="underline" data-testid="link-cookies">
+              <a href="/cookies" className="underline" data-testid="link-cookies" target="_blank" rel="noopener noreferrer">
                 Cookie Policy
               </a>
             </p>

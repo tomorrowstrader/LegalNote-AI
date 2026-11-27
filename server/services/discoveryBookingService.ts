@@ -157,7 +157,7 @@ export async function bookDiscoveryCall(
   const startsAt = input.startsAt;
   const endsAt = new Date(startsAt.getTime() + DISCOVERY_BOOKING.durationMinutes * 60_000);
   const connected = await getConnectedProviders(owner.id, storage);
-  const provider: "outlook" | "google" = connected.outlook.connected ? "outlook" : "google";
+  let provider: "outlook" | "google" = connected.outlook.connected ? "outlook" : "google";
   const firm = input.firm?.trim() || null;
   const intakeAnswer = input.intakeAnswer?.trim() || null;
   const source = input.source?.trim() || null;
@@ -214,10 +214,20 @@ export async function bookDiscoveryCall(
       attendees: [{ email: input.email, name: input.name }],
       createConference: true,
     };
-    const result =
+    let result =
       provider === "outlook"
         ? await createOutlookMeetingCalendarEvent(owner.id, event, storage, input.baseUrl)
         : await createMeetingCalendarEvent(owner.id, event, storage);
+    // Some Microsoft 365 accounts can't create Teams links (no Teams licence).
+    // Rather than lose the booking, use Google Calendar with a Meet link.
+    if (provider === "outlook" && (!result.success || !result.eventId || !result.meetingUrl) && connected.google.connected) {
+      console.warn("[DISCOVERY_BOOKING] Teams link not available, booking on Google Meet instead:", result.error);
+      if (result.eventId) {
+        await deleteOutlookCalendarEvent(owner.id, result.eventId, storage, input.baseUrl).catch(() => undefined);
+      }
+      provider = "google";
+      result = await createMeetingCalendarEvent(owner.id, event, storage);
+    }
     if (!result.success || !result.eventId) throw new Error(result.error || "Calendar event not created");
     calendarEventId = result.eventId;
     const meetingUrl = result.meetingUrl;
@@ -252,7 +262,7 @@ export async function bookDiscoveryCall(
       .returning({ id: meetingBookingSlots.id });
     await db
       .update(meetingBookingProposals)
-      .set({ selectedSlotId: slot.id, calendarEventId, scheduledMeetingId, updatedAt: new Date() })
+      .set({ selectedSlotId: slot.id, calendarEventId, scheduledMeetingId, calendarProvider: provider, updatedAt: new Date() })
       .where(eq(meetingBookingProposals.id, proposalId));
 
     cache = null;

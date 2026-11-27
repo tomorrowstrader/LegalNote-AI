@@ -76,7 +76,7 @@ export default function BookedPage() {
       <footer className="lnb-foot">
         <div className="lnb-in">
           <span>LegalNote Technologies Ltd, 71–75 Shelton Street, London WC2H 9JQ</span>
-          <span><a href="/privacy">Privacy</a> · <a href={`mailto:${JAZZ_EMAIL}`}>{JAZZ_EMAIL}</a></span>
+          <span><a href="/privacy">Privacy</a> · <a href={`mailto:${JAZZ_EMAIL}`} target="_blank" rel="noopener noreferrer">{JAZZ_EMAIL}</a></span>
         </div>
       </footer>
     </div>

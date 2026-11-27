@@ -589,13 +589,12 @@ export default function SecurityPage() {
                   </Link>
                 </li>
                 <li>
-                  <Link 
+                  <a 
                     href="/security"
                     className="text-white/50 hover:text-white transition-colors"
-                    data-testid="link-footer-security"
-                  >
+                    data-testid="link-footer-security" target="_blank" rel="noopener noreferrer">
                     Security
-                  </Link>
+                  </a>
                 </li>
               </ul>
             </div>
@@ -622,34 +621,30 @@ export default function SecurityPage() {
               © {new Date().getFullYear()} LegalNote Technologies Ltd. All rights reserved.
             </div>
             <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm">
-              <Link 
+              <a 
                 href="/privacy"
                 className="text-white/50 hover:text-white transition-colors"
-                data-testid="link-footer-privacy"
-              >
+                data-testid="link-footer-privacy" target="_blank" rel="noopener noreferrer">
                 Privacy Policy
-              </Link>
-              <Link 
+              </a>
+              <a 
                 href="/terms"
                 className="text-white/50 hover:text-white transition-colors"
-                data-testid="link-footer-terms"
-              >
+                data-testid="link-footer-terms" target="_blank" rel="noopener noreferrer">
                 Terms of Service
-              </Link>
-              <Link 
+              </a>
+              <a 
                 href="/cookies"
                 className="text-white/50 hover:text-white transition-colors"
-                data-testid="link-footer-cookies"
-              >
+                data-testid="link-footer-cookies" target="_blank" rel="noopener noreferrer">
                 Cookie Policy
-              </Link>
-              <Link 
+              </a>
+              <a 
                 href="/sub-processors"
                 className="text-white/50 hover:text-white transition-colors"
-                data-testid="link-footer-subprocessors"
-              >
+                data-testid="link-footer-subprocessors" target="_blank" rel="noopener noreferrer">
                 Sub-processors
-              </Link>
+              </a>
             </div>
           </div>
         </div>

@@ -505,9 +505,9 @@ export default function CampaignFunnel() {
 
           <p className="mt-8 text-xs text-white/35">
             © {new Date().getFullYear()} LegalNote Technologies Ltd ·{" "}
-            <Link href="/privacy" className="underline hover:text-white/50">Privacy</Link>
+            <a href="/privacy" className="underline hover:text-white/50" target="_blank" rel="noopener noreferrer">Privacy</a>
             {" · "}
-            <Link href="/terms" className="underline hover:text-white/50">Terms</Link>
+            <a href="/terms" className="underline hover:text-white/50" target="_blank" rel="noopener noreferrer">Terms</a>
           </p>
         </motion.div>
       </SectionShell>

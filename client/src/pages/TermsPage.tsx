@@ -85,13 +85,13 @@ export default function TermsPage() {
                 other commercial agreement for the Service, that agreement
                 prevails over these Terms to the extent of any conflict. These
                 Terms, the{" "}
-                <Link href="/privacy" className={legalLinkClass}>
+                <a href="/privacy" className={legalLinkClass} target="_blank" rel="noopener noreferrer">
                   Privacy Policy
-                </Link>
+                </a>
                 , the{" "}
-                <Link href="/cookies" className={legalLinkClass}>
+                <a href="/cookies" className={legalLinkClass} target="_blank" rel="noopener noreferrer">
                   Cookie Policy
-                </Link>{" "}
+                </a>{" "}
                 and the Data Processing Agreement otherwise apply.
               </p>
             </section>
@@ -296,9 +296,9 @@ export default function TermsPage() {
                 processed through the Service. LegalNote is the data processor
                 for that client and matter data, and the controller for account,
                 billing and related business data as described in the{" "}
-                <Link href="/privacy" className={legalLinkClass}>
+                <a href="/privacy" className={legalLinkClass} target="_blank" rel="noopener noreferrer">
                   Privacy Policy
-                </Link>
+                </a>
                 .
               </p>
               <h3 className={legalH3Class}>8.2 Data Processing Agreement</h3>
@@ -311,13 +311,13 @@ export default function TermsPage() {
               <h3 className={legalH3Class}>8.3 Privacy and cookies</h3>
               <p className="leading-relaxed">
                 Our{" "}
-                <Link href="/privacy" className={legalLinkClass}>
+                <a href="/privacy" className={legalLinkClass} target="_blank" rel="noopener noreferrer">
                   Privacy Policy
-                </Link>{" "}
+                </a>{" "}
                 and{" "}
-                <Link href="/cookies" className={legalLinkClass}>
+                <a href="/cookies" className={legalLinkClass} target="_blank" rel="noopener noreferrer">
                   Cookie Policy
-                </Link>{" "}
+                </a>{" "}
                 explain how we collect and use data. By using the Service, you
                 acknowledge you have read them.
               </p>
@@ -521,13 +521,13 @@ export default function TermsPage() {
               </h2>
               <p className="leading-relaxed">
                 These Terms, together with the{" "}
-                <Link href="/privacy" className={legalLinkClass}>
+                <a href="/privacy" className={legalLinkClass} target="_blank" rel="noopener noreferrer">
                   Privacy Policy
-                </Link>
+                </a>
                 ,{" "}
-                <Link href="/cookies" className={legalLinkClass}>
+                <a href="/cookies" className={legalLinkClass} target="_blank" rel="noopener noreferrer">
                   Cookie Policy
-                </Link>{" "}
+                </a>{" "}
                 and DPA (and any signed order form or commercial agreement, which
                 prevails on conflict), constitute the entire agreement between
                 you and LegalNote regarding the Service. If any provision is
