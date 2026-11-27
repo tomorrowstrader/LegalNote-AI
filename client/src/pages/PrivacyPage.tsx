@@ -299,6 +299,26 @@ export default function PrivacyPage() {
                   never contact you again by mistake.
                 </li>
               </ul>
+              <h3 className={legalH3Class}>
+                3.6 Connected calendars (Google Calendar and Microsoft Outlook)
+              </h3>
+              <ul className="list-disc pl-6 space-y-2">
+                <li>
+                  <strong>What we access:</strong> if a user connects Google Calendar or Microsoft Outlook to LegalNote, we can create events in that calendar and read its events: their times, titles, attendees, descriptions and video-call links. For Google, the only permission we ask for is to view and edit calendar events (Google calls this calendar.events). We never read email, contacts or files through this connection.
+                </li>
+                <li>
+                  <strong>What we use it for:</strong> only for features the user can see in LegalNote: showing upcoming meetings so LegalNote can join and take the note with consent, creating calendar events for meetings booked in LegalNote and for case deadlines, and checking busy times so a booking never clashes with the diary.
+                </li>
+                <li>
+                  <strong>What we never do:</strong> we don't sell calendar data, use it for advertising, or use it to develop, improve or train AI or machine-learning models. People at LegalNote don't read it unless the user asks us to (for example, for support), it's needed for security, or the law requires it.
+                </li>
+                <li>
+                  <strong>Google's rules:</strong> LegalNote's use and transfer to any other app of information received from Google APIs will adhere to the <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer" className="underline">Google API Services User Data Policy</a>, including the Limited Use requirements.
+                </li>
+                <li>
+                  <strong>Stopping:</strong> disconnect the calendar in LegalNote (Firm Settings, Integrations), and we delete the saved connection. You can also remove LegalNote's access in your Google or Microsoft account settings, which stops it working straight away. Meetings already recorded in LegalNote stay until the firm deletes them.
+                </li>
+              </ul>
             </section>
 
             <section>
